@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: claw-backend
+    env: node
+    region: oregon
+    buildCommand: npm install
+    startCommand: node src/index.db.js
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        value: claw-secret-key-2026
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8089
