@@ -18,7 +18,7 @@ import browserRoutes from './routes/browser.js';
 import avatarRoutes from './routes/avatar.db.js';
 
 const app = express();
-const PORT = process.env.PORT || 8088;
+const PORT = process.env.PORT || 8089;
 
 // 中间件
 app.use(cors());
