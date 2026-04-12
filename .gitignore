@@ -1,0 +1,14 @@
+﻿node_modules
+.env
+.env.*
+data/*.json
+data/*.db
+data/*.log
+backend.log
+*.log
+.DS_Store
+.vscode
+.idea
+dist
+build
+coverage
