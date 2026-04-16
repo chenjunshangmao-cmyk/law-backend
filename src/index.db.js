@@ -23,6 +23,7 @@ import browserRoutes from './routes/browser.js';
 import avatarRoutes from './routes/avatar.db.js';
 import publishRoutes from './routes/publish.js';
 import customerServiceRoutes from './routes/customerService.js';
+import paymentRoutes from './routes/payment.db.js';
 
 const app = express();
 const PORT = process.env.PORT || 9000;
@@ -128,6 +129,8 @@ app.use('/api/browser', browserRoutes);
 app.use('/api/avatar', avatarRoutes);
 app.use('/api/publish', publishRoutes);
 app.use('/api/customer-service', customerServiceRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/webhook', paymentRoutes);
 
 // ==========================================
 // 商品抓取API (简化版)

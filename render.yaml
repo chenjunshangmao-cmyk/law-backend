@@ -20,5 +20,20 @@ services:
         value: postgresql://claw_db_user:zpCB2JNdscawi5cD0cyHA5BeqW2o8UPP@dpg-d7dlk6hkh4rs739s00b0-a/claw_db
       - key: ALLOWED_ORIGINS
         value: "https://claw-frontend.onrender.com,http://localhost:5173,http://localhost:3000"
+      # 收钱吧支付配置
+      - key: SHOUQIANBA_VENDOR_SN
+        value: "202504161525491733"
+      - key: SHOUQIANBA_VENDOR_KEY
+        value: "7e08b693f6de5d0a8a1e5b1c7f9a3d2e"
+      - key: SHOUQIANBA_TERMINAL_SN
+        value: "100111220054192664"
+      - key: SHOUQIANBA_TERMINAL_KEY
+        value: "6352979a5709c82448c95081085cfcbc"
+      - key: SHOUQIANBA_APP_ID
+        value: "202504161525491733"
+      - key: API_BASE_URL
+        value: "https://claw-backend-2026.onrender.com"
+      - key: FRONTEND_URL
+        value: "https://claw-frontend.pages.dev"
     healthCheckPath: /api/health
     autoDeploy: true
