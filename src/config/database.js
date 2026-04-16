@@ -1,34 +1,69 @@
-// 数据库配置 - PostgreSQL (Render)
-import { Sequelize } from 'sequelize';
+// 数据库配置 - PostgreSQL (Render) - 使用纯 pg 客户端
+import pg from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-// 从环境变量或 .env 获取数据库 URL
-const databaseUrl = process.env.DATABASE_URL || 'postgres://claw_db_user:zpCB2JNdscawi5cD0cyHA5BeqW2o8UPP@dpg-d7dlk6hkh4rs739s00b0-a.virginia-postgres.render.com/claw_db';
+const { Pool } = pg;
 
-// 创建 Sequelize 实例
-const sequelize = new Sequelize(databaseUrl, {
-  dialect: 'postgres',
-  dialectOptions: {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false
-    }
-  },
-  logging: process.env.NODE_ENV === 'development' ? console.log : false,
-  define: {
-    timestamps: true,
-    underscored: true,  // 使用下划线命名 (createdAt -> created_at)
-    freezeTableName: true
-  },
-  pool: {
-    max: 5,
-    min: 0,
-    acquire: 30000,
-    idle: 10000
-  }
+// 从环境变量获取数据库 URL
+const databaseUrl = process.env.DATABASE_URL;
+
+// 创建连接池
+const pool = new Pool({
+  connectionString: databaseUrl,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
+
+// 模拟 sequelize 接口以保持兼容性
+const sequelize = {
+  authenticate: async () => {
+    const client = await pool.connect();
+    client.release();
+    return true;
+  },
+  sync: async () => {
+    // 初始化数据库表
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        name VARCHAR(100),
+        membership_type VARCHAR(20) DEFAULT 'free',
+        membership_expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        platform VARCHAR(50) NOT NULL,
+        account_name VARCHAR(100) NOT NULL,
+        account_data JSONB DEFAULT '{}',
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS products (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        price DECIMAL(10, 2),
+        platform VARCHAR(50),
+        status VARCHAR(20) DEFAULT 'draft',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    return true;
+  },
+  query: (sql, options) => pool.query(sql, options),
+  close: () => pool.end()
+};
 
 // 测试数据库连接
 export const testConnection = async () => {
