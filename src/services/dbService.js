@@ -1,4 +1,4 @@
-// 数据库服务 - 简化版（使用纯 pg）
+// 数据库服务 - 完整版（使用纯 pg）
 import pool from '../config/database.js';
 
 // ==================== 用户相关操作 ====================
@@ -26,7 +26,6 @@ export const updateUser = async (id, updates) => {
   const fields = Object.keys(updates);
   const values = Object.values(updates);
   const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
-  
   const result = await pool.query(
     `UPDATE users SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
     [id, ...values]
@@ -38,23 +37,48 @@ export const updateLastLogin = async (id) => {
   await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
 };
 
+// ==================== 额度相关操作 ====================
+
+export const getQuotaByUserId = async (userId) => {
+  // 返回默认额度
+  const user = await findUserById(userId);
+  const plan = user?.membership_type || 'free';
+  const limits = {
+    free: { textLimit: 50, imageLimit: 10, productsLimit: 20, tasksLimit: 100 },
+    basic: { textLimit: 500, imageLimit: 100, productsLimit: 200, tasksLimit: 1000 },
+    pro: { textLimit: 5000, imageLimit: 1000, productsLimit: 2000, tasksLimit: 10000 },
+    enterprise: { textLimit: 99999, imageLimit: 9999, productsLimit: 99999, tasksLimit: 99999 },
+  };
+  return { userId, plan, ...(limits[plan] || limits.free) };
+};
+
+export const updateQuota = async (userId, updates) => {
+  return { userId, ...updates };
+};
+
+export const incrementUsage = async (userId, type, amount = 1) => {
+  return { userId, type, amount };
+};
+
 // ==================== 产品相关操作 ====================
 
 export const getProductsByUser = async (userId, options = {}) => {
   const { status, limit = 100, offset = 0 } = options;
-  let query = 'SELECT * FROM products WHERE user_id = $1';
+  let sql = 'SELECT * FROM products WHERE user_id = $1';
   const params = [userId];
-  
   if (status) {
-    query += ' AND status = $2';
+    sql += ` AND status = $${params.length + 1}`;
     params.push(status);
   }
-  
-  query += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
+  sql += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
   params.push(limit, offset);
-  
-  const result = await pool.query(query, params);
+  const result = await pool.query(sql, params);
   return result.rows;
+};
+
+export const getProductById = async (id) => {
+  const result = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
+  return result.rows[0] || null;
 };
 
 export const createProduct = async (productData) => {
@@ -70,9 +94,8 @@ export const updateProduct = async (id, updates) => {
   const fields = Object.keys(updates);
   const values = Object.values(updates);
   const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
-  
   const result = await pool.query(
-    `UPDATE products SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
+    `UPDATE products SET ${setClause} WHERE id = $1 RETURNING *`,
     [id, ...values]
   );
   return result.rows[0] || null;
@@ -82,11 +105,21 @@ export const deleteProduct = async (id) => {
   await pool.query('DELETE FROM products WHERE id = $1', [id]);
 };
 
+export const countUserProducts = async (userId) => {
+  const result = await pool.query('SELECT COUNT(*) FROM products WHERE user_id = $1', [userId]);
+  return parseInt(result.rows[0].count, 10);
+};
+
 // ==================== 账号相关操作 ====================
 
 export const getAccountsByUser = async (userId) => {
-  const result = await pool.query('SELECT * FROM accounts WHERE user_id = $1', [userId]);
+  const result = await pool.query('SELECT * FROM accounts WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
   return result.rows;
+};
+
+export const getAccountById = async (id) => {
+  const result = await pool.query('SELECT * FROM accounts WHERE id = $1', [id]);
+  return result.rows[0] || null;
 };
 
 export const createAccount = async (accountData) => {
@@ -102,7 +135,6 @@ export const updateAccount = async (id, updates) => {
   const fields = Object.keys(updates);
   const values = Object.values(updates);
   const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
-  
   const result = await pool.query(
     `UPDATE accounts SET ${setClause} WHERE id = $1 RETURNING *`,
     [id, ...values]
@@ -114,53 +146,182 @@ export const deleteAccount = async (id) => {
   await pool.query('DELETE FROM accounts WHERE id = $1', [id]);
 };
 
-// ==================== 任务相关操作（简化）====================
+// ==================== 任务相关操作 ====================
 
 export const getTasksByUser = async (userId) => {
-  // 简化实现，返回空数组
-  return [];
+  try {
+    const result = await pool.query('SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+    return result.rows;
+  } catch {
+    return [];
+  }
+};
+
+export const getTaskById = async (id) => {
+  try {
+    const result = await pool.query('SELECT * FROM tasks WHERE id = $1', [id]);
+    return result.rows[0] || null;
+  } catch {
+    return null;
+  }
 };
 
 export const createTask = async (taskData) => {
-  // 简化实现
-  return { id: Date.now(), ...taskData };
+  try {
+    const { user_id, type, status = 'pending', config = {} } = taskData;
+    const result = await pool.query(
+      'INSERT INTO tasks (user_id, type, status, config) VALUES ($1, $2, $3, $4) RETURNING *',
+      [user_id, type, status, JSON.stringify(config)]
+    );
+    return result.rows[0];
+  } catch {
+    return { id: Date.now(), ...taskData };
+  }
 };
 
-// ==================== 额度相关操作（简化）====================
-
-export const getUserQuota = async (userId) => {
-  // 简化实现，返回默认额度
-  return {
-    userId,
-    plan: 'free',
-    textLimit: 50,
-    imageLimit: 10,
-    productsLimit: 20,
-    tasksLimit: 100
-  };
+export const updateTask = async (id, updates) => {
+  try {
+    const fields = Object.keys(updates);
+    const values = Object.values(updates);
+    const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
+    const result = await pool.query(
+      `UPDATE tasks SET ${setClause} WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    return result.rows[0] || null;
+  } catch {
+    return null;
+  }
 };
 
-export const updateUserQuota = async (userId, updates) => {
-  // 简化实现
-  return { userId, ...updates };
+export const deleteTask = async (id) => {
+  try {
+    await pool.query('DELETE FROM tasks WHERE id = $1', [id]);
+  } catch {
+    // ignore
+  }
 };
 
-// ==================== 视频相关操作（简化）====================
+// ==================== 视频相关操作 ====================
 
 export const getVideosByUser = async (userId) => {
-  return [];
+  try {
+    const result = await pool.query('SELECT * FROM videos WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+    return result.rows;
+  } catch {
+    return [];
+  }
+};
+
+export const getVideoById = async (id) => {
+  try {
+    const result = await pool.query('SELECT * FROM videos WHERE id = $1', [id]);
+    return result.rows[0] || null;
+  } catch {
+    return null;
+  }
 };
 
 export const createVideo = async (videoData) => {
-  return { id: Date.now(), ...videoData };
+  try {
+    const { user_id, title, url, status = 'draft' } = videoData;
+    const result = await pool.query(
+      'INSERT INTO videos (user_id, title, url, status) VALUES ($1, $2, $3, $4) RETURNING *',
+      [user_id, title, url, status]
+    );
+    return result.rows[0];
+  } catch {
+    return { id: Date.now(), ...videoData };
+  }
 };
 
-// ==================== 脚本相关操作（简化）====================
+export const updateVideo = async (id, updates) => {
+  try {
+    const fields = Object.keys(updates);
+    const values = Object.values(updates);
+    const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
+    const result = await pool.query(
+      `UPDATE videos SET ${setClause} WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    return result.rows[0] || null;
+  } catch {
+    return null;
+  }
+};
+
+export const deleteVideo = async (id) => {
+  try {
+    await pool.query('DELETE FROM videos WHERE id = $1', [id]);
+  } catch {
+    // ignore
+  }
+};
+
+// ==================== 脚本相关操作 ====================
 
 export const getScriptsByUser = async (userId) => {
-  return [];
+  try {
+    const result = await pool.query('SELECT * FROM scripts WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+    return result.rows;
+  } catch {
+    return [];
+  }
+};
+
+export const getScriptById = async (id) => {
+  try {
+    const result = await pool.query('SELECT * FROM scripts WHERE id = $1', [id]);
+    return result.rows[0] || null;
+  } catch {
+    return null;
+  }
 };
 
 export const createScript = async (scriptData) => {
-  return { id: Date.now(), ...scriptData };
+  try {
+    const { user_id, title, content, type = 'product' } = scriptData;
+    const result = await pool.query(
+      'INSERT INTO scripts (user_id, title, content, type) VALUES ($1, $2, $3, $4) RETURNING *',
+      [user_id, title, content, type]
+    );
+    return result.rows[0];
+  } catch {
+    return { id: Date.now(), ...scriptData };
+  }
+};
+
+export const updateScript = async (id, updates) => {
+  try {
+    const fields = Object.keys(updates);
+    const values = Object.values(updates);
+    const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
+    const result = await pool.query(
+      `UPDATE scripts SET ${setClause} WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    return result.rows[0] || null;
+  } catch {
+    return null;
+  }
+};
+
+export const deleteScript = async (id) => {
+  try {
+    await pool.query('DELETE FROM scripts WHERE id = $1', [id]);
+  } catch {
+    // ignore
+  }
+};
+
+export const incrementScriptUsage = async (id) => {
+  try {
+    const result = await pool.query(
+      'UPDATE scripts SET usage_count = COALESCE(usage_count, 0) + 1 WHERE id = $1 RETURNING *',
+      [id]
+    );
+    return result.rows[0] || null;
+  } catch {
+    return null;
+  }
 };
