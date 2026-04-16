@@ -1,0 +1,49 @@
+正在初始化数据库...
+✅ PostgreSQL 数据库连接成功
+继续启动服务...
+
+╔══════════════════════════════════════════════════════════════════╗
+║                  Claw外贸网站后端API 已启动                       ║
+╠══════════════════════════════════════════════════════════════════╣
+║  端口: 8089                                                     ║
+║  状态: http://localhost:8089/api/health                         ║
+║  环境: production                    ║
+╠══════════════════════════════════════════════════════════════════╣
+║  [🔐 认证]                                                        ║
+║  ├─ POST   /api/auth/register   - 用户注册                        ║
+║  ├─ POST   /api/auth/login      - 用户登录                        ║
+║  ├─ POST   /api/auth/logout     - 用户登出                        ║
+║  ├─ GET    /api/auth/profile    - 获取用户信息                    ║
+║  └─ GET    /api/auth/quota      - 获取用户额度                    ║
+║  [🛍️ 产品]                                                       ║
+║  ├─ GET    /api/products        - 获取产品列表                    ║
+║  ├─ POST   /api/products        - 创建产品                        ║
+║  └─ DELETE /api/products/:id    - 删除产品                        ║
+║  [🤖 AI生成]                                                      ║
+║  ├─ POST   /api/generate/text   - 生成文案                        ║
+║  └─ POST   /api/generate/image  - 生成图片描述                    ║
+║  [💰 利润计算]                                                     ║
+║  ├─ POST   /api/calculate/profit - 计算利润                       ║
+║  └─ POST   /api/calculate/quick  - 快速定价                       ║
+║  [👥 账号管理]                                                     ║
+║  ├─ GET    /api/accounts        - 获取账号列表                    ║
+║  ├─ POST   /api/accounts        - 添加账号                        ║
+║  └─ POST   /api/accounts/:id/test - 测试连接                      ║
+║  [📝 任务管理]                                                     ║
+║  ├─ GET    /api/tasks           - 获取任务列表                    ║
+║  └─ POST   /api/tasks           - 创建任务                        ║
+║  [👑 会员管理]                                                     ║
+║  ├─ GET    /api/membership      - 获取会员信息                    ║
+║  └─ GET    /api/quota           - 获取额度详情                    ║
+║  [🌐 浏览器自动化]                                                 ║
+║  ├─ POST   /api/browser/tiktok/login - TikTok登录                ║
+║  ├─ GET    /api/browser/tiktok/status - TikTok状态               ║
+║  └─ POST   /api/browser/close   - 关闭浏览器                      ║
+║  [📹 数字人视频]                                                   ║
+║  ├─ POST   /api/avatar/generate - 生成视频                        ║
+║  └─ GET    /api/avatar/list     - 视频列表                        ║
+║  [🚀 发布管理]                                                     ║
+║  ├─ POST   /api/publish/tiktok  - TikTok发布                     ║
+║  └─ POST   /api/publish/youtube - YouTube发布                    ║
+╚══════════════════════════════════════════════════════════════════╝
+    

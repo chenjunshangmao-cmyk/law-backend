@@ -12,20 +12,30 @@ const Video = sequelize.define('Video', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
-  userId: {
+  user_id: {
     type: DataTypes.UUID,
     allowNull: false,
     comment: '所属用户ID'
   },
-  name: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    comment: '视频文件名'
+  title: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    comment: '视频标题'
   },
-  path: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    comment: '视频文件路径'
+  script_id: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    comment: '关联的脚本ID'
+  },
+  video_url: {
+    type: DataTypes.STRING(1000),
+    allowNull: true,
+    comment: '视频URL'
+  },
+  thumbnail_url: {
+    type: DataTypes.STRING(1000),
+    allowNull: true,
+    comment: '缩略图URL'
   },
   duration: {
     type: DataTypes.INTEGER,
@@ -37,63 +47,24 @@ const Video = sequelize.define('Video', {
     defaultValue: 0,
     comment: '文件大小(字节)'
   },
-  script: {
-    type: DataTypes.TEXT,
+  product_id: {
+    type: DataTypes.UUID,
     allowNull: true,
-    comment: '视频脚本内容'
-  },
-  productName: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    comment: '关联产品名称'
-  },
-  productDesc: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-    comment: '产品描述'
-  },
-  templateId: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    comment: '视频模板ID'
-  },
-  avatarStyle: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    comment: '数字人形象风格'
-  },
-  voiceId: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    comment: '声音ID'
-  },
-  background: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    comment: '背景设置'
-  },
-  music: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    comment: '背景音乐'
+    comment: '关联产品ID'
   },
   status: {
-    type: DataTypes.ENUM('generating', 'completed', 'failed', 'uploaded'),
-    defaultValue: 'completed',
+    type: DataTypes.STRING(50),
+    defaultValue: 'pending',
     comment: '视频状态'
-  },
-  uploadStatus: {
-    type: DataTypes.JSON,
-    allowNull: true,
-    comment: '上传状态 {youtube: {...}, tiktok: {...}}'
   },
   metadata: {
     type: DataTypes.JSON,
-    allowNull: true,
+    defaultValue: {},
     comment: '额外元数据'
   }
 }, {
   tableName: 'videos',
+  underscored: true,
   timestamps: true
 });
 

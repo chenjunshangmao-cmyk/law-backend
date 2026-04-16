@@ -8,9 +8,14 @@ const Task = sequelize.define('Task', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
-  userId: {
+  user_id: {
     type: DataTypes.UUID,
     allowNull: false
+  },
+  product_id: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    comment: '关联的产品ID'
   },
   type: {
     type: DataTypes.ENUM('select', 'generate', 'publish', 'full'),
@@ -44,31 +49,27 @@ const Task = sequelize.define('Task', {
       max: 100
     }
   },
-  startedAt: {
+  started_at: {
     type: DataTypes.DATE,
     allowNull: true
   },
-  completedAt: {
+  completed_at: {
     type: DataTypes.DATE,
     allowNull: true
   },
-  errorMessage: {
+  error_message: {
     type: DataTypes.TEXT,
     allowNull: true
-  },
-  productId: {
-    type: DataTypes.UUID,
-    allowNull: true,
-    comment: '关联的产品ID'
   }
 }, {
   tableName: 'tasks',
+  underscored: true,
   indexes: [
-    { fields: ['userId'] },
+    { fields: ['user_id'] },
     { fields: ['status'] },
     { fields: ['type'] },
-    { fields: ['userId', 'status'] },
-    { fields: ['productId'] }
+    { fields: ['user_id', 'status'] },
+    { fields: ['product_id'] }
   ]
 });
 

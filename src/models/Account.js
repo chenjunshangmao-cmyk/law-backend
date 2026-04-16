@@ -8,7 +8,7 @@ const Account = sequelize.define('Account', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
-  userId: {
+  user_id: {
     type: DataTypes.UUID,
     allowNull: false
   },
@@ -45,22 +45,23 @@ const Account = sequelize.define('Account', {
     type: DataTypes.ENUM('active', 'inactive', 'expired', 'error'),
     defaultValue: 'active'
   },
-  lastUsedAt: {
+  last_used_at: {
     type: DataTypes.DATE,
     allowNull: true
   },
-  expiresAt: {
+  expires_at: {
     type: DataTypes.DATE,
     allowNull: true,
     comment: 'Cookie过期时间'
   }
 }, {
   tableName: 'accounts',
+  underscored: true,
   indexes: [
-    { fields: ['userId'] },
+    { fields: ['user_id'] },
     { fields: ['platform'] },
     { fields: ['status'] },
-    { fields: ['userId', 'platform'] }
+    { fields: ['user_id', 'platform'] }
   ]
 });
 

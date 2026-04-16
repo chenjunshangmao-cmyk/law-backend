@@ -12,30 +12,30 @@ const Script = sequelize.define('Script', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
-  userId: {
+  user_id: {
     type: DataTypes.UUID,
     allowNull: false,
     comment: '所属用户ID'
   },
-  productName: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    comment: '产品名称'
-  },
-  productDesc: {
-    type: DataTypes.TEXT,
+  product_id: {
+    type: DataTypes.UUID,
     allowNull: true,
-    comment: '产品描述'
+    comment: '关联产品ID'
   },
-  scene: {
-    type: DataTypes.ENUM('product', 'lifestyle', 'educational', 'promotional'),
-    defaultValue: 'product',
-    comment: '脚本场景类型'
+  title: {
+    type: DataTypes.STRING(255),
+    allowNull: false,
+    comment: '脚本标题'
   },
   content: {
     type: DataTypes.TEXT,
     allowNull: false,
     comment: '脚本内容'
+  },
+  type: {
+    type: DataTypes.STRING(50),
+    defaultValue: 'product',
+    comment: '脚本类型'
   },
   keywords: {
     type: DataTypes.JSON,
@@ -52,13 +52,19 @@ const Script = sequelize.define('Script', {
     defaultValue: 60,
     comment: '预计时长(秒)'
   },
-  usedCount: {
+  used_count: {
     type: DataTypes.INTEGER,
     defaultValue: 0,
     comment: '使用次数'
+  },
+  metadata: {
+    type: DataTypes.JSON,
+    defaultValue: {},
+    comment: '额外元数据'
   }
 }, {
   tableName: 'scripts',
+  underscored: true,
   timestamps: true
 });
 

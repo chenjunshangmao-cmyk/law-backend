@@ -17,19 +17,56 @@ import tasksRoutes from './routes/tasks.js';
 import membershipRoutes from './routes/membership.js';
 import browserRoutes from './routes/browser.js';
 import publishRoutes from './routes/publish.js';
+import customerServiceRoutes from './routes/customerService.js';
 
 const app = express();
-const PORT = process.env.PORT || 8088;
+const PORT = process.env.PORT || 8089;
 
 // 安全中间件
 app.use(helmet({
-  contentSecurityPolicy: false, // 暂时禁用CSP，后续配置
-  crossOriginEmbedderPolicy: false
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https:"],
+      fontSrc: ["'self'", "https:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'", "https:"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
 }));
 
-// CORS配置
+// CORS配置 - 安全增强
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',') 
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: function(origin, callback) {
+    // 允许无origin的请求（如移动端、Postman）
+    if (!origin) return callback(null, true);
+    
+    // 开发环境允许所有来源
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`🚫 拒绝CORS请求: ${origin}`);
+      callback(new Error('不允许的源'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
@@ -72,6 +109,7 @@ app.use('/api/membership', membershipRoutes);
 app.use('/api/quota', membershipRoutes); // 额度接口
 app.use('/api/browser', browserRoutes); // 浏览器自动化
 app.use('/api/publish', publishRoutes); // 产品发布（链接/素材）
+app.use('/api/customer-service', customerServiceRoutes); // AI客服
 
 // 404处理
 app.use(notFoundHandler);

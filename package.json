@@ -8,9 +8,11 @@
     "start": "node src/index.db.js",
     "dev": "node --watch src/index.db.js",
     "test:db": "node test-database.js",
-    "start:legacy": "node src/index.js"
+    "init-db": "node init-db.js",
+    "start:full": "node src/index.js"
   },
   "dependencies": {
+    "axios": "^1.15.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
@@ -18,6 +20,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "node-fetch": "^3.3.2",
+    "openai": "^6.34.0",
     "pg": "^8.20.0",
     "playwright": "^1.59.1",
     "sequelize": "^6.37.8",

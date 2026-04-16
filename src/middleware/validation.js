@@ -1,4 +1,34 @@
 // 请求验证中间件
+
+// 密码强度验证函数
+const validatePasswordStrength = (password) => {
+  const errors = [];
+  
+  if (password.length < 8) {
+    errors.push('密码长度至少8位');
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push('密码必须包含至少1个大写字母');
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push('密码必须包含至少1个小写字母');
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push('密码必须包含至少1个数字');
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    errors.push('密码必须包含至少1个特殊字符(!@#$%^&*等)');
+  }
+  
+  // 检查常见弱密码
+  const commonPasswords = ['password', '12345678', 'qwertyui', 'admin123', 'claw2026'];
+  if (commonPasswords.includes(password.toLowerCase())) {
+    errors.push('密码太简单，请使用更复杂的密码');
+  }
+  
+  return errors;
+};
+
 export const validateRegister = (req, res, next) => {
   const { email, password, name } = req.body;
   const errors = [];
@@ -8,18 +38,27 @@ export const validateRegister = (req, res, next) => {
     errors.push('邮箱不能为空');
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     errors.push('邮箱格式无效');
+  } else if (email.length > 100) {
+    errors.push('邮箱长度不能超过100个字符');
   }
 
-  // 密码验证
+  // 密码验证 - 增强强度检查
   if (!password) {
     errors.push('密码不能为空');
-  } else if (password.length < 6) {
-    errors.push('密码长度至少6位');
+  } else {
+    const passwordErrors = validatePasswordStrength(password);
+    errors.push(...passwordErrors);
   }
 
   // 用户名验证
-  if (name && name.length > 50) {
+  if (!name) {
+    errors.push('用户名不能为空');
+  } else if (name.length < 2) {
+    errors.push('用户名长度至少2个字符');
+  } else if (name.length > 50) {
     errors.push('用户名长度不能超过50个字符');
+  } else if (!/^[\u4e00-\u9fa5a-zA-Z0-9_\-]+$/.test(name)) {
+    errors.push('用户名只能包含中文、字母、数字、下划线和横线');
   }
 
   if (errors.length > 0) {

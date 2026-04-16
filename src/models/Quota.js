@@ -8,7 +8,7 @@ const Quota = sequelize.define('Quota', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
-  userId: {
+  user_id: {
     type: DataTypes.UUID,
     allowNull: false,
     unique: true
@@ -17,55 +17,51 @@ const Quota = sequelize.define('Quota', {
     type: DataTypes.ENUM('free', 'basic', 'pro', 'enterprise'),
     defaultValue: 'free'
   },
-  // 文案生成额度
-  textGenerations: {
+  text_generations: {
     type: DataTypes.INTEGER,
     defaultValue: 0,
     comment: '已使用次数'
   },
-  textLimit: {
+  text_limit: {
     type: DataTypes.INTEGER,
     defaultValue: 50,
     comment: '月度上限'
   },
-  // 图片生成额度
-  imageGenerations: {
+  image_generations: {
     type: DataTypes.INTEGER,
     defaultValue: 0
   },
-  imageLimit: {
+  image_limit: {
     type: DataTypes.INTEGER,
     defaultValue: 10
   },
-  // 产品数量限制
-  productsLimit: {
+  products_limit: {
     type: DataTypes.INTEGER,
     defaultValue: 20
   },
-  productsCount: {
+  products_count: {
     type: DataTypes.INTEGER,
     defaultValue: 0,
     comment: '当前产品数量'
   },
-  // 任务执行额度
-  tasksLimit: {
+  tasks_limit: {
     type: DataTypes.INTEGER,
     defaultValue: 100
   },
-  tasksCount: {
+  tasks_count: {
     type: DataTypes.INTEGER,
     defaultValue: 0
   },
-  // 额度重置日期
-  resetDate: {
+  reset_date: {
     type: DataTypes.DATE,
     allowNull: true,
     comment: '下次重置日期'
   }
 }, {
   tableName: 'quotas',
+  underscored: true,
   indexes: [
-    { unique: true, fields: ['userId'] },
+    { unique: true, fields: ['user_id'] },
     { fields: ['plan'] }
   ]
 });

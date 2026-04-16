@@ -1,30 +1,32 @@
-// 数据库配置 - Sequelize + SQLite
+// 数据库配置 - PostgreSQL (Render)
 import { Sequelize } from 'sequelize';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
+import dotenv from 'dotenv';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '../..');
+dotenv.config();
 
-// SQLite 数据库文件路径
-const DATA_DIR = path.join(PROJECT_ROOT, 'data');
-const DB_PATH = path.join(DATA_DIR, 'claw.db');
-
-// 确保数据目录存在
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+// 从环境变量或 .env 获取数据库 URL
+const databaseUrl = process.env.DATABASE_URL || 'postgres://claw_db_user:zpCB2JNdscawi5cD0cyHA5BeqW2o8UPP@dpg-d7dlk6hkh4rs739s00b0-a.virginia-postgres.render.com/claw_db';
 
 // 创建 Sequelize 实例
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: DB_PATH,
+const sequelize = new Sequelize(databaseUrl, {
+  dialect: 'postgres',
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false
+    }
+  },
   logging: process.env.NODE_ENV === 'development' ? console.log : false,
   define: {
-    timestamps: true, // 自动添加 createdAt 和 updatedAt
-    underscored: false, // 使用驼峰命名（与模型定义一致）
-    freezeTableName: true // 保持表名不变
+    timestamps: true,
+    underscored: true,  // 使用下划线命名 (createdAt -> created_at)
+    freezeTableName: true
+  },
+  pool: {
+    max: 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000
   }
 });
 
@@ -32,7 +34,7 @@ const sequelize = new Sequelize({
 export const testConnection = async () => {
   try {
     await sequelize.authenticate();
-    console.log('✅ 数据库连接成功');
+    console.log('✅ PostgreSQL 数据库连接成功');
     return true;
   } catch (error) {
     console.error('❌ 数据库连接失败:', error.message);
@@ -43,12 +45,16 @@ export const testConnection = async () => {
 // 同步数据库模型
 export const syncDatabase = async (force = false) => {
   try {
-    await sequelize.sync({ force });
+    // 使用 alter: false 避免 PostgreSQL 兼容问题
+    // 只创建不存在的表，不修改现有表结构
+    await sequelize.sync({ force, alter: false });
     console.log('✅ 数据库同步成功');
     return true;
   } catch (error) {
     console.error('❌ 数据库同步失败:', error.message);
-    return false;
+    // 同步失败不阻止服务启动
+    console.log('⚠️  继续启动服务（可能使用内存模式）...');
+    return true;
   }
 };
 

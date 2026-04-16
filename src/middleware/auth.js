@@ -1,15 +1,29 @@
 // JWT认证和安全中间件
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { findUserById, findUserByEmail, updateUser } from '../services/dataStore.js';
 
-// 安全配置
-const JWT_SECRET = process.env.JWT_SECRET || 'claw-secret-key-2026-customize-in-production';
-const JWT_EXPIRES_IN = '7d';
+// 安全配置 - 从环境变量读取，使用默认密钥作为后备
+const JWT_SECRET = process.env.JWT_SECRET || 'claw-default-secret-key-for-development-only-32chars';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 const TOKEN_BLACKLIST_KEY = 'tokenBlacklist';
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION = 15 * 60 * 1000; // 15分钟
+const MAX_LOGIN_ATTEMPTS = parseInt(process.env.MAX_LOGIN_ATTEMPTS) || 5;
+const LOCKOUT_DURATION = (parseInt(process.env.LOCKOUT_DURATION_MINUTES) || 15) * 60 * 1000;
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1分钟
 const RATE_LIMIT_MAX = 100; // 每分钟100个请求
+
+// 安全启动检查 - 只在生产环境强制要求
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) {
+  console.error('❌ 安全错误: 生产环境 JWT_SECRET 未设置或太短（至少32字符）');
+  console.error('请运行: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+  console.error('然后设置环境变量: export JWT_SECRET=<生成的密钥>');
+  process.exit(1);
+}
+
+// 警告：如果使用默认密钥
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️ 警告: 使用默认JWT密钥，请在生产环境设置 JWT_SECRET 环境变量');
+}
 
 // 内存缓存
 const rateLimitStore = new Map();
@@ -51,7 +65,7 @@ export const revokeToken = (token) => {
 };
 
 // 主认证中间件
-export const authMiddleware = (req, res, next) => {
+export const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -82,8 +96,8 @@ export const authMiddleware = (req, res, next) => {
     });
   }
 
-  // 检查用户状态
-  const user = findUserById(decoded.userId);
+  // 检查用户状态 (异步)
+  const user = await findUserById(decoded.userId);
   if (!user) {
     return res.status(401).json({
       success: false,

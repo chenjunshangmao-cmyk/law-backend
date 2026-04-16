@@ -8,7 +8,7 @@ const Product = sequelize.define('Product', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
-  userId: {
+  user_id: {
     type: DataTypes.UUID,
     allowNull: false
   },
@@ -32,7 +32,7 @@ const Product = sequelize.define('Product', {
     type: DataTypes.STRING(3),
     defaultValue: 'SGD'
   },
-  sourceUrl: {
+  source_url: {
     type: DataTypes.STRING(1000),
     allowNull: true,
     comment: '1688或其他货源链接'
@@ -46,7 +46,7 @@ const Product = sequelize.define('Product', {
     defaultValue: [],
     comment: '图片URL数组'
   },
-  platformData: {
+  platform_data: {
     type: DataTypes.JSON,
     defaultValue: {},
     comment: '各平台发布数据 {tiktok: {...}, youtube: {...}}'
@@ -59,23 +59,24 @@ const Product = sequelize.define('Product', {
     type: DataTypes.JSON,
     defaultValue: []
   },
-  aiGenerated: {
+  ai_generated: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
     comment: '是否AI生成文案'
   },
-  generatedContent: {
+  generated_content: {
     type: DataTypes.JSON,
     allowNull: true,
     comment: 'AI生成的内容 {title, description, tags}'
   }
 }, {
   tableName: 'products',
+  underscored: true,
   indexes: [
-    { fields: ['userId'] },
+    { fields: ['user_id'] },
     { fields: ['status'] },
     { fields: ['category'] },
-    { fields: ['userId', 'status'] }
+    { fields: ['user_id', 'status'] }
   ]
 });
 

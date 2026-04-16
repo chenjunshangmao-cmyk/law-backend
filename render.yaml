@@ -1,16 +1,24 @@
+# ==========================================
+# Render 部署配置 - Claw Backend
+# ==========================================
+
 services:
   - type: web
     name: claw-backend
-    env: node
-    region: oregon
+    runtime: node
+    plan: free
     buildCommand: npm install
-    startCommand: node src/index.db.js
+    startCommand: npm start
     envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: JWT_SECRET
-        value: claw-secret-key-2026
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 8089
+        value: 10000
+      - key: JWT_SECRET
+        value: claw-jwt-secret-2026-secure-key-abc123xyz
+      - key: DATABASE_URL
+        value: postgresql://claw_db_user:zpCB2JNdscawi5cD0cyHA5BeqW2o8UPP@dpg-d7dlk6hkh4rs739s00b0-a/claw_db
+      - key: ALLOWED_ORIGINS
+        value: "https://claw-frontend.onrender.com,http://localhost:5173,http://localhost:3000"
+    healthCheckPath: /api/health
+    autoDeploy: true

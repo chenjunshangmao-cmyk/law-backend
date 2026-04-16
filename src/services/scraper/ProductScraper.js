@@ -2,8 +2,8 @@
 // 商品抓取服务 - 支持1688/淘宝/拼多多
 // ==========================================
 
-const { chromium } = require('playwright');
-const logger = require('../../utils/logger');
+import { chromium } from 'playwright';
+import logger from '../../utils/logger.js';
 
 class ProductScraper {
   constructor() {
@@ -359,4 +359,4 @@ class ProductScraper {
   }
 }
 
-module.exports = ProductScraper;
+export default ProductScraper;

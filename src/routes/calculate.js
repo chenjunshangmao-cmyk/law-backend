@@ -1,54 +1,43 @@
 // 利润计算路由
 import express from 'express';
+import { calculateShipping, LOGISTICS_CONFIG } from '../config/logistics.js';
+import { calculateCommission, PLATFORM_COMMISSION_CONFIG } from '../config/platforms.js';
 
 const router = express.Router();
 
-// 平台汇率和费率配置
-const PLATFORM_CONFIG = {
-  tiktok: {
-    name: 'TikTok Shop',
-    exchangeRate: 5.2,      // 人民币兑美元
-    platformFee: 0.08,      // 8%平台费
-    paymentFee: 0.02,       // 2%支付费
-    shippingFee: 15,        // 固定运费(元)
-    customsFee: 0.05        // 5%海关税
-  },
-  shopee: {
-    name: 'Shopee',
-    exchangeRate: 5.2,
-    platformFee: 0.06,      // 6%平台费
-    paymentFee: 0.02,       // 2%支付费
-    shippingFee: 10,        // 固定运费(元)
-    customsFee: 0            // 无
-  },
-  ozon: {
-    name: 'OZON',
-    exchangeRate: 8.5,       // 人民币兑卢布
-    platformFee: 0.10,      // 10%平台费
-    paymentFee: 0.03,       // 3%支付费
-    shippingFee: 20,        // 固定运费(元)
-    customsFee: 0.15        // 15%海关税
-  },
-  amazon: {
-    name: 'Amazon',
-    exchangeRate: 7.2,       // 人民币兑美元
-    platformFee: 0.15,      // 15%Referral Fee
-    paymentFee: 0.01,       // 1%结算费
-    shippingFee: 25,        // 固定运费(元)
-    customsFee: 0            // 无
-  }
-};
-
-// POST /api/calculate/profit - 计算多平台利润（公开接口，无需认证）
+// POST /api/calculate/profit - 计算多平台利润（新版：支持物流和佣金配置）
 router.post('/profit', (req, res) => {
   try {
-    const { cost, platforms, targetMargin } = req.body;
+    const {
+      costPrice,
+      weight,
+      logisticsProvider,
+      destination,
+      platforms,
+      additionalCosts,
+      taxRate,
+      targetProfitRate
+    } = req.body;
 
     // 验证必填字段
-    if (!cost || cost <= 0) {
+    if (!costPrice || costPrice <= 0) {
       return res.status(400).json({
         success: false,
         error: '请提供有效的成本价格'
+      });
+    }
+
+    if (!weight || weight <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: '请提供有效的商品重量'
+      });
+    }
+
+    if (!logisticsProvider) {
+      return res.status(400).json({
+        success: false,
+        error: '请选择物流渠道'
       });
     }
 
@@ -59,47 +48,102 @@ router.post('/profit', (req, res) => {
       });
     }
 
-    const costCNY = parseFloat(cost);
-    const margin = targetMargin ? parseFloat(targetMargin) / 100 : null;
-    const results = {};
-
-    // 计算每个平台的利润
-    for (const platform of platforms) {
-      const config = PLATFORM_CONFIG[platform];
-      if (!config) {
-        results[platform] = {
-          error: '不支持的平台'
-        };
-        continue;
-      }
-
-      // 计算定价
-      const calculation = calculatePlatformProfit(costCNY, config, margin);
-      results[platform] = {
-        platform: config.name,
-        config: {
-          platformFee: `${config.platformFee * 100}%`,
-          paymentFee: `${config.paymentFee * 100}%`,
-          shippingFee: `${config.shippingFee} CNY`,
-          customsFee: config.customsFee > 0 ? `${config.customsFee * 100}%` : '无'
-        },
-        ...calculation
-      };
+    // 1. 计算物流费用
+    const shippingCost = calculateShipping(parseFloat(weight), logisticsProvider, destination);
+    if (shippingCost === null) {
+      return res.status(400).json({
+        success: false,
+        error: '无效的物流渠道'
+      });
     }
+
+    // 2. 计算税费
+    const taxCost = (parseFloat(costPrice) + shippingCost) * (taxRate || 13) / 100;
+
+    // 3. 其他成本
+    const otherCosts = parseFloat(additionalCosts) || 0;
+
+    // 4. 基础成本
+    const baseCost = parseFloat(costPrice) + shippingCost + taxCost + otherCosts;
+
+    // 5. 计算各平台的建议售价和利润
+    const platformResults = platforms.map(platform => {
+      const platformConfig = PLATFORM_COMMISSION_CONFIG[platform];
+      if (!platformConfig) return null;
+
+      // 计算佣金
+      const commission = calculateCommission(platform, parseFloat(weight), 0);
+
+      // 根据目标利润率计算建议售价
+      const targetRate = targetProfitRate ? parseFloat(targetProfitRate) / 100 : 0.30;
+      const suggestedPrice = calculateSuggestedPrice(
+        baseCost,
+        commission.rate,
+        targetRate,
+        platformConfig.fixedFee
+      );
+
+      // 计算实际利润
+      const commissionAmount = suggestedPrice * commission.rate + platformConfig.fixedFee;
+      const totalCost = baseCost + commissionAmount;
+      const profit = suggestedPrice - totalCost;
+      const profitRate = (profit / suggestedPrice) * 100;
+
+      // 转换为当地货币
+      const priceLocal = suggestedPrice * platformConfig.exchangeRate;
+      const profitLocal = profit * platformConfig.exchangeRate;
+
+      return {
+        platform,
+        platformName: platformConfig.name,
+        currency: platformConfig.currency,
+        exchangeRate: platformConfig.exchangeRate,
+        suggestedPrice: Math.round(suggestedPrice * 100) / 100,
+        suggestedPriceLocal: Math.round(priceLocal * 100) / 100,
+        costs: {
+          product: parseFloat(costPrice),
+          shipping: shippingCost,
+          tax: Math.round(taxCost * 100) / 100,
+          other: otherCosts,
+          commission: Math.round(commissionAmount * 100) / 100,
+          commissionRate: commission.rate,
+          fixedFee: platformConfig.fixedFee,
+          total: Math.round(totalCost * 100) / 100,
+        },
+        profit: Math.round(profit * 100) / 100,
+        profitLocal: Math.round(profitLocal * 100) / 100,
+        profitRate: Math.round(profitRate * 100) / 100,
+      };
+    }).filter(Boolean);
+
+    // 汇总信息
+    const summary = {
+      baseCosts: {
+        product: parseFloat(costPrice),
+        shipping: shippingCost,
+        tax: Math.round(taxCost * 100) / 100,
+        other: otherCosts,
+        total: Math.round(baseCost * 100) / 100,
+      },
+      logisticsInfo: {
+        provider: LOGISTICS_CONFIG[logisticsProvider]?.name || logisticsProvider,
+        weight: parseFloat(weight),
+        destination: destination || 'US',
+      },
+    };
 
     res.json({
       success: true,
       data: {
-        costCNY,
-        targetMargin: targetMargin ? `${targetMargin}%` : null,
-        platforms: results
+        summary,
+        platforms: platformResults,
       }
     });
   } catch (error) {
     console.error('利润计算错误:', error);
     res.status(500).json({
       success: false,
-      error: '利润计算失败'
+      error: '利润计算失败: ' + error.message
     });
   }
 });
@@ -134,16 +178,33 @@ router.post('/quick', (req, res) => {
     const costCNY = parseFloat(cost);
     const targetProfitCNY = parseFloat(targetProfit);
 
-    // 反推定价：(成本 + 利润) / (1 - 费率比例)
+    // 使用正确的定价公式反推定价
+    // 公式：售价 = (成本 + 运费) × 加价系数
+    // 目标利润 = 售价 - (成本 + 运费) - 平台费用
+    // 平台费用 = 售价 × (平台费率 + 支付费率 + 关税费率)
+    // 设售价 = P，费用率 = F = platformFee + paymentFee + customsFee
+    // 利润 = P - (成本+运费) - P×F = P×(1-F) - (成本+运费)
+    // 所以：P = (利润 + 成本 + 运费) ÷ (1 - F)
+    
     const feeRate = config.platformFee + config.paymentFee + config.customsFee;
-    const priceBeforeShipping = (costCNY + targetProfitCNY) / (1 - feeRate);
-    const finalPriceCNY = priceBeforeShipping + config.shippingFee;
-    const finalPriceLocal = finalPriceCNY / config.exchangeRate;
+    const totalCostCNY = costCNY + config.shippingFee;
+    
+    // 计算售价
+    const finalPriceCNY = (targetProfitCNY + totalCostCNY) / (1 - feeRate);
+    
+    // 取整到X.90
+    const roundedPriceCNY = Math.floor(finalPriceCNY) + 0.90;
+    const finalPriceLocal = roundedPriceCNY / config.exchangeRate;
+
+    // 计算实际各项费用
+    const platformFeeAmount = roundedPriceCNY * config.platformFee;
+    const paymentFeeAmount = roundedPriceCNY * config.paymentFee;
+    const customsFeeAmount = roundedPriceCNY * config.customsFee;
+    const totalFees = platformFeeAmount + paymentFeeAmount + customsFeeAmount;
 
     // 计算实际利润率
-    const totalCost = costCNY + config.shippingFee;
-    const actualProfit = (finalPriceCNY - totalCost) * (1 - feeRate);
-    const actualMargin = (actualProfit / finalPriceCNY) * 100;
+    const actualProfit = roundedPriceCNY - totalCostCNY - totalFees;
+    const actualMargin = (actualProfit / roundedPriceCNY) * 100;
 
     res.json({
       success: true,
@@ -154,11 +215,32 @@ router.post('/quick', (req, res) => {
           targetProfitCNY
         },
         result: {
-          priceCNY: Math.round(finalPriceCNY * 100) / 100,
+          // 定价结果
+          priceCNY: Math.round(roundedPriceCNY * 100) / 100,
           priceLocal: Math.round(finalPriceLocal * 100) / 100,
           currency: platform === 'ozon' ? '₽' : '$',
-          actualMargin: Math.round(actualMargin * 100) / 100 + '%',
-          actualProfitCNY: Math.round(actualProfit * 100) / 100
+          
+          // 费用明细
+          fees: {
+            platformFee: Math.round(platformFeeAmount * 100) / 100,
+            paymentFee: Math.round(paymentFeeAmount * 100) / 100,
+            customsFee: Math.round(customsFeeAmount * 100) / 100,
+            totalFees: Math.round(totalFees * 100) / 100
+          },
+          
+          // 利润结果
+          profit: {
+            actualProfitCNY: Math.round(actualProfit * 100) / 100,
+            actualMargin: Math.round(actualMargin * 100) / 100 + '%',
+            targetProfit: targetProfitCNY,
+            profitDifference: Math.round((actualProfit - targetProfitCNY) * 100) / 100
+          },
+          
+          // 公式信息
+          formula: {
+            text: '售价 = (目标利润 + 成本 + 运费) ÷ (1 - 平台费率 - 支付费率 - 关税费率)',
+            feeRate: `${(feeRate * 100).toFixed(1)}%`
+          }
         }
       }
     });
@@ -171,17 +253,15 @@ router.post('/quick', (req, res) => {
   }
 });
 
-// 获取支持的平台列表
+// 获取支持的平台列表（新版：包含佣金档位）
 router.get('/platforms', (req, res) => {
-  const platforms = Object.entries(PLATFORM_CONFIG).map(([key, config]) => ({
+  const platforms = Object.entries(PLATFORM_COMMISSION_CONFIG).map(([key, config]) => ({
     id: key,
     name: config.name,
+    currency: config.currency,
     exchangeRate: config.exchangeRate,
-    platformFee: `${config.platformFee * 100}%`,
-    features: {
-      shippingFee: `${config.shippingFee} CNY`,
-      customsFee: config.customsFee > 0 ? `${config.customsFee * 100}%` : '无'
-    }
+    commissionTiers: config.commissionTiers,
+    fixedFee: config.fixedFee,
   }));
 
   res.json({
@@ -190,98 +270,33 @@ router.get('/platforms', (req, res) => {
   });
 });
 
-// 计算平台利润
-function calculatePlatformProfit(costCNY, config, targetMargin) {
-  // 基础定价公式：(拿货价+运费) ÷ 汇率系数 × 加价系数
-  const shippingFee = config.shippingFee;
-  const totalCostCNY = costCNY + shippingFee;
-  
-  // 如果指定了目标利润率，使用目标利润率
-  if (targetMargin !== null) {
-    const feeRate = config.platformFee + config.paymentFee + config.customsFee;
-    const priceBeforeFees = totalCostCNY / (1 - targetMargin - feeRate);
-    const priceCNY = priceBeforeFees;
-    const priceLocal = priceCNY / config.exchangeRate;
-    
-    // 计算各项费用
-    const platformFeeAmount = priceCNY * config.platformFee;
-    const paymentFeeAmount = priceCNY * config.paymentFee;
-    const customsFeeAmount = priceCNY * config.customsFee;
-    const totalFees = platformFeeAmount + paymentFeeAmount + customsFeeAmount;
-    
-    // 实际利润
-    const profitCNY = priceCNY - totalCostCNY - totalFees;
-    const profitLocal = profitCNY / config.exchangeRate;
-    const actualMargin = (profitCNY / priceCNY) * 100;
-    
-    return {
-      priceCNY: Math.round(priceCNY * 100) / 100,
-      priceLocal: Math.round(priceLocal * 100) / 100,
-      currency: config.name === 'OZON' ? '₽' : '$',
-      costBreakdown: {
-        productCost: costCNY,
-        shippingFee,
-        totalCost: totalCostCNY
-      },
-      fees: {
-        platformFee: Math.round(platformFeeAmount * 100) / 100,
-        paymentFee: Math.round(paymentFeeAmount * 100) / 100,
-        customsFee: Math.round(customsFeeAmount * 100) / 100,
-        totalFees: Math.round(totalFees * 100) / 100
-      },
-      profit: {
-        cny: Math.round(profitCNY * 100) / 100,
-        local: Math.round(profitLocal * 100) / 100
-      },
-      margin: Math.round(actualMargin * 100) / 100 + '%',
-      targetMargin: targetMargin ? `${targetMargin * 100}%` : null
-    };
+// 获取物流渠道列表
+router.get('/logistics', (req, res) => {
+  const logistics = Object.values(LOGISTICS_CONFIG).map(l => ({
+    code: l.code,
+    name: l.name,
+    basePrice: l.basePrice,
+    deliveryTime: l.deliveryTime,
+    countries: l.countries,
+  }));
+
+  res.json({
+    success: true,
+    data: { logistics }
+  });
+});
+
+// 计算建议售价的辅助函数
+function calculateSuggestedPrice(baseCost, commissionRate, targetProfitRate, fixedFee) {
+  // 公式: 售价 = (基础成本 + 固定费用) / (1 - 佣金率 - 目标利润率)
+  const denominator = 1 - commissionRate - targetProfitRate;
+
+  if (denominator <= 0) {
+    // 如果分母太小，返回一个保底价格（成本×2）
+    return baseCost * 2;
   }
-  
-  // 默认定价：使用标准公式
-  // 定价 = (成本 + 运费) / 汇率 / (1 - 费率) * 加价系数
-  const feeRate = config.platformFee + config.paymentFee + config.customsFee;
-  const rateFactor = 1 / config.exchangeRate;
-  
-  // 默认2.5倍加价
-  const markupFactor = 2.5;
-  const priceBeforeFees = totalCostCNY * rateFactor * markupFactor;
-  const priceCNY = priceBeforeFees / (1 - feeRate);
-  const priceLocal = priceCNY / config.exchangeRate;
-  
-  // 计算各项费用
-  const platformFeeAmount = priceCNY * config.platformFee;
-  const paymentFeeAmount = priceCNY * config.paymentFee;
-  const customsFeeAmount = priceCNY * config.customsFee;
-  const totalFees = platformFeeAmount + paymentFeeAmount + customsFeeAmount;
-  
-  // 实际利润
-  const profitCNY = priceCNY - totalCostCNY - totalFees;
-  const profitLocal = profitCNY / config.exchangeRate;
-  const actualMargin = (profitCNY / priceCNY) * 100;
-  
-  return {
-    priceCNY: Math.round(priceCNY * 100) / 100,
-    priceLocal: Math.round(priceLocal * 100) / 100,
-    currency: config.name === 'OZON' ? '₽' : '$',
-    costBreakdown: {
-      productCost: costCNY,
-      shippingFee,
-      totalCost: totalCostCNY
-    },
-    fees: {
-      platformFee: Math.round(platformFeeAmount * 100) / 100,
-      paymentFee: Math.round(paymentFeeAmount * 100) / 100,
-      customsFee: Math.round(customsFeeAmount * 100) / 100,
-      totalFees: Math.round(totalFees * 100) / 100
-    },
-    profit: {
-      cny: Math.round(profitCNY * 100) / 100,
-      local: Math.round(profitLocal * 100) / 100
-    },
-    margin: Math.round(actualMargin * 100) / 100 + '%',
-    markup: '2.5x (默认)'
-  };
+
+  return (baseCost + fixedFee) / denominator;
 }
 
 export default router;
