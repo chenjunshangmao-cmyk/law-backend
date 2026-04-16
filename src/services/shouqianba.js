@@ -137,6 +137,7 @@ export async function checkinTerminal(terminalSn, terminalKey, deviceId) {
 /**
  * 创建跳转支付订单
  * 返回支付URL，用户扫码支付
+ * 使用跳转支付专用签名方式
  */
 export async function createWapPayment(params) {
   const {
@@ -150,7 +151,8 @@ export async function createWapPayment(params) {
     clientIp         // 用户IP
   } = params;
 
-  const body = {
+  // 构建请求参数（按收钱吧 wap2 接口要求）
+  const requestParams = {
     terminal_sn: terminalSn,
     client_sn: clientSn,
     total_amount: totalAmount.toString(),
@@ -159,20 +161,48 @@ export async function createWapPayment(params) {
     notify_url: notifyUrl
   };
 
-  const result = await shouqianbaRequest('/wap2', body, terminalSn, terminalKey, clientIp);
+  // 使用跳转支付专用签名
+  const sign = generateWapSign(requestParams, terminalKey);
 
-  if (result.result_code !== '200') {
-    throw new Error(result.error_message || '创建支付订单失败');
-  }
-
-  return {
-    sn: result.sn,                    // 收钱吧订单号
-    clientSn: result.client_sn,       // 商户订单号
-    tradeNo: result.trade_no,         // 支付渠道订单号
-    payUrl: result.pay_url,           // 支付URL（用于生成二维码）
-    totalAmount: result.total_amount,
-    status: result.order_status
+  const body = {
+    ...requestParams,
+    sign: sign,
+    sign_type: 'MD5'
   };
+
+  console.log('收钱吧 wap2 请求:', JSON.stringify(body));
+
+  try {
+    const response = await axios.post(`${SHOUQIANBA_API}/upay/v2/wap2`, JSON.stringify(body), {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    const result = response.data;
+    console.log('收钱吧 wap2 响应:', JSON.stringify(result));
+
+    if (result.result_code !== '200') {
+      throw new Error(result.error_message || '创建支付订单失败');
+    }
+
+    return {
+      sn: result.sn,                    // 收钱吧订单号
+      clientSn: result.client_sn,       // 商户订单号
+      tradeNo: result.trade_no,         // 支付渠道订单号
+      payUrl: result.pay_url,           // 支付URL（用于生成二维码）
+      totalAmount: result.total_amount,
+      status: result.order_status
+    };
+  } catch (error) {
+    console.error('创建支付订单请求失败:', error.message);
+    if (error.response) {
+      console.error('错误响应:', error.response.data);
+      throw new Error(error.response.data?.error_message || '创建支付订单失败');
+    }
+    throw error;
+  }
 }
 
 /**
