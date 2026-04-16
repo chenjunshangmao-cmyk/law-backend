@@ -59,6 +59,18 @@ const sequelize = {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS account_sync_data (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        products_count INTEGER DEFAULT 0,
+        orders_count INTEGER DEFAULT 0,
+        sync_status VARCHAR(20) DEFAULT 'pending',
+        sync_data JSONB DEFAULT '{}',
+        sync_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(account_id)
+      )
+    `);
     return true;
   },
   query: (sql, options) => pool.query(sql, options),

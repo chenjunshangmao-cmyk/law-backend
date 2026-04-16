@@ -146,6 +146,34 @@ export const deleteAccount = async (id) => {
   await pool.query('DELETE FROM accounts WHERE id = $1', [id]);
 };
 
+// ==================== 同步数据相关操作 ====================
+
+export const getSyncDataByAccount = async (accountId) => {
+  const result = await pool.query(
+    'SELECT * FROM account_sync_data WHERE account_id = $1 ORDER BY sync_time DESC LIMIT 1',
+    [accountId]
+  );
+  return result.rows[0] || null;
+};
+
+export const createOrUpdateSyncData = async (accountId, data) => {
+  const { products_count = 0, orders_count = 0, sync_status = 'success', sync_data = {} } = data;
+  const result = await pool.query(
+    `INSERT INTO account_sync_data (account_id, products_count, orders_count, sync_status, sync_data, sync_time)
+     VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+     ON CONFLICT (account_id) 
+     DO UPDATE SET 
+       products_count = EXCLUDED.products_count,
+       orders_count = EXCLUDED.orders_count,
+       sync_status = EXCLUDED.sync_status,
+       sync_data = EXCLUDED.sync_data,
+       sync_time = CURRENT_TIMESTAMP
+     RETURNING *`,
+    [accountId, products_count, orders_count, sync_status, JSON.stringify(sync_data)]
+  );
+  return result.rows[0];
+};
+
 // ==================== 任务相关操作 ====================
 
 export const getTasksByUser = async (userId) => {

@@ -6,7 +6,9 @@ import {
   getAccountById,
   createAccount,
   updateAccount,
-  deleteAccount
+  deleteAccount,
+  getSyncDataByAccount,
+  createOrUpdateSyncData
 } from '../services/dbService.js';
 import { authenticateToken, rateLimitMiddleware } from '../middleware/auth.js';
 import {
@@ -15,6 +17,7 @@ import {
   validateAccountTest,
   validateCookies
 } from '../middleware/validateAccounts.js';
+import { syncAccountData as syncOzonData } from '../services/ozonApi.js';
 
 const router = express.Router();
 
@@ -271,6 +274,159 @@ async function testPlatformConnection(account) {
     message: isValid ? '连接成功' : '账号信息不完整'
   };
 }
+
+/**
+ * POST /api/accounts/:id/sync
+ * 同步账号数据（产品+订单）
+ */
+router.post('/:id/sync', authenticateToken, async (req, res) => {
+  try {
+    const account = await getAccountById(req.params.id);
+    
+    if (!account || account.user_id !== req.userId) {
+      return res.status(404).json({ success: false, error: '账号不存在' });
+    }
+    
+    // 检查账号平台类型
+    const platform = account.platform?.toLowerCase();
+    
+    if (platform === 'ozon') {
+      // OZON 平台 - 调用 OZON API
+      const accountData = account.account_data || {};
+      const clientId = accountData.clientId || accountData.client_id;
+      const apiKey = accountData.apiKey || accountData.api_key;
+      
+      if (!clientId || !apiKey) {
+        return res.status(400).json({ 
+          success: false, 
+          error: '缺少 OZON API 凭证，请先配置 Client ID 和 API Key' 
+        });
+      }
+      
+      // 调用 OZON API 同步数据
+      const syncResult = await syncOzonData(clientId, apiKey);
+      
+      if (!syncResult.success) {
+        // 同步失败，更新状态
+        await createOrUpdateSyncData(account.id, {
+          products_count: 0,
+          orders_count: 0,
+          sync_status: 'failed',
+          sync_data: { error: syncResult.error }
+        });
+        
+        return res.status(500).json({ 
+          success: false, 
+          error: syncResult.error || '同步失败' 
+        });
+      }
+      
+      // 同步成功，保存数据
+      await createOrUpdateSyncData(account.id, {
+        products_count: syncResult.productsCount,
+        orders_count: syncResult.ordersCount,
+        sync_status: 'success',
+        sync_data: {
+          products: syncResult.products.slice(0, 10), // 只保存前10个产品详情
+          orders: syncResult.orders.slice(0, 10), // 只保存前10个订单详情
+          syncTime: syncResult.syncTime
+        }
+      });
+      
+      // 更新账号最后同步时间
+      await updateAccount(account.id, {
+        account_data: {
+          ...accountData,
+          lastSync: new Date().toISOString(),
+          productsCount: syncResult.productsCount,
+          ordersCount: syncResult.ordersCount
+        }
+      });
+      
+      return res.json({
+        success: true,
+        message: '同步成功',
+        data: {
+          accountId: account.id,
+          platform: 'ozon',
+          productsCount: syncResult.productsCount,
+          ordersCount: syncResult.ordersCount,
+          syncTime: syncResult.syncTime
+        }
+      });
+    } else {
+      // 其他平台 - 模拟同步（后续可扩展）
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 模拟数据
+      const mockData = {
+        products_count: Math.floor(Math.random() * 50),
+        orders_count: Math.floor(Math.random() * 20),
+        sync_status: 'success',
+        sync_data: { note: '模拟数据' }
+      };
+      
+      await createOrUpdateSyncData(account.id, mockData);
+      
+      return res.json({
+        success: true,
+        message: '同步成功（模拟数据）',
+        data: {
+          accountId: account.id,
+          platform: platform,
+          productsCount: mockData.products_count,
+          ordersCount: mockData.orders_count,
+          syncTime: new Date().toISOString()
+        }
+      });
+    }
+  } catch (error) {
+    console.error('同步账号数据失败:', error);
+    res.status(500).json({ success: false, error: '同步失败: ' + error.message });
+  }
+});
+
+/**
+ * GET /api/accounts/:id/sync
+ * 获取账号同步数据
+ */
+router.get('/:id/sync', authenticateToken, async (req, res) => {
+  try {
+    const account = await getAccountById(req.params.id);
+    
+    if (!account || account.user_id !== req.userId) {
+      return res.status(404).json({ success: false, error: '账号不存在' });
+    }
+    
+    const syncData = await getSyncDataByAccount(account.id);
+    
+    if (!syncData) {
+      return res.json({
+        success: true,
+        data: {
+          productsCount: 0,
+          ordersCount: 0,
+          syncStatus: 'pending',
+          lastSync: null
+        }
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        productsCount: syncData.products_count,
+        ordersCount: syncData.orders_count,
+        syncStatus: syncData.sync_status,
+        lastSync: syncData.sync_time,
+        details: syncData.sync_data
+      }
+    });
+  } catch (error) {
+    console.error('获取同步数据失败:', error);
+    res.status(500).json({ success: false, error: '获取同步数据失败' });
+  }
+});
 
 /**
  * 加密函数
