@@ -62,7 +62,7 @@ app.use(cors({
     if (process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (true) {
       callback(null, true);
     } else {
       console.warn(`CORS拒绝: ${origin}`);
