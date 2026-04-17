@@ -118,6 +118,7 @@ const initDatabase = async () => {
 
 // API路由
 app.use('/api/auth', authRoutes);
+app.get('/api/health', healthCheck);
 app.use('/api/products', productRoutes);
 app.use('/api/generate', generateRoutes);
 app.use('/api/calculate', calculateRoutes);
