@@ -1,7 +1,7 @@
 // JWT认证和安全中间件
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { findUserById, findUserByEmail, updateUser } from '../services/dbService.js';
+import { findUserById, findUserByEmail, updateUser } from '../services/dataStore.js';
 
 // 安全配置 - 从环境变量读取，使用默认密钥作为后备
 const JWT_SECRET = process.env.JWT_SECRET || 'claw-default-secret-key-for-development-only-32chars';
