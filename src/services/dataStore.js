@@ -1,13 +1,12 @@
-// 数据存储服务 - JSON文件存储 + PostgreSQL混合模式
-// findUserById / findUserByEmail 查PostgreSQL（注册用户在那里）
-// 其他操作继续使用JSON文件（保兼容）
+// 数据存储服务 - JSON文件存储（向后兼容 auth.min.js）
+// 注册用户通过 auth.min.js 写入 data/users.json（带 member_id）
+// 认证时通过这里读取，两边共用同一 JSON 文件，完全同步
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { pool } from '../config/database.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// 修复：使用项目根目录下的 data 文件夹
+// 使用项目根目录下的 data 文件夹（与 auth.min.js 完全一致）
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const DATA_DIR = path.join(PROJECT_ROOT, 'data');
 
@@ -17,7 +16,7 @@ if (!fs.existsSync(DATA_DIR)) {
   console.log('数据目录已创建:', DATA_DIR);
 }
 
-// 数据文件路径 - 使用绝对路径
+// 数据文件路径 - 使用绝对路径（与 auth.min.js 一致）
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
 const QUOTAS_FILE = path.join(DATA_DIR, 'quotas.json');
@@ -37,7 +36,7 @@ initFile(QUOTAS_FILE, []);
 initFile(ACCOUNTS_FILE, []);
 initFile(TASKS_FILE, []);
 
-// 生成唯一ID
+// 生成唯一ID（与 auth.min.js 中的 generateUserId 保持一致）
 export const generateId = () => {
   return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 9);
 };
@@ -68,32 +67,16 @@ export const writeData = (filePath, data) => {
 export const getUsers = () => readData(USERS_FILE);
 export const saveUsers = (users) => writeData(USERS_FILE, users);
 
-// 查询PostgreSQL（注册用户在那里）
-export const findUserByEmail = async (email) => {
-  try {
-    const result = await pool.query(
-      'SELECT id::text, email, password, name, membership_type, membership_expires_at, member_id, created_at, updated_at FROM users WHERE email = $1',
-      [email]
-    );
-    return result.rows[0] || null;
-  } catch (error) {
-    console.error('findUserByEmail 查询失败:', error.message);
-    return null;
-  }
+// 同步查找：直接读 JSON 文件（auth.min.js 写到这个文件）
+// 必须同步，避免 async pool 查询失败导致找不到用户
+export const findUserByEmail = (email) => {
+  const users = getUsers();
+  return users.find(u => u.email === email) || null;
 };
 
-// 支持 string/number/UUID 格式的ID查询
-export const findUserById = async (id) => {
-  try {
-    const result = await pool.query(
-      'SELECT id::text, email, password, name, membership_type, membership_expires_at, member_id, created_at, updated_at FROM users WHERE id::text = $1',
-      [String(id)]
-    );
-    return result.rows[0] || null;
-  } catch (error) {
-    console.error('findUserById 查询失败:', error.message);
-    return null;
-  }
+export const findUserById = (id) => {
+  const users = getUsers();
+  return users.find(u => u.id === id) || null;
 };
 
 export const createUser = (user) => {
