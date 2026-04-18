@@ -32,7 +32,7 @@ const tokenBlacklist = new Set();
 // 生成JWT令牌
 export const generateToken = (userId, deviceInfo = {}) => {
   const payload = {
-    userId,
+    userId: String(userId),
     iat: Math.floor(Date.now() / 1000),
     device: deviceInfo,
     jti: `token_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`

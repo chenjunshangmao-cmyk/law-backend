@@ -4,19 +4,20 @@ import pool from '../config/database.js';
 // ==================== 用户相关操作 ====================
 
 export const findUserByEmail = async (email) => {
-  const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+  const result = await pool.query('SELECT id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at FROM users WHERE email = $1', [email]);
   return result.rows[0] || null;
 };
 
 export const findUserById = async (id) => {
-  const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+  // id 统一用字符串格式查询（支持 string 和 number）
+  const result = await pool.query('SELECT id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at FROM users WHERE id::text = $1', [String(id)]);
   return result.rows[0] || null;
 };
 
 export const createUser = async (userData) => {
   const { email, password, name, membership_type = 'free' } = userData;
   const result = await pool.query(
-    'INSERT INTO users (email, password, name, membership_type) VALUES ($1, $2, $3, $4) RETURNING *',
+    'INSERT INTO users (email, password, name, membership_type) VALUES ($1, $2, $3, $4) RETURNING id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at',
     [email, password, name, membership_type]
   );
   return result.rows[0];
