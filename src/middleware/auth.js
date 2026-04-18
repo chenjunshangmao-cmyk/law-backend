@@ -96,8 +96,19 @@ export const authMiddleware = async (req, res, next) => {
     });
   }
 
-  // 检查用户状态 (异步)
-  const user = await findUserById(decoded.userId);
+  // 检查用户状态 (异步) - 加 try-catch 防止数据库错误导致服务崩溃
+  let user;
+  try {
+    user = await findUserById(decoded.userId);
+  } catch (dbError) {
+    console.error('用户查询失败:', dbError.message);
+    return res.status(503).json({
+      success: false,
+      error: '认证服务暂时不可用，请稍后重试',
+      code: 'AUTH_SERVICE_UNAVAILABLE'
+    });
+  }
+
   if (!user) {
     return res.status(401).json({
       success: false,
