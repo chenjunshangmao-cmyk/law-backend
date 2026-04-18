@@ -3,6 +3,9 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // 数据库配置
 import { testConnection, syncDatabase, sequelize, pool } from './config/database.js';
@@ -247,9 +250,6 @@ app.post('/api/competitor/search', async (req, res) => {
 // ==========================================
 app.get('/api/debug/users', (req, res) => {
   try {
-    const fs = await import('fs');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const PROJECT_ROOT = path.resolve(__dirname, '..');
     const DATA_DIR = path.join(PROJECT_ROOT, 'data');
