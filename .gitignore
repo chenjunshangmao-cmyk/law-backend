@@ -1,14 +1,39 @@
-﻿node_modules
+﻿# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Environment files
 .env
-.env.*
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+test-results/
+coverage/
+
+# Local data (not to be committed)
 data/*.json
 data/*.db
 data/*.log
 backend.log
-*.log
-.DS_Store
-.vscode
-.idea
-dist
-build
-coverage
+
+# Browser automation data (large, not needed in repo)
+browser-data/
