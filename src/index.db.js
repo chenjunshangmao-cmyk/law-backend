@@ -242,6 +242,39 @@ app.post('/api/competitor/search', async (req, res) => {
   }
 });
 
+// ==========================================
+// 调试端点：查看data/users.json内容
+// ==========================================
+app.get('/api/debug/users', (req, res) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const PROJECT_ROOT = path.resolve(__dirname, '..');
+    const DATA_DIR = path.join(PROJECT_ROOT, 'data');
+    const USERS_FILE = path.join(DATA_DIR, 'users.json');
+    const content = fs.readFileSync(USERS_FILE, 'utf8');
+    const users = JSON.parse(content);
+    // 只返回基本信息（隐藏密码）
+    const safe = users.map(u => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      plan: u.plan,
+      member_id: u.member_id,
+      hasToken: !!u.token,
+      tokenType: typeof u.token,
+      tokenSample: u.token ? (typeof u.token === 'string' ? u.token.slice(0, 50) : JSON.stringify(u.token).slice(0, 100)) : null,
+      passwordLen: u.password ? u.password.length : 0
+    }));
+    res.json({ count: users.length, users: safe, path: USERS_FILE });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // 404处理
 app.use(notFoundHandler);
 
