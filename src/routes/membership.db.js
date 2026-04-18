@@ -4,6 +4,7 @@
  */
 
 import express from 'express';
+import https from 'https';
 import pool from '../config/database.js';
 import {
   findUserById,
@@ -411,6 +412,46 @@ router.post('/upgrade', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('升级套餐失败:', error);
     res.status(500).json({ success: false, error: '升级套餐失败' });
+  }
+});
+
+/**
+ * POST /api/membership/create
+ * 创建支付订单（兼容前端调用）
+ * 内部转发到 /api/payment/create
+ */
+router.post('/create', authenticateToken, async (req, res) => {
+  try {
+    // 转发到 payment.db.js 的 /create 端点
+    const paymentReq = https.request({
+      hostname: 'claw-backend-2026.onrender.com',
+      port: 443,
+      path: '/api/payment/create',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': req.headers.authorization || ''
+      }
+    }, (paymentRes) => {
+      let data = '';
+      paymentRes.on('data', c => data += c);
+      paymentRes.on('end', () => {
+        try {
+          const result = JSON.parse(data);
+          res.status(paymentRes.statusCode).json(result);
+        } catch (_) {
+          res.status(paymentRes.statusCode).json({ success: false, error: data });
+        }
+      });
+    });
+    paymentReq.on('error', (err) => {
+      res.status(500).json({ success: false, error: '支付服务暂时不可用: ' + err.message });
+    });
+    paymentReq.write(JSON.stringify(req.body));
+    paymentReq.end();
+  } catch (error) {
+    console.error('[会员] /create 失败:', error);
+    res.status(500).json({ success: false, error: '支付服务暂时不可用' });
   }
 });
 
