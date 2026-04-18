@@ -4,37 +4,21 @@ import pool from '../config/database.js';
 // ==================== 用户相关操作 ====================
 
 export const findUserByEmail = async (email) => {
-  const result = await pool.query('SELECT id::text, email, password, name, membership_type, membership_expires_at, member_id, created_at, updated_at FROM users WHERE email = $1', [email]);
+  const result = await pool.query('SELECT id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at FROM users WHERE email = $1', [email]);
   return result.rows[0] || null;
 };
 
 export const findUserById = async (id) => {
   // id 统一用字符串格式查询（支持 string 和 number）
-  const result = await pool.query('SELECT id::text, email, password, name, membership_type, membership_expires_at, member_id, created_at, updated_at FROM users WHERE id::text = $1', [String(id)]);
+  const result = await pool.query('SELECT id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at FROM users WHERE id::text = $1', [String(id)]);
   return result.rows[0] || null;
-};
-
-export const findUserByMemberId = async (memberId) => {
-  const result = await pool.query('SELECT id::text, email, password, name, membership_type, membership_expires_at, member_id, created_at, updated_at FROM users WHERE member_id = $1', [memberId]);
-  return result.rows[0] || null;
-};
-
-// 生成会员ID：M + 年月日 + 4位随机数（如 M202604190001）
-const generateMemberId = () => {
-  const date = new Date();
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  const rand = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-  return `M${y}${m}${d}${rand}`;
 };
 
 export const createUser = async (userData) => {
   const { email, password, name, membership_type = 'free' } = userData;
-  const memberId = generateMemberId();
   const result = await pool.query(
-    'INSERT INTO users (email, password, name, membership_type, member_id) VALUES ($1, $2, $3, $4, $5) RETURNING id::text, email, password, name, membership_type, membership_expires_at, member_id, created_at, updated_at',
-    [email, password, name, membership_type, memberId]
+    'INSERT INTO users (email, password, name, membership_type) VALUES ($1, $2, $3, $4) RETURNING id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at',
+    [email, password, name, membership_type]
   );
   return result.rows[0];
 };
