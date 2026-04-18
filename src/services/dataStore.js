@@ -1,7 +1,10 @@
-// 数据存储服务 - JSON文件存储
+// 数据存储服务 - JSON文件存储 + PostgreSQL混合模式
+// findUserById / findUserByEmail 查PostgreSQL（注册用户在那里）
+// 其他操作继续使用JSON文件（保兼容）
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { pool } from '../config/database.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // 修复：使用项目根目录下的 data 文件夹
@@ -65,14 +68,32 @@ export const writeData = (filePath, data) => {
 export const getUsers = () => readData(USERS_FILE);
 export const saveUsers = (users) => writeData(USERS_FILE, users);
 
-export const findUserByEmail = (email) => {
-  const users = getUsers();
-  return users.find(u => u.email === email);
+// 查询PostgreSQL（注册用户在那里）
+export const findUserByEmail = async (email) => {
+  try {
+    const result = await pool.query(
+      'SELECT id::text, email, password, name, membership_type, membership_expires_at, member_id, created_at, updated_at FROM users WHERE email = $1',
+      [email]
+    );
+    return result.rows[0] || null;
+  } catch (error) {
+    console.error('findUserByEmail 查询失败:', error.message);
+    return null;
+  }
 };
 
-export const findUserById = (id) => {
-  const users = getUsers();
-  return users.find(u => u.id === id);
+// 支持 string/number/UUID 格式的ID查询
+export const findUserById = async (id) => {
+  try {
+    const result = await pool.query(
+      'SELECT id::text, email, password, name, membership_type, membership_expires_at, member_id, created_at, updated_at FROM users WHERE id::text = $1',
+      [String(id)]
+    );
+    return result.rows[0] || null;
+  } catch (error) {
+    console.error('findUserById 查询失败:', error.message);
+    return null;
+  }
 };
 
 export const createUser = (user) => {
