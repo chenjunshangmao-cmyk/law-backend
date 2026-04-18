@@ -1,7 +1,7 @@
 // JWT认证和安全中间件
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { findUserById, findUserByEmail, updateUser } from '../services/dataStore.js';
+import { findUserById, findUserByEmail, updateUser } from '../services/dbService.js';
 
 // 安全配置 - 从环境变量读取，使用默认密钥作为后备
 const JWT_SECRET = process.env.JWT_SECRET || 'claw-default-secret-key-for-development-only-32chars';
@@ -124,7 +124,7 @@ export const authMiddleware = async (req, res, next) => {
 };
 
 // 可选认证中间件
-export const optionalAuth = (req, res, next) => {
+export const optionalAuth = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -132,7 +132,7 @@ export const optionalAuth = (req, res, next) => {
     const decoded = verifyToken(token);
     
     if (decoded) {
-      const user = findUserById(decoded.userId);
+      const user = await findUserById(decoded.userId);
       if (user && user.status !== 'suspended' && user.status !== 'banned') {
         req.user = user;
         req.userId = decoded.userId;
@@ -220,11 +220,11 @@ export const rateLimitMiddleware = (windowMs = RATE_LIMIT_WINDOW, max = RATE_LIM
 };
 
 // 防止暴力破解的登录保护
-export const loginProtectionMiddleware = (req, res, next) => {
+export const loginProtectionMiddleware = async (req, res, next) => {
   const { email } = req.body;
   if (!email) return next();
   
-  const user = findUserByEmail(email);
+  const user = await findUserByEmail(email);
   if (!user) return next();
   
   const now = Date.now();
@@ -240,25 +240,25 @@ export const loginProtectionMiddleware = (req, res, next) => {
       code: 'ACCOUNT_LOCKED'
     });
   }
-  
+
   req.loginUser = user;
   req.loginProtection = {
     attempts,
     lastAttemptTime,
     lockedUntil: user.lockedUntil
   };
-  
+
   next();
 };
 
 // 记录登录尝试
-export const recordLoginAttempt = (email, success) => {
-  const user = findUserByEmail(email);
+export const recordLoginAttempt = async (email, success) => {
+  const user = await findUserByEmail(email);
   if (!user) return;
-  
+
   const now = Date.now();
   let updates = {};
-  
+
   if (success) {
     // 登录成功，重置尝试次数
     updates = {
@@ -280,8 +280,8 @@ export const recordLoginAttempt = (email, success) => {
       updates.lockedUntil = now + LOCKOUT_DURATION;
     }
   }
-  
-  updateUser(user.id, updates);
+
+  await updateUser(user.id, updates);
 };
 
 // 别名导出

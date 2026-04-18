@@ -105,6 +105,6 @@ export const syncDatabase = async (force = false) => {
   }
 };
 
-// 命名导出 sequelize
-export { sequelize };
+// 命名导出 sequelize 和 pool
+export { sequelize, pool };
 export default sequelize;
