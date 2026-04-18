@@ -10,9 +10,9 @@ import axios from 'axios';
 const SHOUQIANBA_API = 'https://vsi-api.shouqianba.com';
 
 // 从环境变量读取配置
-const VENDOR_SN = process.env.SHOUQIANBA_VENDOR_SN || '91803325';
-const VENDOR_KEY = process.env.SHOUQIANBA_VENDOR_KEY || '677da351628d3fe7664321669c3439b2';
-const APP_ID = process.env.SHOUQIANBA_APP_ID || '2026041600011122';
+const VENDOR_SN = process.env.SHOUQIANBA_VENDOR_SN || '';  // 必填：收钱吧机构编号（终端编号）
+const VENDOR_KEY = process.env.SHOUQIANBA_VENDOR_KEY || ''; // 必填：收钱吧机构密钥
+const APP_ID = process.env.SHOUQIANBA_APP_ID || '';        // 必填：收钱吧应用 ID
 
 /**
  * 生成 MD5 签名（非支付接口）
