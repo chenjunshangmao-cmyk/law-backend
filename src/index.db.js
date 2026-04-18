@@ -5,7 +5,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 
 // 数据库配置
-import { testConnection, syncDatabase, sequelize } from './config/database.js';
+import { testConnection, syncDatabase, sequelize, pool } from './config/database.js';
 
 // 中间件
 import { requestLogger, securityHeaders, errorHandler, notFoundHandler, healthCheck } from './middleware/errorHandler.js';
@@ -113,6 +113,34 @@ const initDatabase = async () => {
     console.error('⚠️ 数据库同步失败:', error.message);
     console.log('继续启动服务...');
   }
+
+  // 会员字段迁移：添加 member_id 列并为现有用户分配
+  try {
+    // 1. 添加 member_id 列（如果不存在）
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS member_id VARCHAR(20) UNIQUE
+    `);
+    console.log('[迁移] ✅ member_id 列就绪');
+
+    // 2. 为缺少 member_id 的用户分配（按注册顺序）
+    const nullUsers = await pool.query(`
+      SELECT id FROM users WHERE member_id IS NULL ORDER BY created_at ASC
+    `);
+    if (nullUsers.rows.length > 0) {
+      console.log(`[迁移] 为 ${nullUsers.rows.length} 个用户分配 member_id...`);
+      for (let i = 0; i < nullUsers.rows.length; i++) {
+        const id = nullUsers.rows[i].id;
+        const seq = String(i + 1).padStart(4, '0');
+        const d = new Date();
+        const memberId = `M${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}${seq}`;
+        await pool.query('UPDATE users SET member_id = $1 WHERE id = $2', [memberId, id]);
+      }
+      console.log('[迁移] ✅ 现有用户 member_id 分配完成');
+    }
+  } catch (err) {
+    console.error('[迁移] ⚠️ member_id 迁移失败（不影响主服务）:', err.message);
+  }
+
   return true;
 };
 
