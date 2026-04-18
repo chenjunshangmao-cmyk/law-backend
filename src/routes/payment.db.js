@@ -238,9 +238,9 @@ router.get('/status/:orderNo', authenticateToken, async (req, res) => {
 
 /**
  * POST /api/webhook/shouqianba
- * 收钱吧支付回调
+ * 收钱吧支付回调（路由已挂载到 /api/webhook，故此处直接写 /shouqianba）
  */
-router.post('/webhook/shouqianba', async (req, res) => {
+router.post('/shouqianba', async (req, res) => {
   try {
     console.log('收到收钱吧回调:', req.body);
 
@@ -335,27 +335,36 @@ router.get('/orders', authenticateToken, async (req, res) => {
 async function upgradeUserMembership(userId, planType) {
   try {
     const planInfo = PLANS[planType];
-    if (!planInfo) return;
+    if (!planInfo) {
+      console.log(`升级会员：未找到套餐 ${planType} 的配置，跳过`);
+      return;
+    }
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + planInfo.duration);
 
-    // 更新用户套餐
+    // 更新用户套餐（字段名匹配 users 表：membership_type / membership_expires_at）
     await pool.query(
-      'UPDATE users SET plan = $1, expires_at = $2, updated_at = NOW() WHERE id = $3',
+      'UPDATE users SET membership_type = $1, membership_expires_at = $2, updated_at = NOW() WHERE id = $3',
       [planType, expiresAt, userId]
     );
 
-    // 重置额度
-    await pool.query(
-      `INSERT INTO user_quotas (user_id, daily_generate, total_products, ai_calls_today, active_tasks, last_reset)
-       VALUES ($1, 0, 0, 0, 0, NOW())
-       ON CONFLICT (user_id) 
-       DO UPDATE SET daily_generate = 0, ai_calls_today = 0, last_reset = NOW()`,
-      [userId]
-    );
+    // 重置额度（使用 quotas 表，已在 init-db.js 创建）
+    // quotas 表字段：text_generations, image_generations, products_limit
+    try {
+      await pool.query(
+        `INSERT INTO quotas (user_id, text_generations, image_generations)
+         VALUES ($1, 0, 0)
+         ON CONFLICT (user_id) 
+         DO UPDATE SET text_generations = 0, image_generations = 0`,
+        [userId]
+      );
+      console.log(`用户 ${userId} 额度已重置`);
+    } catch (quotaErr) {
+      console.warn(`重置额度失败（quota表可能不存在）: ${quotaErr.message}`);
+    }
 
-    console.log(`用户 ${userId} 升级到 ${planType}，有效期至 ${expiresAt}`);
+    console.log(`✅ 用户 ${userId} 升级到 ${planType}，有效期至 ${expiresAt}`);
 
   } catch (error) {
     console.error('升级会员失败:', error);
