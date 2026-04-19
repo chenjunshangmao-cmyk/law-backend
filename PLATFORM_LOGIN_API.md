@@ -76,7 +76,35 @@ Content-Type: application/json
   "title": "视频标题",
   "description": "视频描述",
   "thumbnail": "/path/to/thumbnail.jpg",
-  "useApi": false
+  "useApi": false,
+  "autoLogin": true
+}
+```
+
+**参数说明：**
+- `email`: Google 邮箱（必需）
+- `videoPath`: 视频文件路径（必需）
+- `title`: 视频标题
+- `description`: 视频描述
+- `thumbnail`: 缩略图路径
+- `useApi`: 是否使用 YouTube Data API（需要 token 登录）
+- `autoLogin`: 未登录时是否自动打开浏览器登录（默认 true）
+
+**🚀 自动登录流程：**
+1. 调用上传接口时如果未登录，自动打开浏览器
+2. 用户在浏览器中手动登录 YouTube/Google
+3. 关闭浏览器后自动保存登录状态
+4. 继续执行视频上传流程
+
+**响应示例（自动登录）：**
+```json
+{
+  "success": true,
+  "message": "视频上传成功",
+  "loginType": "session",
+  "platform": "youtube",
+  "videoTitle": "视频标题",
+  "videoUrl": "https://studio.youtube.com/video/..."
 }
 ```
 
@@ -247,7 +275,8 @@ Content-Type: application/json
   "price": 29.99,
   "stock": 100,
   "images": ["/path/to/image1.jpg", "/path/to/image2.jpg"],
-  "useApi": false
+  "useApi": false,
+  "autoLogin": true
 }
 ```
 
@@ -259,6 +288,24 @@ Content-Type: application/json
 - `stock`: 库存数量
 - `images`: 图片路径数组
 - `useApi`: 是否使用 API 模式（需要 token 登录）
+- `autoLogin`: 未登录时是否自动打开浏览器登录（默认 true）
+
+**🚀 自动登录流程：**
+1. 调用发布接口时如果未登录，自动打开浏览器
+2. 用户在浏览器中手动登录 TikTok
+3. 关闭浏览器后自动保存登录状态
+4. 继续执行产品发布流程
+
+**响应示例（自动登录）：**
+```json
+{
+  "success": true,
+  "message": "产品发布成功",
+  "loginType": "session",
+  "platform": "tiktok",
+  "productTitle": "产品标题"
+}
+```
 
 ---
 

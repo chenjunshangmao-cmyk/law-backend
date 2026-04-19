@@ -136,17 +136,34 @@ class TikTokShopAutomation extends BrowserAutomation {
     // 监听窗口关闭事件
     return new Promise((resolve) => {
       browser.on('disconnected', async () => {
-        // 检查是否登录成功（session是否存在）
-        if (fs.existsSync(this.getSessionPath(email))) {
-          resolve({
-            success: true,
-            message: '登录成功，Session已保存',
-            sessionPath: this.getSessionPath(email)
-          });
-        } else {
+        // 浏览器关闭时保存 session
+        try {
+          const sessionPath = this.getSessionPath(email);
+          await context.storageState({ path: sessionPath });
+          console.log(`💾 Session 已保存: ${sessionPath}`);
+          
+          // 检查是否登录成功（session文件是否有内容）
+          const sessionData = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+          const hasCookies = sessionData.cookies && sessionData.cookies.length > 0;
+          const hasLocalStorage = sessionData.origins && sessionData.origins.some(o => o.localStorage && o.localStorage.length > 0);
+          
+          if (hasCookies || hasLocalStorage) {
+            resolve({
+              success: true,
+              message: '登录成功，Session已保存',
+              sessionPath: this.getSessionPath(email),
+              loginType: 'session'
+            });
+          } else {
+            resolve({
+              success: false,
+              error: '登录未完成（未检测到登录凭证）'
+            });
+          }
+        } catch (error) {
           resolve({
             success: false,
-            error: '登录未完成或Session保存失败'
+            error: 'Session保存失败: ' + error.message
           });
         }
       });
@@ -318,12 +335,42 @@ class TikTokShopAutomation extends BrowserAutomation {
     };
   }
 
-  // 发布产品（使用已保存的session）
+  // 发布产品（使用已保存的session，未登录时自动打开浏览器登录）
   async publishProduct(productData) {
-    const { email, title, description, price, stock, images, useApi = false } = productData;
+    const { email, title, description, price, stock, images, useApi = false, autoLogin = true } = productData;
 
     // 检查登录状态（支持 session、cookies 和 token 三种方式）
-    const loginStatus = await this.checkLogin(email);
+    let loginStatus = await this.checkLogin(email);
+    
+    // 未登录且允许自动登录时，打开浏览器让用户登录
+    if (!loginStatus.loggedIn && autoLogin) {
+      console.log(`🔐 用户 ${email} 未登录，正在打开浏览器...`);
+      
+      const loginResult = await this.openLoginPage(email);
+      
+      if (!loginResult.success) {
+        return {
+          success: false,
+          error: '登录失败: ' + loginResult.error,
+          needLogin: true
+        };
+      }
+      
+      // 重新检查登录状态
+      loginStatus = await this.checkLogin(email);
+      
+      if (!loginStatus.loggedIn) {
+        return {
+          success: false,
+          error: '登录未完成，请重新尝试',
+          needLogin: true
+        };
+      }
+      
+      console.log('✅ 登录成功，继续发布产品...');
+    }
+    
+    // 仍然未登录，返回错误
     if (!loginStatus.loggedIn) {
       return {
         success: false,
@@ -755,12 +802,42 @@ class YouTubeAutomation extends BrowserAutomation {
     return null;
   }
 
-  // 上传视频
+  // 上传视频（未登录时自动打开浏览器登录）
   async uploadVideo(videoData) {
-    const { email, videoPath, title, description, thumbnail, useApi = false } = videoData;
+    const { email, videoPath, title, description, thumbnail, useApi = false, autoLogin = true } = videoData;
 
     // 检查登录状态（支持 session 和 token 两种方式）
-    const loginStatus = await this.checkLogin(email);
+    let loginStatus = await this.checkLogin(email);
+    
+    // 未登录且允许自动登录时，打开浏览器让用户登录
+    if (!loginStatus.loggedIn && autoLogin) {
+      console.log(`🔐 用户 ${email} 未登录，正在打开浏览器...`);
+      
+      const loginResult = await this.openLoginPage(email);
+      
+      if (!loginResult.success) {
+        return {
+          success: false,
+          error: '登录失败: ' + loginResult.error,
+          needLogin: true
+        };
+      }
+      
+      // 重新检查登录状态
+      loginStatus = await this.checkLogin(email);
+      
+      if (!loginStatus.loggedIn) {
+        return {
+          success: false,
+          error: '登录未完成，请重新尝试',
+          needLogin: true
+        };
+      }
+      
+      console.log('✅ 登录成功，继续上传视频...');
+    }
+    
+    // 仍然未登录，返回错误
     if (!loginStatus.loggedIn) {
       return {
         success: false,
