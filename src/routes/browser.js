@@ -6,13 +6,14 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { TikTokShopAutomation, YouTubeAutomation } from '../services/browserAutomation.js';
+import { TikTokShopAutomation, YouTubeAutomation, OzonAutomation } from '../services/browserAutomation.js';
 
 const router = express.Router();
 
 // 初始化自动化实例
 const tiktok = new TikTokShopAutomation();
 const youtube = new YouTubeAutomation();
+const ozon = new OzonAutomation();
 
 // 确保目录存在
 const browserStateDir = path.join(process.cwd(), 'browser-states');
@@ -489,6 +490,7 @@ router.post('/close', async (req, res) => {
   try {
     await tiktok.close();
     await youtube.close();
+    await ozon.close();
     
     res.json({
       success: true,
@@ -529,6 +531,212 @@ router.get('/list-sessions', async (req, res) => {
     res.json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+/**
+ * ============================================
+ * OZON 接口
+ * ============================================
+ */
+
+/**
+ * POST /api/browser/ozon/login
+ * 打开浏览器让客户手动登录 OZON Seller Center
+ */
+router.post('/ozon/login', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.json({
+        success: false,
+        error: '请提供邮箱参数：{ email: "your@email.com" }'
+      });
+    }
+
+    console.log(`📱 正在为 ${email} 打开 OZON Seller Center...`);
+
+    const result = await ozon.openLoginPage(email);
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('登录失败:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/browser/ozon/status
+ * 检查 OZON 登录状态
+ */
+router.get('/ozon/status', async (req, res) => {
+  const { email } = req.query;
+
+  if (!email) {
+    return res.json({
+      success: false,
+      error: '请提供邮箱参数：?email=your@email.com'
+    });
+  }
+
+  const status = await ozon.checkLogin(email);
+
+  res.json({
+    success: true,
+    data: {
+      platform: 'ozon',
+      email,
+      loggedIn: status.loggedIn,
+      loginType: status.loginType,
+      hasSession: status.hasSession,
+      hasToken: status.hasToken,
+      isTokenExpired: status.isTokenExpired,
+      sessionPath: status.sessionPath,
+      tokenPath: status.tokenPath,
+      message: status.loggedIn
+        ? `已登录 (${status.loginType === 'token' ? 'Token' : 'Cookies'})`
+        : (status.isTokenExpired ? 'Token 已过期' : '未登录')
+    }
+  });
+});
+
+/**
+ * POST /api/browser/ozon/publish
+ * 发布产品到 OZON
+ */
+router.post('/ozon/publish', async (req, res) => {
+  try {
+    const { email, title, description, price, sku, images } = req.body;
+
+    if (!email || !title) {
+      return res.json({
+        success: false,
+        error: '缺少必要参数：email, title'
+      });
+    }
+
+    const result = await ozon.publishProduct({
+      email,
+      title,
+      description: description || '',
+      price: parseFloat(price) || 0,
+      sku,
+      images
+    });
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('发布失败:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/browser/ozon/login-cookies
+ * 通过导入 Cookies 登录 OZON
+ */
+router.post('/ozon/login-cookies', async (req, res) => {
+  try {
+    const { email, cookies } = req.body;
+
+    if (!email || !cookies) {
+      return res.json({
+        success: false,
+        error: '请提供邮箱和 cookies：{ email: "your@email.com", cookies: [...] }'
+      });
+    }
+
+    const result = await ozon.loginWithCookies(email, cookies);
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('Cookie 登录失败:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/browser/ozon/login-token
+ * 通过 Access Token 登录 OZON
+ */
+router.post('/ozon/login-token', async (req, res) => {
+  try {
+    const { email, accessToken, refreshToken, expiresIn } = req.body;
+
+    if (!email || !accessToken) {
+      return res.json({
+        success: false,
+        error: '请提供邮箱和 accessToken：{ email: "your@email.com", accessToken: "..." }'
+      });
+    }
+
+    const result = await ozon.loginWithToken(email, {
+      accessToken,
+      refreshToken,
+      expiresIn
+    });
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('Token 登录失败:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/browser/ozon/test-api
+ * 通过 OZON API Key 测试账号连接（无需浏览器）
+ * OZON API 文档: https://api-seller.ozon.ru/
+ */
+router.post('/ozon/test-api', async (req, res) => {
+  try {
+    const { clientId, apiKey } = req.body;
+
+    if (!clientId || !apiKey) {
+      return res.json({
+        success: false,
+        error: '请提供 clientId 和 apiKey：{ clientId: "...", apiKey: "..." }'
+      });
+    }
+
+    // 动态导入 ozonApi（避免循环依赖）
+    const { createOzonClient, getSellerInfo } = await import('../services/ozonApi.js');
+    const client = createOzonClient(clientId, apiKey);
+
+    console.log('🔍 正在测试 OZON API 连接...');
+    const sellerInfo = await getSellerInfo(client);
+
+    res.json({
+      success: true,
+      message: 'API 连接成功！',
+      clientId,
+      sellerInfo,
+    });
+
+  } catch (error) {
+    console.error('OZON API 测试失败:', error.response?.data || error.message);
+    res.json({
+      success: false,
+      error: error.response?.data?.message || error.message,
+      hint: '请检查 Client-Id 和 Api-Key 是否正确，可在 OZON Seller Center > Settings > API 获取',
     });
   }
 });

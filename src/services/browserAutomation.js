@@ -14,8 +14,10 @@ if (!fs.existsSync(STATE_DIR)) {
   fs.mkdirSync(STATE_DIR, { recursive: true });
 }
 
-// 代理配置（Clash Verge）
-const PROXY_PORT = '6789';
+// 代理配置（支持环境变量配置，兼容本地和生产环境）
+// 本地开发：PLAYWRIGHT_PROXY_URL=http://127.0.0.1:6789
+// 生产环境：可留空（直接连接）或配置境外代理
+const PROXY_URL = process.env.PLAYWRIGHT_PROXY_URL || null; // null = 直连
 
 class BrowserAutomation {
   constructor(platform) {
@@ -26,15 +28,25 @@ class BrowserAutomation {
 
   // 获取浏览器启动配置
   getLaunchOptions() {
+    const args = [
+      '--disable-blink-features=AutomationControlled',
+      '--no-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-setuid-sandbox',
+      // 防检测：伪装真实浏览器特征
+      '--disable-web-security',
+      '--disable-features=IsolateOrigins,site-per-process',
+    ];
+    
+    // 代理配置（通过环境变量 PLAYWRIGHT_PROXY_URL 设置）
+    if (PROXY_URL) {
+      args.push(`--proxy-server=${PROXY_URL}`);
+      console.log(`🔗 使用代理: ${PROXY_URL}`);
+    }
+
     return {
       headless: false,
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--no-sandbox',
-        '--disable-dev-shm-usage'
-        // 代理已禁用，直接连接
-        // `--proxy-server=http://127.0.0.1:${PROXY_PORT}`
-      ]
+      args
     };
   }
 
@@ -72,6 +84,38 @@ class BrowserAutomation {
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     });
 
+    // 为每个新页面注入防检测脚本（Stealth Mode）
+    this.context.on('page', async (page) => {
+      await page.addInitScript(() => {
+        // 隐藏 webdriver 属性
+        Object.defineProperty(navigator, 'webdriver', {
+          get: () => false,
+          configurable: true
+        });
+        // 隐藏 Playwright 相关属性
+        window.playwright = undefined;
+        window.__playwright = undefined;
+        // 伪造 plugins
+        Object.defineProperty(navigator, 'plugins', {
+          get: () => [
+            { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
+            { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+            { name: 'Native Client', filename: 'internal-nacl-plugin' }
+          ],
+          configurable: true
+        });
+        // 伪造 languages
+        Object.defineProperty(navigator, 'languages', {
+          get: () => ['zh-CN', 'zh', 'en-US', 'en'],
+          configurable: true
+        });
+        // 伪造 chrome 对象
+        if (window.chrome === undefined) {
+          window.chrome = { runtime: {} };
+        }
+      });
+    });
+
     return { browser: this.browser, context: this.context };
   }
 
@@ -93,6 +137,29 @@ class BrowserAutomation {
 
   async newPage() {
     return await this.context.newPage();
+  }
+
+  /**
+   * 登出：清理 session 和 token 文件
+   */
+  async logout(email) {
+    const sessionPath = this.getSessionPath(email);
+
+    if (fs.existsSync(sessionPath)) {
+      fs.unlinkSync(sessionPath);
+      console.log(`🗑️ Session 已删除: ${sessionPath}`);
+    }
+
+    const tokenPath = this.getTokenPath(email);
+    if (fs.existsSync(tokenPath)) {
+      fs.unlinkSync(tokenPath);
+      console.log(`🗑️ Token 已删除: ${tokenPath}`);
+    }
+
+    // 关闭浏览器实例
+    await this.close();
+
+    return { success: true, message: '已登出' };
   }
 }
 
@@ -420,7 +487,8 @@ class TikTokShopAutomation extends BrowserAutomation {
       console.log('✅ 登录状态验证通过');
       console.log('📦 正在打开添加产品页面...');
       
-      await page.goto('https://seller-accounts.tiktok.com/product/add', {
+      // TikTok 添加产品页面（使用与 dashboardUrl 一致的域名）
+      await page.goto('https://seller.tiktok.com/product/add', {
         waitUntil: 'domcontentloaded',
         timeout: 60000
       });
@@ -664,18 +732,38 @@ class YouTubeAutomation extends BrowserAutomation {
 
     console.log('✅ 请在浏览器中手动登录Google账号，登录成功后关闭窗口');
 
+    // 保存 session 路径供 disconnected 处理器使用
+    const sessionPath = this.getSessionPath(email);
+
     return new Promise((resolve) => {
       browser.on('disconnected', async () => {
-        if (fs.existsSync(this.getSessionPath(email))) {
-          resolve({
-            success: true,
-            message: '登录成功，Session已保存',
-            sessionPath: this.getSessionPath(email)
-          });
-        } else {
+        // 关键修复：必须主动调用 storageState 保存 session，不能只检查文件存在
+        try {
+          await context.storageState({ path: sessionPath });
+          console.log(`💾 Session 已保存: ${sessionPath}`);
+
+          // 验证 session 内容（检查是否有 cookies）
+          const sessionData = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+          const hasCookies = sessionData.cookies && sessionData.cookies.length > 0;
+          const hasLocalStorage = sessionData.origins && sessionData.origins.some(o => o.localStorage && o.localStorage.length > 0);
+
+          if (hasCookies || hasLocalStorage) {
+            resolve({
+              success: true,
+              message: '登录成功，Session已保存',
+              sessionPath,
+              loginType: 'session'
+            });
+          } else {
+            resolve({
+              success: false,
+              error: '登录未完成（未检测到登录凭证）'
+            });
+          }
+        } catch (error) {
           resolve({
             success: false,
-            error: '登录未完成或Session保存失败'
+            error: 'Session保存失败: ' + error.message
           });
         }
       });
@@ -882,7 +970,8 @@ class YouTubeAutomation extends BrowserAutomation {
       console.log('✅ 登录状态验证通过');
       console.log('🎬 正在打开上传页面...');
       
-      await page.goto('https://studio.youtube.com/channel/upload', {
+      // YouTube Studio 上传入口：直接访问上传路由，自动跳转到对应频道
+      await page.goto('https://studio.youtube.com/upload', {
         waitUntil: 'domcontentloaded',
         timeout: 60000
       });
@@ -1115,10 +1204,22 @@ class YouTubeAutomation extends BrowserAutomation {
     const hasToken = this.hasToken(email);
     const tokenInfo = this.getTokenInfo(email);
 
-    // 判断登录类型
+    // 判断登录类型（区分 cookies 导入 vs session 登录）
     let loginType = null;
     if (hasToken) loginType = 'token';
-    else if (hasSession) loginType = 'session';
+    else if (hasSession) {
+      const sessionPath = this.getSessionPath(email);
+      try {
+        const sessionData = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+        if (sessionData.cookies && sessionData.cookies.length > 0) {
+          loginType = 'cookies';
+        } else {
+          loginType = 'session';
+        }
+      } catch {
+        loginType = 'session';
+      }
+    }
 
     // 检查 token 是否过期
     let isTokenExpired = false;
@@ -1142,4 +1243,300 @@ class YouTubeAutomation extends BrowserAutomation {
   }
 }
 
-export { TikTokShopAutomation, YouTubeAutomation };
+// ============================================================
+// OZON 浏览器自动化
+// 平台：OZON（俄罗斯最大电商平台）
+// 登录：https://seller.ozon.ru
+// ============================================================
+class OzonAutomation extends BrowserAutomation {
+  constructor() {
+    super('ozon');
+    this.loginUrl = 'https://seller.ozon.ru';
+    this.dashboardUrl = 'https://seller.ozon.ru/app/dashboard';
+    this.productAddUrl = 'https://seller.ozon.ru/app/products/create';
+  }
+
+  // 打开 OZON Seller Center 登录页面
+  async openLoginPage(email) {
+    const { browser, context } = await this.openForManualLogin(email);
+    const page = await context.newPage();
+
+    console.log('📱 正在打开 OZON Seller Center 登录页面...');
+    await page.goto(this.loginUrl, { waitUntil: 'networkidle', timeout: 120000 });
+
+    console.log('✅ 请在浏览器中登录 OZON 账号，登录成功后关闭窗口');
+
+    const sessionPath = this.getSessionPath(email);
+
+    return new Promise((resolve) => {
+      browser.on('disconnected', async () => {
+        try {
+          await context.storageState({ path: sessionPath });
+          console.log(`💾 Session 已保存: ${sessionPath}`);
+
+          const sessionData = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+          const hasCookies = sessionData.cookies && sessionData.cookies.length > 0;
+          const hasLocalStorage = sessionData.origins && sessionData.origins.some(
+            o => o.localStorage && o.localStorage.length > 0
+          );
+
+          if (hasCookies || hasLocalStorage) {
+            resolve({
+              success: true,
+              message: '登录成功，Session已保存',
+              sessionPath,
+              loginType: 'session'
+            });
+          } else {
+            resolve({
+              success: false,
+              error: '登录未完成（未检测到登录凭证）'
+            });
+          }
+        } catch (error) {
+          resolve({
+            success: false,
+            error: 'Session保存失败: ' + error.message
+          });
+        }
+      });
+    });
+  }
+
+  // 检查登录状态
+  async checkLogin(email) {
+    const hasSession = this.hasSession(email);
+    const hasToken = this.hasToken(email);
+    const tokenInfo = this.getTokenInfo(email);
+
+    let loginType = null;
+    if (hasToken) loginType = 'token';
+    else if (hasSession) {
+      const sessionPath = this.getSessionPath(email);
+      try {
+        const sessionData = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+        if (sessionData.cookies && sessionData.cookies.length > 0) {
+          loginType = 'cookies';
+        } else {
+          loginType = 'session';
+        }
+      } catch {
+        loginType = 'session';
+      }
+    }
+
+    let isTokenExpired = false;
+    if (tokenInfo && tokenInfo.expiresAt) {
+      isTokenExpired = Date.now() > tokenInfo.expiresAt;
+    }
+
+    return {
+      loggedIn: hasSession || (hasToken && !isTokenExpired),
+      loginType,
+      hasSession,
+      hasToken,
+      isTokenExpired,
+      sessionPath: hasSession ? this.getSessionPath(email) : null,
+      tokenPath: hasToken ? this.getTokenPath(email) : null,
+      tokenInfo: tokenInfo ? {
+        createdAt: tokenInfo.createdAt,
+        expiresAt: tokenInfo.expiresAt
+      } : null
+    };
+  }
+
+  // 通过 Session 登录并发布产品
+  async publishProduct(productData) {
+    const { email, title, description, price, sku, images } = productData;
+    console.log(`📦 开始发布产品到 OZON: ${title}`);
+
+    // 验证登录
+    const loginStatus = await this.checkLogin(email);
+    if (!loginStatus.loggedIn) {
+      return {
+        success: false,
+        error: '未登录，请先调用 /api/browser/ozon/login 进行登录'
+      };
+    }
+
+    let browser;
+    try {
+      browser = await chromium.launch(this.getLaunchOptions());
+      const sessionPath = this.getSessionPath(email);
+
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 800 },
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        storageState: sessionPath
+      });
+
+      const page = await context.newPage();
+
+      // 注入防检测脚本
+      await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+      });
+
+      // 打开添加产品页面
+      console.log('🌐 正在打开 OZON 添加产品页面...');
+      await page.goto(this.productAddUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 60000
+      });
+
+      // 等待页面加载，检查是否跳转到登录页
+      await page.waitForTimeout(3000);
+      const currentUrl = page.url();
+      if (currentUrl.includes('auth.ozon.ru') || currentUrl.includes('/login')) {
+        await browser.close();
+        return {
+          success: false,
+          error: 'Session 已过期，请重新登录'
+        };
+      }
+
+      // 填写产品信息（OZON 表单字段）
+      console.log('📝 填写产品信息...');
+
+      // 产品名称（OZON 使用 product_name 或 title）
+      const nameSelector = 'input[name="title"], input[name="name"], input[placeholder*="название"], input[placeholder*="наименова"]';
+      try {
+        await page.waitForSelector(nameSelector, { timeout: 5000 });
+        await page.fill(nameSelector, title);
+        console.log(`✅ 产品名称已填写: ${title}`);
+      } catch {
+        console.log('⚠️  未找到产品名称输入框，可能页面结构已变化');
+      }
+
+      // 价格
+      const priceSelector = 'input[name="price"], input[name="priceUSD"], input[placeholder*="цена"], input[placeholder*="цене"]';
+      try {
+        await page.waitForSelector(priceSelector, { timeout: 3000 });
+        await page.fill(priceSelector, String(price));
+        console.log(`✅ 价格已填写: ${price}`);
+      } catch {
+        console.log('⚠️  未找到价格输入框');
+      }
+
+      // SKU
+      if (sku) {
+        const skuSelector = 'input[name="sku"], input[name="article"], input[placeholder*="артикул"], input[placeholder*="SKU"]';
+        try {
+          await page.waitForSelector(skuSelector, { timeout: 3000 });
+          await page.fill(skuSelector, sku);
+          console.log(`✅ SKU 已填写: ${sku}`);
+        } catch {
+          console.log('⚠️  未找到 SKU 输入框');
+        }
+      }
+
+      console.log('⏳ 等待表单提交...');
+      await page.waitForTimeout(2000);
+
+      // 尝试点击保存按钮（多选择器兼容）
+      const saveSelectors = [
+        'button[type="submit"]',
+        'button:has-text("Сохранить")',
+        'button:has-text("Save")',
+        'button:has-text("Опубликовать")',
+        'button:has-text("Publish")',
+        '[data-test-id="save-button"]',
+        'button.btn_primary'
+      ];
+
+      for (const selector of saveSelectors) {
+        try {
+          const btn = await page.$(selector);
+          if (btn) {
+            await btn.click();
+            console.log(`✅ 点击保存按钮: ${selector}`);
+            break;
+          }
+        } catch { /* 继续尝试下一个 */ }
+      }
+
+      await page.waitForTimeout(3000);
+
+      await browser.close();
+
+      return {
+        success: true,
+        message: '产品发布任务已创建（浏览器模式）',
+        product: { title, description, price, sku },
+        note: 'OZON 页面结构可能变化，如遇问题请手动在浏览器中操作',
+        url: this.productAddUrl
+      };
+
+    } catch (error) {
+      console.error('❌ 发布失败:', error.message);
+      if (browser) {
+        try { await browser.close(); } catch { /* ignore */ }
+      }
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // 通过导入 Cookies 登录
+  async loginWithCookies(email, cookies) {
+    const sessionPath = this.getSessionPath(email);
+
+    try {
+      const sessionData = {
+        cookies: Array.isArray(cookies) ? cookies : [],
+        origins: []
+      };
+
+      fs.writeFileSync(sessionPath, JSON.stringify(sessionData, null, 2));
+      console.log(`🍪 Cookies 已保存: ${sessionPath}`);
+
+      return {
+        success: true,
+        message: 'Cookies 导入成功',
+        sessionPath,
+        loginType: 'cookies'
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Cookies 保存失败: ' + error.message
+      };
+    }
+  }
+
+  // 通过 Token 登录（OZON API）
+  async loginWithToken(email, tokenData) {
+    const { accessToken, refreshToken, expiresIn } = tokenData;
+    const tokenPath = this.getTokenPath(email);
+
+    const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : Date.now() + 3600 * 1000;
+
+    const tokenInfo = {
+      accessToken,
+      refreshToken,
+      expiresAt,
+      createdAt: Date.now()
+    };
+
+    try {
+      fs.writeFileSync(tokenPath, JSON.stringify(tokenInfo, null, 2));
+      console.log(`🔑 Token 已保存: ${tokenPath}`);
+
+      return {
+        success: true,
+        message: 'Token 保存成功',
+        tokenPath,
+        expiresAt: new Date(expiresAt).toISOString()
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Token 保存失败: ' + error.message
+      };
+    }
+  }
+}
+
+export { TikTokShopAutomation, YouTubeAutomation, OzonAutomation };

@@ -20,6 +20,7 @@ import productRoutes from './routes/products.db.js';
 import generateRoutes from './routes/generate.js';
 import calculateRoutes from './routes/calculate.js';
 import accountsRoutes from './routes/accounts.db.js';
+import platformAccountsRoutes from './routes/platformAccounts.js';
 import tasksRoutes from './routes/tasks.db.js';
 import membershipRoutes from './routes/membership.db.js';
 import browserRoutes from './routes/browser.js';
@@ -155,6 +156,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/generate', generateRoutes);
 app.use('/api/calculate', calculateRoutes);
 app.use('/api/accounts', accountsRoutes);
+app.use('/api/platform-accounts', platformAccountsRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/membership', membershipRoutes);
 app.use('/api/quota', membershipRoutes);
@@ -311,9 +313,11 @@ const startServer = async () => {
 ║  ├─ POST   /api/calculate/profit - 计算利润                       ║
 ║  └─ POST   /api/calculate/quick  - 快速定价                       ║
 ║  [👥 账号管理]                                                     ║
-║  ├─ GET    /api/accounts        - 获取账号列表                    ║
-║  ├─ POST   /api/accounts        - 添加账号                        ║
-║  └─ POST   /api/accounts/:id/test - 测试连接                      ║
+║  ├─ GET    /api/accounts              - 获取账号列表（基础版）          ║
+║  ├─ GET    /api/platform-accounts      - 获取账号+浏览器状态（集成版）  ║
+║  ├─ GET    /api/platform-accounts/dashboard - 账号仪表盘              ║
+║  ├─ POST   /api/platform-accounts/:id/login  - 触发浏览器登录          ║
+║  └─ GET    /api/platform-accounts/:id/status - 查询登录状态            ║
 ║  [📝 任务管理]                                                     ║
 ║  ├─ GET    /api/tasks           - 获取任务列表                    ║
 ║  └─ POST   /api/tasks           - 创建任务                        ║

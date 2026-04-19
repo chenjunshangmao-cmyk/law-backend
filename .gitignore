@@ -12,3 +12,26 @@ backend.log
 dist
 build
 coverage
+
+# 浏览器 Session（包含敏感凭证）
+browser-states/
+
+# 临时文件
+find-chat*.cjs
+check-css.cjs
+check-sites.cjs
+verify-deploy.cjs
+deploy-package*.zip
+deploy-package/
+
+# 旧版独立文件
+index-DmCeXBoo.js
+browserAutomation.js
+browser.js
+generate.js
+frontend-bundle.js
+local-frontend-proxy.cjs
+local-browser-launcher.js
+init-db.js
+test-fixed-api.js
+force-deploy/
