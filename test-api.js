@@ -1,166 +1,58 @@
-// API测试脚本
-const http = require('http');
+import https from 'https';
 
-const BASE_URL = 'http://localhost:8088';
-
-function makeRequest(method, path, body = null, token = null) {
+function makeRequest(url, options = {}) {
   return new Promise((resolve, reject) => {
-    const url = new URL(path, BASE_URL);
-    const options = {
-      hostname: url.hostname,
-      port: url.port,
-      path: url.pathname + url.search,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    };
-
-    if (token) {
-      options.headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const req = http.request(options, (res) => {
+    const urlObj = new URL(url);
+    const req = https.request({
+      hostname: urlObj.hostname,
+      path: urlObj.pathname + urlObj.search,
+      method: options.method || 'GET',
+      headers: options.headers || {}
+    }, (res) => {
       let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          resolve(data);
-        }
-      });
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve({ status: res.statusCode, body: data }));
     });
-
-    req.on('error', reject);
-    if (body) {
-      req.write(JSON.stringify(body));
-    }
+    req.on('error', err => reject(err));
+    if (options.body) req.write(options.body);
     req.end();
   });
 }
 
-async function runTests() {
-  console.log('=== Claw Backend API Test ===\n');
-
-  // 1. 健康检查
-  console.log('1. Health Check...');
-  const health = await makeRequest('GET', '/health');
-  console.log('   Status:', health.status);
-  console.log('   Service:', health.service);
-  console.log();
-
-  // 2. 用户注册
-  console.log('2. User Registration...');
-  const registerResult = await makeRequest('POST', '/api/auth/register', {
-    email: 'demo@example.com',
-    password: 'demo123',
-    name: 'Demo User'
-  });
-  console.log('   Success:', registerResult.success);
-  if (registerResult.success) {
-    console.log('   User:', registerResult.data.user.email);
-    console.log('   Token:', registerResult.data.token.substring(0, 20) + '...');
-    var token = registerResult.data.token;
-  } else {
-    console.log('   Error:', registerResult.error);
+async function test() {
+  console.log('[1] 测试后端 /api/auth/test');
+  try {
+    const r1 = await makeRequest('https://claw-backend-2026.onrender.com/api/auth/test');
+    console.log('    状态:', r1.status);
+    console.log('    内容:', r1.body.substring(0, 200));
+  } catch(e) {
+    console.log('    错误:', e.message);
   }
-  console.log();
 
-  // 3. 用户登录
-  console.log('3. User Login...');
-  const loginResult = await makeRequest('POST', '/api/auth/login', {
-    email: 'demo@example.com',
-    password: 'demo123'
-  });
-  console.log('   Success:', loginResult.success);
-  if (loginResult.success) {
-    console.log('   User:', loginResult.data.user.email);
-    token = loginResult.data.token;
-  } else {
-    console.log('   Error:', loginResult.error);
+  console.log('\n[2] 测试注册新用户');
+  try {
+    const email = 'api_test_' + Date.now() + '@test.com';
+    const r2 = await makeRequest('https://claw-backend-2026.onrender.com/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'test123456', name: 'API Test' })
+    });
+    console.log('    状态:', r2.status);
+    const body = JSON.parse(r2.body);
+    console.log('    响应:', JSON.stringify(body).substring(0, 300));
+    if (body.token) {
+      console.log('\n[3] 测试购买套餐（带Token）');
+      const r3 = await makeRequest('https://claw-backend-2026.onrender.com/api/membership/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + body.token },
+        body: JSON.stringify({ plan: 'basic' })
+      });
+      console.log('    状态:', r3.status);
+      console.log('    响应:', r3.body.substring(0, 500));
+    }
+  } catch(e) {
+    console.log('    错误:', e.message);
   }
-  console.log();
-
-  // 4. 获取用户信息
-  console.log('4. Get Profile...');
-  const profile = await makeRequest('GET', '/api/auth/profile', null, token);
-  console.log('   Success:', profile.success);
-  if (profile.success) {
-    console.log('   User:', profile.data.user.name);
-  }
-  console.log();
-
-  // 5. 获取额度
-  console.log('5. Get Quota...');
-  const quota = await makeRequest('GET', '/api/auth/quota', null, token);
-  console.log('   Success:', quota.success);
-  if (quota.success) {
-    console.log('   Plan:', quota.data.quota.plan);
-    console.log('   Text Limit:', quota.data.quota.textLimit);
-    console.log('   Products Limit:', quota.data.quota.productsLimit);
-  }
-  console.log();
-
-  // 6. 创建产品
-  console.log('6. Create Product...');
-  const product = await makeRequest('POST', '/api/products', {
-    name: "Children's Summer Dress",
-    description: '100% cotton, breathable, cute cartoon print',
-    cost: 25,
-    sourceUrl: 'https://1688.com/product/123',
-    category: 'children-clothing'
-  }, token);
-  console.log('   Success:', product.success);
-  if (product.success) {
-    console.log('   Product:', product.data.product.name);
-    var productId = product.data.product.id;
-  }
-  console.log();
-
-  // 7. 获取产品列表
-  console.log('7. Get Products...');
-  const products = await makeRequest('GET', '/api/products', null, token);
-  console.log('   Success:', products.success);
-  console.log('   Total:', products.data.total);
-  console.log();
-
-  // 8. AI文案生成
-  console.log('8. Generate Text...');
-  const generated = await makeRequest('POST', '/api/generate/text', {
-    productName: "Children's Summer Dress",
-    productDescription: '100% cotton, breathable',
-    platform: 'tiktok',
-    style: 'professional'
-  }, token);
-  console.log('   Success:', generated.success);
-  if (generated.success) {
-    console.log('   Title:', generated.data.text.title);
-  }
-  console.log();
-
-  // 9. 利润计算
-  console.log('9. Calculate Profit...');
-  const profit = await makeRequest('POST', '/api/calculate/profit', {
-    cost: 25,
-    platforms: ['tiktok', 'shopee'],
-    targetMargin: 50
-  }, token);
-  console.log('   Success:', profit.success);
-  if (profit.success) {
-    console.log('   TikTok Price:', profit.data.platforms.tiktok.priceLocal + profit.data.platforms.tiktok.currency);
-    console.log('   TikTok Margin:', profit.data.platforms.tiktok.margin);
-  }
-  console.log();
-
-  // 10. 获取平台列表
-  console.log('10. Get Platforms...');
-  const platforms = await makeRequest('GET', '/api/calculate/platforms');
-  console.log('   Success:', platforms.success);
-  console.log('   Platforms:', platforms.data.platforms.map(p => p.name).join(', '));
-  console.log();
-
-  console.log('=== All Tests Completed ===');
 }
 
-runTests().catch(console.error);
+test().catch(console.error);

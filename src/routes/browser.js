@@ -28,7 +28,7 @@ if (!fs.existsSync(browserStateDir)) {
 
 /**
  * POST /api/browser/tiktok/login
- * 打开浏览器让客户手动登录TikTok
+ * 打开浏览器让客户手动登录TikTok（真实浏览器登录）
  */
 router.post('/tiktok/login', async (req, res) => {
   try {
@@ -58,6 +58,70 @@ router.post('/tiktok/login', async (req, res) => {
 });
 
 /**
+ * POST /api/browser/tiktok/login-cookies
+ * 通过导入 Cookies 登录 TikTok（虚拟登录方式 B）
+ */
+router.post('/tiktok/login-cookies', async (req, res) => {
+  try {
+    const { email, cookies } = req.body;
+    
+    if (!email || !cookies) {
+      return res.json({
+        success: false,
+        error: '请提供邮箱和 cookies：{ email: "your@email.com", cookies: [...] }'
+      });
+    }
+
+    console.log(`🍪 正在为 ${email} 导入 Cookies 登录 TikTok...`);
+    
+    const result = await tiktok.loginWithCookies(email, cookies);
+    
+    res.json(result);
+
+  } catch (error) {
+    console.error('Cookie 登录失败:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/browser/tiktok/login-token
+ * 通过 Access Token 登录 TikTok（虚拟登录方式 C）
+ */
+router.post('/tiktok/login-token', async (req, res) => {
+  try {
+    const { email, accessToken, refreshToken, expiresIn } = req.body;
+    
+    if (!email || !accessToken) {
+      return res.json({
+        success: false,
+        error: '请提供邮箱和 accessToken：{ email: "your@email.com", accessToken: "..." }'
+      });
+    }
+
+    console.log(`🔑 正在为 ${email} 使用 Token 登录 TikTok...`);
+    
+    const result = await tiktok.loginWithToken(email, { 
+      accessToken, 
+      refreshToken, 
+      expiresIn 
+    });
+    
+    res.json(result);
+
+  } catch (error) {
+    console.error('Token 登录失败:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/browser/tiktok/status
  * 检查TikTok登录状态
  */
@@ -79,8 +143,16 @@ router.get('/tiktok/status', async (req, res) => {
       platform: 'tiktok',
       email,
       loggedIn: status.loggedIn,
+      loginType: status.loginType,
+      hasSession: status.hasSession,
+      hasToken: status.hasToken,
+      isTokenExpired: status.isTokenExpired,
       sessionPath: status.sessionPath,
-      message: status.loggedIn ? '已登录' : '未登录'
+      tokenPath: status.tokenPath,
+      tokenInfo: status.tokenInfo,
+      message: status.loggedIn 
+        ? `已登录 (${status.loginType === 'token' ? 'Token' : status.loginType === 'cookies' ? 'Cookies' : 'Session'})` 
+        : (status.isTokenExpired ? 'Token 已过期' : '未登录')
     }
   });
 });
@@ -178,10 +250,82 @@ router.get('/youtube/status', async (req, res) => {
       platform: 'youtube',
       email,
       loggedIn: status.loggedIn,
+      loginType: status.loginType,
+      hasSession: status.hasSession,
+      hasToken: status.hasToken,
+      isTokenExpired: status.isTokenExpired,
       sessionPath: status.sessionPath,
-      message: status.loggedIn ? '已登录' : '未登录'
+      tokenPath: status.tokenPath,
+      tokenInfo: status.tokenInfo,
+      message: status.loggedIn 
+        ? `已登录 (${status.loginType === 'token' ? 'Token' : 'Session'})` 
+        : (status.isTokenExpired ? 'Token 已过期' : '未登录')
     }
   });
+});
+
+/**
+ * POST /api/browser/youtube/login-cookies
+ * 通过导入 Cookies 登录 YouTube（虚拟登录方式 B）
+ */
+router.post('/youtube/login-cookies', async (req, res) => {
+  try {
+    const { email, cookies } = req.body;
+    
+    if (!email || !cookies) {
+      return res.json({
+        success: false,
+        error: '请提供邮箱和 cookies：{ email: "your@email.com", cookies: [...] }'
+      });
+    }
+
+    console.log(`🍪 正在为 ${email} 导入 Cookies 登录...`);
+    
+    const result = await youtube.loginWithCookies(email, cookies);
+    
+    res.json(result);
+
+  } catch (error) {
+    console.error('Cookie 登录失败:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/browser/youtube/login-token
+ * 通过 Access Token 登录 YouTube（虚拟登录方式 C）
+ */
+router.post('/youtube/login-token', async (req, res) => {
+  try {
+    const { email, accessToken, refreshToken, expiresIn } = req.body;
+    
+    if (!email || !accessToken) {
+      return res.json({
+        success: false,
+        error: '请提供邮箱和 accessToken：{ email: "your@email.com", accessToken: "..." }'
+      });
+    }
+
+    console.log(`🔑 正在为 ${email} 使用 Token 登录...`);
+    
+    const result = await youtube.loginWithToken(email, { 
+      accessToken, 
+      refreshToken, 
+      expiresIn 
+    });
+    
+    res.json(result);
+
+  } catch (error) {
+    console.error('Token 登录失败:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 /**
@@ -225,6 +369,119 @@ router.post('/youtube/upload', async (req, res) => {
  */
 
 /**
+ * POST /api/browser/test-login
+ * 测试登录状态（验证登录是否有效）
+ */
+router.post('/test-login', async (req, res) => {
+  try {
+    const { platform, email } = req.body;
+    
+    if (!platform || !email) {
+      return res.json({
+        success: false,
+        error: '请提供 platform 和 email：{ platform: "youtube|tiktok", email: "your@email.com" }'
+      });
+    }
+
+    console.log(`🧪 测试 ${platform} 登录状态: ${email}`);
+    
+    let result;
+    if (platform === 'youtube') {
+      result = await youtube.checkLogin(email);
+    } else if (platform === 'tiktok') {
+      result = await tiktok.checkLogin(email);
+    } else {
+      return res.json({
+        success: false,
+        error: '不支持的 platform，请使用 youtube 或 tiktok'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        platform,
+        email,
+        loggedIn: result.loggedIn,
+        loginType: result.loginType,
+        hasSession: result.hasSession,
+        hasToken: result.hasToken,
+        isTokenExpired: result.isTokenExpired,
+        message: result.loggedIn 
+          ? `✅ 登录状态有效 (${result.loginType})` 
+          : (result.isTokenExpired ? '⚠️ Token 已过期' : '❌ 未登录')
+      }
+    });
+
+  } catch (error) {
+    console.error('测试登录失败:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/browser/test-publish
+ * 测试发布功能（模拟发布，不实际操作）
+ */
+router.post('/test-publish', async (req, res) => {
+  try {
+    const { platform, email } = req.body;
+    
+    if (!platform || !email) {
+      return res.json({
+        success: false,
+        error: '请提供 platform 和 email'
+      });
+    }
+
+    console.log(`🧪 测试 ${platform} 发布功能: ${email}`);
+    
+    let loginStatus;
+    if (platform === 'youtube') {
+      loginStatus = await youtube.checkLogin(email);
+    } else if (platform === 'tiktok') {
+      loginStatus = await tiktok.checkLogin(email);
+    } else {
+      return res.json({
+        success: false,
+        error: '不支持的 platform'
+      });
+    }
+
+    if (!loginStatus.loggedIn) {
+      return res.json({
+        success: false,
+        error: '未登录，无法测试发布功能',
+        needLogin: true,
+        loginStatus
+      });
+    }
+
+    res.json({
+      success: true,
+      message: '✅ 发布功能测试通过',
+      data: {
+        platform,
+        email,
+        loginType: loginStatus.loginType,
+        canPublish: true,
+        note: '登录状态有效，可以正常发布'
+      }
+    });
+
+  } catch (error) {
+    console.error('测试发布失败:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * POST /api/browser/close
  * 关闭所有浏览器
  */
@@ -255,7 +512,9 @@ router.get('/list-sessions', async (req, res) => {
     const sessions = files
       .filter(f => f.endsWith('.json'))
       .map(f => {
-        const [platform, email] = f.replace('.json', '').split('-');
+        const parts = f.replace('.json', '').split('-');
+        const platform = parts[0];
+        const email = parts.slice(1).join('-');
         return { platform, email, file: f };
       });
 

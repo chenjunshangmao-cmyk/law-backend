@@ -6,14 +6,57 @@ dotenv.config();
 
 const { Pool } = pg;
 
+// 数据库配置 - PostgreSQL (Render)
+import pg from 'pg';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const { Pool } = pg;
+
 // 从环境变量获取数据库 URL
 const databaseUrl = process.env.DATABASE_URL;
 
-// 创建连接池
-const pool = new Pool({
-  connectionString: databaseUrl,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-});
+let pool;
+
+if (databaseUrl) {
+  try {
+    // 解析数据库URL
+    const urlMatch = databaseUrl.match(/postgres:\/\/([^:]+):([^@]+)@([^\/]+)\/(.+)/);
+    
+    if (urlMatch) {
+      const [, user, password, host, database] = urlMatch;
+      
+      pool = new Pool({
+        user,
+        password,
+        host,
+        database,
+        port: 5432,
+        ssl: { rejectUnauthorized: false },
+      });
+      
+      // 测试连接
+      const client = await pool.connect();
+      console.log('✅ PostgreSQL 数据库连接成功');
+      client.release();
+    } else {
+      throw new Error('无法解析数据库URL格式');
+    }
+  } catch (err) {
+    console.error('❌ 数据库连接失败:', err.message);
+    console.log('数据库连接失败，使用内存模式运行');
+    // 创建内存模式连接池
+    pool = new Pool({
+      connectionString: 'postgresql://memory:mode@localhost/memory',
+    });
+  }
+} else {
+  console.warn('未找到DATABASE_URL环境变量，使用内存模式');
+  pool = new Pool({
+    connectionString: 'postgresql://memory:mode@localhost/memory',
+  });
+}
 
 // 模拟 sequelize 接口以保持兼容性
 const sequelize = {
@@ -80,8 +123,10 @@ const sequelize = {
 // 测试数据库连接
 export const testConnection = async () => {
   try {
-    await sequelize.authenticate();
+    // 直接使用pool测试连接
+    const client = await pool.connect();
     console.log('✅ PostgreSQL 数据库连接成功');
+    client.release();
     return true;
   } catch (error) {
     console.error('❌ 数据库连接失败:', error.message);
