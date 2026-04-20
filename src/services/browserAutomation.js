@@ -11,6 +11,7 @@
  */
 
 import { chromium } from 'playwright';
+import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -24,6 +25,44 @@ if (!fs.existsSync(STATE_DIR)) {
 
 // 代理配置（Clash Verge，默认端口 7890）
 const PROXY_PORT = process.env.BROWSER_PROXY_PORT || '7890';
+
+// ============================================================
+// Playwright 浏览器自动安装（兜底机制）
+// 解决 Render 等服务器环境 postinstall 未成功安装 Chromium 的问题
+// ============================================================
+
+let browserInstallChecked = false;
+
+async function ensureBrowserInstalled() {
+  if (browserInstallChecked) return;
+  browserInstallChecked = true;
+
+  try {
+    // 尝试获取浏览器可执行路径
+    const executablePath = chromium.executablePath();
+    if (fs.existsSync(executablePath)) {
+      console.log('[Browser] Chromium 已安装:', executablePath);
+      return;
+    }
+  } catch (e) {
+    // executablePath 可能抛出异常，继续尝试安装
+  }
+
+  // 浏览器不存在，尝试自动安装
+  if (isServerEnvironment()) {
+    console.log('[Browser] ⚠️ Chromium 未找到，正在自动安装（这将在首次启动时执行一次）...');
+    try {
+      execSync('npx playwright install chromium', {
+        stdio: 'inherit',
+        env: { ...process.env, PUPPETEER_SKIP_DOWNLOAD: 'false' }
+      });
+      console.log('[Browser] ✅ Chromium 安装完成');
+    } catch (err) {
+      console.error('[Browser] ❌ Chromium 自动安装失败:', err.message);
+      console.error('[Browser] 请手动在服务器执行: npx playwright install chromium');
+    }
+  }
+}
 
 // ============================================================
 // 环境检测
@@ -147,6 +186,7 @@ class BrowserAutomation {
 
   // 启动浏览器（使用已有 session）
   async launchWithSession(email, accountId = null) {
+    await ensureBrowserInstalled(); // 确保浏览器已安装（兜底机制）
     const sessionPath = this.getSessionPath(email, accountId);
     const launchOpts = this.getLaunchOptions();
 
@@ -165,6 +205,7 @@ class BrowserAutomation {
 
   // 打开浏览器让客户手动登录
   async openForManualLogin(email, accountId = null) {
+    await ensureBrowserInstalled(); // 确保浏览器已安装（兜底机制）
     const launchOpts = this.getLaunchOptions();
     this.browser = await chromium.launch(launchOpts);
 

@@ -4,6 +4,7 @@
  */
 
 import { chromium } from 'playwright';
+import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -12,6 +13,33 @@ const STATE_DIR = './browser-states';
 if (!fs.existsSync(STATE_DIR)) fs.mkdirSync(STATE_DIR, { recursive: true });
 
 const PROXY_PORT = process.env.BROWSER_PROXY_PORT || '7890';
+
+// ============================================================
+// Playwright 浏览器自动安装（兜底机制）
+// ============================================================
+
+let browserInstallChecked = false;
+
+async function ensureBrowserInstalled() {
+  if (browserInstallChecked) return;
+  browserInstallChecked = true;
+  try {
+    const executablePath = chromium.executablePath();
+    if (fs.existsSync(executablePath)) {
+      console.log('[Browser] Chromium 已安装:', executablePath);
+      return;
+    }
+  } catch (e) {}
+  if (isServerEnvironment()) {
+    console.log('[Browser] ⚠️ Chromium 未找到，正在自动安装...');
+    try {
+      execSync('npx playwright install chromium', { stdio: 'inherit' });
+      console.log('[Browser] ✅ Chromium 安装完成');
+    } catch (err) {
+      console.error('[Browser] ❌ Chromium 自动安装失败:', err.message);
+    }
+  }
+}
 
 function isServerEnvironment() {
   if (process.env.BROWSER_HEADLESS === 'true') return true;
@@ -57,6 +85,7 @@ class BrowserAutomation {
   hasSession(email, accountId = null) { return fs.existsSync(this.getSessionPath(email, accountId)); }
 
   async launchWithSession(email, accountId = null) {
+    await ensureBrowserInstalled();
     const sp = this.getSessionPath(email, accountId);
     const opts = this.getLaunchOptions();
     this.browser = await chromium.launch(opts);
@@ -65,6 +94,7 @@ class BrowserAutomation {
   }
 
   async openForManualLogin(email, accountId = null) {
+    await ensureBrowserInstalled();
     this.browser = await chromium.launch(this.getLaunchOptions());
     this.context = await this.browser.newContext(this.getStealthContextOptions());
     return { browser: this.browser, context: this.context };

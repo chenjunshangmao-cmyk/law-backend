@@ -10,7 +10,7 @@
     "test:db": "node test-database.js",
     "init-db": "node init-db.js",
     "start:full": "node src/index.js",
-    "postinstall": "npx playwright install chromium --with-deps"
+    "postinstall": "npx playwright install chromium"
   },
   "dependencies": {
     "axios": "^1.15.0",
