@@ -377,3 +377,48 @@ export const incrementScriptUsage = async (id) => {
     return null;
   }
 };
+
+// ==================== 代理相关操作 ====================
+
+export const getProxiesByUser = async (userId) => {
+  const result = await pool.query(
+    'SELECT id::text, user_id::text, name, protocol, host, port, username, is_active, created_at, updated_at FROM user_proxies WHERE user_id = $1 ORDER BY created_at DESC',
+    [userId]
+  );
+  return result.rows;
+};
+
+export const getProxyById = async (id) => {
+  const result = await pool.query(
+    'SELECT id::text, user_id::text, name, protocol, host, port, username, password, is_active, created_at, updated_at FROM user_proxies WHERE id = $1',
+    [id]
+  );
+  return result.rows[0] || null;
+};
+
+export const createProxy = async (proxyData) => {
+  const { user_id, name, protocol = 'http', host, port, username, password } = proxyData;
+  const result = await pool.query(
+    `INSERT INTO user_proxies (user_id, name, protocol, host, port, username, password)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id::text, user_id::text, name, protocol, host, port, username, is_active, created_at, updated_at`,
+    [user_id, name || null, protocol, host, port, username || null, password || null]
+  );
+  return result.rows[0];
+};
+
+export const updateProxy = async (id, updates) => {
+  const fields = Object.keys(updates);
+  const values = Object.values(updates);
+  const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
+  const result = await pool.query(
+    `UPDATE user_proxies SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = $1
+     RETURNING id::text, user_id::text, name, protocol, host, port, username, is_active, created_at, updated_at`,
+    [id, ...values]
+  );
+  return result.rows[0] || null;
+};
+
+export const deleteProxy = async (id) => {
+  await pool.query('DELETE FROM user_proxies WHERE id = $1', [id]);
+};

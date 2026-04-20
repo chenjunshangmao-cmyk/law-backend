@@ -14,6 +14,9 @@ const AccountsPage       = lazy(() => import('./pages/AccountsPage'));
 const MembershipPage     = lazy(() => import('./pages/MembershipPage'));
 const CalculatorPage     = lazy(() => import('./pages/CalculatorPage'));
 const SettingsPage       = lazy(() => import('./pages/SettingsPage'));
+const TikTokPage          = lazy(() => import('./pages/TikTokPage'));
+const YouTubePage          = lazy(() => import('./pages/YouTubePage'));
+const AvatarPage           = lazy(() => import('./pages/AvatarPage'));
 
 // 加载中组件
 function PageLoading() {
@@ -72,6 +75,9 @@ function AppRoutes() {
         <Route path="membership"     element={<Suspense fallback={<PageLoading />}><MembershipPage /></Suspense>} />
         <Route path="calculator"     element={<Suspense fallback={<PageLoading />}><CalculatorPage /></Suspense>} />
         <Route path="settings"       element={<Suspense fallback={<PageLoading />}><SettingsPage /></Suspense>} />
+        <Route path="tiktok"         element={<Suspense fallback={<PageLoading />}><TikTokPage /></Suspense>} />
+        <Route path="youtube"        element={<Suspense fallback={<PageLoading />}><YouTubePage /></Suspense>} />
+        <Route path="avatar"         element={<Suspense fallback={<PageLoading />}><AvatarPage /></Suspense>} />
       </Route>
 
       {/* 兜底 */}

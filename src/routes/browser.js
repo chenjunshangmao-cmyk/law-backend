@@ -18,6 +18,8 @@ import {
   OzonAutomation,
   getBrowserSystemStatus,
 } from '../services/browserAutomation.js';
+import { getAccountById, updateAccount, getProxyById } from '../services/dbService.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -60,11 +62,30 @@ router.post('/tiktok/login', parseAccountId, async (req, res) => {
       });
     }
 
+    // 读取账号绑定的代理配置（per-account 代理）
+    let proxyConfig = null;
+    if (accountId) {
+      const account = await getAccountById(accountId);
+      if (account && account.proxy_id) {
+        const proxy = await getProxyById(account.proxy_id);
+        if (proxy && proxy.is_active) {
+          proxyConfig = {
+            protocol: proxy.protocol,
+            host: proxy.host,
+            port: proxy.port,
+            username: proxy.username,
+            password: proxy.password,
+          };
+          console.log(`🌐 使用账号代理: ${proxy.protocol}://${proxy.host}:${proxy.port}`);
+        }
+      }
+    }
+
     const systemInfo = getBrowserSystemStatus();
     console.log(`📱 TikTok 登录请求：${email}${accountId ? ` (accountId: ${accountId})` : ''}`);
     console.log(`   环境: ${systemInfo.environment}, headless: ${systemInfo.headless}`);
 
-    const result = await tiktok.openLoginPage(email, accountId);
+    const result = await tiktok.openLoginPage(email, accountId, proxyConfig);
 
     if (systemInfo.environment === 'server') {
       return res.json({
@@ -169,9 +190,22 @@ router.post('/tiktok/publish', parseAccountId, async (req, res) => {
       });
     }
 
+    // 读取账号绑定的代理配置
+    let proxyConfig = null;
+    if (accountId) {
+      const account = await getAccountById(accountId);
+      if (account && account.proxy_id) {
+        const proxy = await getProxyById(account.proxy_id);
+        if (proxy && proxy.is_active) {
+          proxyConfig = { protocol: proxy.protocol, host: proxy.host, port: proxy.port, username: proxy.username, password: proxy.password };
+        }
+      }
+    }
+
     const result = await tiktok.publishProduct({
       email,
       accountId,
+      proxyConfig,
       title,
       description: description || '',
       price: parseFloat(price) || 0,
@@ -210,8 +244,20 @@ router.post('/youtube/login', parseAccountId, async (req, res) => {
       });
     }
 
+    // 读取账号绑定的代理配置
+    let proxyConfig = null;
+    if (accountId) {
+      const account = await getAccountById(accountId);
+      if (account && account.proxy_id) {
+        const proxy = await getProxyById(account.proxy_id);
+        if (proxy && proxy.is_active) {
+          proxyConfig = { protocol: proxy.protocol, host: proxy.host, port: proxy.port, username: proxy.username, password: proxy.password };
+        }
+      }
+    }
+
     const systemInfo = getBrowserSystemStatus();
-    const result = await youtube.openLoginPage(email, accountId);
+    const result = await youtube.openLoginPage(email, accountId, proxyConfig);
 
     if (systemInfo.environment === 'server') {
       return res.json({
@@ -292,9 +338,22 @@ router.post('/youtube/upload', parseAccountId, async (req, res) => {
       });
     }
 
+    // 读取账号绑定的代理配置
+    let proxyConfig = null;
+    if (accountId) {
+      const account = await getAccountById(accountId);
+      if (account && account.proxy_id) {
+        const proxy = await getProxyById(account.proxy_id);
+        if (proxy && proxy.is_active) {
+          proxyConfig = { protocol: proxy.protocol, host: proxy.host, port: proxy.port, username: proxy.username, password: proxy.password };
+        }
+      }
+    }
+
     const result = await youtube.uploadVideo({
       email,
       accountId,
+      proxyConfig,
       videoPath,
       title,
       description: description || '',
@@ -323,7 +382,19 @@ router.post('/ozon/login', parseAccountId, async (req, res) => {
     const { email, accountId } = req.body;
     if (!email) return res.json({ success: false, error: '缺少 email 参数' });
 
-    const result = await ozon.openLoginPage(email, accountId);
+    // 读取账号绑定的代理配置
+    let proxyConfig = null;
+    if (accountId) {
+      const account = await getAccountById(accountId);
+      if (account && account.proxy_id) {
+        const proxy = await getProxyById(account.proxy_id);
+        if (proxy && proxy.is_active) {
+          proxyConfig = { protocol: proxy.protocol, host: proxy.host, port: proxy.port, username: proxy.username, password: proxy.password };
+        }
+      }
+    }
+
+    const result = await ozon.openLoginPage(email, accountId, proxyConfig);
     res.json(result);
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -451,6 +522,144 @@ router.get('/list-sessions', async (req, res) => {
  * DELETE /api/browser/session
  * 删除指定 session
  */
+
+// ============================================================
+// 账号代理绑定接口
+// ============================================================
+
+/**
+ * GET /api/browser/tiktok/account/:id
+ * 获取账号信息（含 proxyId）
+ */
+router.get('/tiktok/account/:id', authenticateToken, async (req, res) => {
+  try {
+    const account = await getAccountById(req.params.id);
+    if (!account) return res.status(404).json({ success: false, error: '账号不存在' });
+    if (account.user_id !== req.user.userId) return res.status(403).json({ success: false, error: '无权访问' });
+
+    let proxy = null;
+    if (account.proxy_id) {
+      proxy = await getProxyById(account.proxy_id);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: account.id,
+        user_id: account.user_id,
+        platform: account.platform,
+        name: account.name,
+        username: account.username,
+        status: account.status,
+        proxy_id: account.proxy_id || null,
+        proxy: proxy ? {
+          id: proxy.id,
+          name: proxy.name,
+          protocol: proxy.protocol,
+          host: proxy.host,
+          port: proxy.port,
+          is_active: proxy.is_active,
+        } : null,
+        created_at: account.created_at,
+        updated_at: account.updated_at,
+      },
+    });
+  } catch (error) {
+    console.error('获取账号信息失败:', error);
+    res.status(500).json({ success: false, error: '获取账号信息失败' });
+  }
+});
+
+/**
+ * PUT /api/browser/tiktok/account/:id/proxy
+ * 给账号绑定/解绑代理
+ * body: { proxyId: string | null }
+ */
+router.put('/tiktok/account/:id/proxy', authenticateToken, async (req, res) => {
+  try {
+    const { proxyId } = req.body;
+    const account = await getAccountById(req.params.id);
+    if (!account) return res.status(404).json({ success: false, error: '账号不存在' });
+    if (account.user_id !== req.user.userId) return res.status(403).json({ success: false, error: '无权访问' });
+
+    // 验证 proxyId 合法性（null表示解除绑定）
+    if (proxyId !== null) {
+      const proxy = await getProxyById(proxyId);
+      if (!proxy) return res.status(404).json({ success: false, error: '代理不存在' });
+      if (proxy.user_id !== req.user.userId) return res.status(403).json({ success: false, error: '无权使用此代理' });
+      if (!proxy.is_active) return res.status(400).json({ success: false, error: '代理已禁用，请先启用' });
+    }
+
+    await updateAccount(req.params.id, { proxy_id: proxyId || null });
+
+    res.json({
+      success: true,
+      message: proxyId ? '代理绑定成功' : '代理已解除',
+    });
+  } catch (error) {
+    console.error('绑定代理失败:', error);
+    res.status(500).json({ success: false, error: '绑定代理失败' });
+  }
+});
+
+/**
+ * GET /api/browser/youtube/account/:id
+ * 获取 YouTube 账号信息（含 proxyId）
+ */
+router.get('/youtube/account/:id', authenticateToken, async (req, res) => {
+  try {
+    const account = await getAccountById(req.params.id);
+    if (!account) return res.status(404).json({ success: false, error: '账号不存在' });
+    if (account.user_id !== req.user.userId) return res.status(403).json({ success: false, error: '无权访问' });
+
+    let proxy = null;
+    if (account.proxy_id) {
+      proxy = await getProxyById(account.proxy_id);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: account.id,
+        user_id: account.user_id,
+        platform: account.platform,
+        name: account.name,
+        username: account.username,
+        status: account.status,
+        proxy_id: account.proxy_id || null,
+        proxy: proxy ? { id: proxy.id, name: proxy.name, protocol: proxy.protocol, host: proxy.host, port: proxy.port, is_active: proxy.is_active } : null,
+        created_at: account.created_at,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: '获取账号信息失败' });
+  }
+});
+
+/**
+ * PUT /api/browser/youtube/account/:id/proxy
+ * YouTube 账号绑定代理
+ */
+router.put('/youtube/account/:id/proxy', authenticateToken, async (req, res) => {
+  try {
+    const { proxyId } = req.body;
+    const account = await getAccountById(req.params.id);
+    if (!account) return res.status(404).json({ success: false, error: '账号不存在' });
+    if (account.user_id !== req.user.userId) return res.status(403).json({ success: false, error: '无权访问' });
+
+    if (proxyId !== null) {
+      const proxy = await getProxyById(proxyId);
+      if (!proxy) return res.status(404).json({ success: false, error: '代理不存在' });
+      if (proxy.user_id !== req.user.userId) return res.status(403).json({ success: false, error: '无权使用此代理' });
+      if (!proxy.is_active) return res.status(400).json({ success: false, error: '代理已禁用' });
+    }
+
+    await updateAccount(req.params.id, { proxy_id: proxyId || null });
+    res.json({ success: true, message: proxyId ? '代理绑定成功' : '代理已解除' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: '绑定代理失败' });
+  }
+});
 router.delete('/session', async (req, res) => {
   try {
     const { email, platform, accountId } = req.query;

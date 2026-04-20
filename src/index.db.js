@@ -23,6 +23,7 @@ import accountsRoutes from './routes/accounts.db.js';
 import tasksRoutes from './routes/tasks.db.js';
 import membershipRoutes from './routes/membership.db.js';
 import browserRoutes from './routes/browser.js';
+import proxyRoutes from './routes/proxies.js';
 import avatarRoutes from './routes/avatar.db.js';
 import publishRoutes from './routes/publish.js';
 import customerServiceRoutes from './routes/customerService.js';
@@ -164,6 +165,7 @@ app.use('/api/tasks', tasksRoutes);
 app.use('/api/membership', membershipRoutes);
 app.use('/api/quota', membershipRoutes);
 app.use('/api/browser', browserRoutes);
+app.use('/api/proxies', proxyRoutes);
 app.use('/api/avatar', avatarRoutes);
 app.use('/api/publish', publishRoutes);
 app.use('/api/customer-service', customerServiceRoutes);
@@ -328,7 +330,13 @@ const startServer = async () => {
 ║  [🌐 浏览器自动化]                                                 ║
 ║  ├─ POST   /api/browser/tiktok/login - TikTok登录                ║
 ║  ├─ GET    /api/browser/tiktok/status - TikTok状态               ║
+║  ├─ PUT    /api/browser/tiktok/account/:id/proxy - 绑定代理      ║
 ║  └─ POST   /api/browser/close   - 关闭浏览器                      ║
+║  [🔒 代理管理]                                                      ║
+║  ├─ GET    /api/proxies          - 获取代理列表                   ║
+║  ├─ POST   /api/proxies          - 添加代理                       ║
+║  ├─ PUT    /api/proxies/:id      - 更新代理                       ║
+║  └─ DELETE /api/proxies/:id      - 删除代理                       ║
 ║  [📹 数字人视频]                                                   ║
 ║  ├─ POST   /api/avatar/generate - 生成视频                        ║
 ║  └─ GET    /api/avatar/list     - 视频列表                        ║

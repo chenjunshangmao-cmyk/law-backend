@@ -12,6 +12,9 @@ const NAV_ITEMS = [
   { path: '/calculator',  icon: '💰', label: '利润计算' },
   { path: '/membership',  icon: '⭐', label: '会员中心' },
   { path: '/settings',    icon: '⚙️', label: '设置' },
+  { path: '/tiktok',     icon: '🎵', label: 'TikTok' },
+  { path: '/youtube',    icon: '📹', label: 'YouTube' },
+  { path: '/avatar',    icon: '🤖', label: 'AI数字人' },
 ];
 
 export default function MainLayout() {

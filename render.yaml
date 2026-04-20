@@ -19,7 +19,7 @@ services:
       - key: DATABASE_URL
         value: postgresql://claw_db_user:zpCB2JNdscawi5cD0cyHA5BeqW2o8UPP@dpg-d7dlk6hkh4rs739s00b0-a/claw_db
       - key: ALLOWED_ORIGINS
-        value: "https://claw-frontend.onrender.com,http://localhost:5173,http://localhost:3000"
+        value: "https://claw-frontend.onrender.com,https://claw-app-2026.pages.dev,https://*.claw-app-2026.pages.dev,http://localhost:5173,http://localhost:3000"
       # 收钱吧支付配置
       - key: SHOUQIANBA_VENDOR_SN
         value: "202504161525491733"

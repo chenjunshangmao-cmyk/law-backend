@@ -3,16 +3,28 @@
 ## 当前时间
 2026-04-20
 
-## 团队配置（已建立）
+## 团队配置（v2.1 实际运转版，真正在线运行）
 Claw 外贸网站维护团队，4AI+总指挥架构：
-- 总指挥：WorkBuddy AI（我）
+- 总指挥：WorkBuddy AI（我）- 接收任务、拆解、分配、部署、交付
 - Backend-AI：后端开发（Node.js、API、数据库）
 - Frontend-AI：前端开发（React、TypeScript）
-- QA-AI：测试审核（第一道关）
-- Final-AI：最终审核（第二道关，双审核降低出错率）
+- QA-AI：测试审核（第一道关，5项检查清单）
+- Final-AI：最终审核（第二道关，安全+影响评估）
 
-团队目录：C:\Users\Administrator\WorkBuddy\Claw\.team\
-协议文件：.team\PROTOCOL.md
+**团队已实际建立！**
+- Team平台名：claw-team（异步运行）
+- 成员：backend、frontend、qa、final-review（已启动待命）
+- 协议文件：.team/PROTOCOL.md（v2.1）
+- 团队目录：C:\Users\Administrator\WorkBuddy\Claw\.team\
+
+**运转流程**：
+用户→总指挥拆解→Backend/Frontend写代码+Handoff→QA第一审→Final第二审→总指挥部署→交付用户
+
+**文件规范**：
+- Handoff：.team/shared/handoffs/TASK-YYYY-MM-DD-NNN-*-HANDOFF.md
+- QA报告：.team/shared/reviews/TASK-...-QA-REPORT.md
+- Final报告：.team/shared/reviews/TASK-...-FINAL-REPORT.md
+- 任务清单：.team/shared/tasks/TASK-LIST.md
 
 ## 项目信息
 - 项目名：Claw 外贸网站
@@ -65,3 +77,25 @@ API端点：
 - GET  /api/browser/ozon/status?email=
 - GET  /api/browser/system-status
 - DELETE /api/browser/session?email=&platform=&accountId=
+
+## Git 仓库配置（2026-04-20 更新）
+- Gitee（主仓）: https://gitee.com/lyshlc/claw.git（HTTPS，SSH key需添加到Gitee账户才能推送）
+- GitHub（law-backend，触发Render部署）: git@github.com:chenjunshangmao-cmyk/law-backend.git
+- SSH key: id_ed25519（公钥 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOh4gc6ogBRCl4Q0DZXiyyGavaf3MvbvEwsvHl5RlELT）
+
+## 部署状态（2026-04-20 20:30 修复）
+- **前端**: Cloudflare Pages ✅ 修复后重新部署：https://df98523c.claw-app-2026.pages.dev
+  - 问题：complete-deploy缺少deploy-package的4个关键文件（chat-widget/platform-nav/app-styles/index-DmCeXBoo）
+  - 教训：构建后必须对比新旧deploy-package的所有文件
+- **后端**: GitHub已推送 ✅ → Render自动重新部署中（commit caed4a1）
+- **Gitee**: 需将SSH公钥添加到Gitee账户（备份仓，非关键）
+
+## 部署前必做检查
+1. 构建后对比 complete-deploy/ 和 deploy-package/ 的文件列表，确保无遗漏
+2. 关键文件清单（必须包含）：app.js, app.css, app-styles.css, chat-widget.js, platform-nav.js, index-DmCeXBoo.js
+3. wrangler 部署命令：npx wrangler pages deploy complete-deploy --project-name=claw-app-2026
+
+## 关键教训
+- Git commit 后必须 push 才能触发自动部署
+- Render 监控 GitHub law-backend 仓库，不是 Gitee
+- Cloudflare Pages 可用 `npx wrangler pages deploy complete-deploy` 直接部署，无需 git push

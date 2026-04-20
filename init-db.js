@@ -15,6 +15,7 @@ async function initDatabase() {
     await pool.query('DROP TABLE IF EXISTS tasks CASCADE');
     await pool.query('DROP TABLE IF EXISTS products CASCADE');
     await pool.query('DROP TABLE IF EXISTS accounts CASCADE');
+    await pool.query('DROP TABLE IF EXISTS user_proxies CASCADE');
     await pool.query('DROP TABLE IF EXISTS videos CASCADE');
     await pool.query('DROP TABLE IF EXISTS scripts CASCADE');
     await pool.query('DROP TABLE IF EXISTS quotas CASCADE');
@@ -156,7 +157,32 @@ async function initDatabase() {
       )
     `);
     console.log('✅ Accounts table created');
-    
+
+    // Create user_proxies table（账号代理配置）
+    await pool.query(`
+      CREATE TABLE user_proxies (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(100),
+        protocol VARCHAR(20) DEFAULT 'http',
+        host VARCHAR(255) NOT NULL,
+        port INTEGER NOT NULL,
+        username VARCHAR(100),
+        password VARCHAR(255),
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ User proxies table created');
+
+    // 给 accounts 表加 proxy_id 字段（关联到 user_proxies）
+    await pool.query(`
+      ALTER TABLE accounts
+      ADD COLUMN IF NOT EXISTS proxy_id UUID REFERENCES user_proxies(id) ON DELETE SET NULL
+    `);
+    console.log('✅ Accounts proxy_id column added');
+
     // Create tasks table
     await pool.query(`
       CREATE TABLE tasks (

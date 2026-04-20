@@ -1,0 +1,43 @@
+{
+  "cookies": [
+    {
+      "name": "shop_tiktok_lang",
+      "value": "en",
+      "domain": "seller.tiktok.com",
+      "path": "/",
+      "expires": 1808147529.378585,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "i18next",
+      "value": "en",
+      "domain": "seller.tiktok.com",
+      "path": "/",
+      "expires": 1808147535,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Strict"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://seller.tiktok.com",
+      "localStorage": [
+        {
+          "name": "i18nextLng",
+          "value": "en"
+        },
+        {
+          "name": "PUMBAA_FREQ",
+          "value": "{\"AbsoluteOrientationSensor\":2,\"Accelerometer\":2,\"addEventListener('devicemotion')\":0.01,\"addEventListener('deviceorientation')\":0.01,\"addEventListener('deviceorientationabsolute')\":0.1,\"addEventListener('MozOrientation')\":2,\"document.addEventListener('copy')\":0,\"document.addEventListener('cut')\":0,\"document.addEventListener('paste')\":0,\"navigator.geolocation.clearWatch\":2,\"document.cookie\":0,\"navigator.credentials.create\":0,\"CookieStore.delete\":0,\"document.execCommand('cut')\":0,\"document.execCommand('copy')\":2,\"document.execCommand('paste')\":2,\"CookieStore.get\":0,\"navigator.credentials.get\":0,\"CookieStore.getAll\":0,\"navigator.getBattery\":0,\"navigator.geolocation.getCurrentPosition\":2,\"navigator.mediaDevices.getDisplayMedia\":2,\"navigator.mediaDevices.getUserMedia\":2,\"navigator.getUserMedia\":2,\"GravitySensor\":2,\"Gyroscope\":2,\"LinearAccelerationSensor\":2,\"Magnetometer\":2,\"navigator.mozGetUserMedia\":2,\"navigator.mozNotification\":2,\"navigator.mozVibrate\":2,\"navigator.msVibrate\":2,\"Notification\":2,\"ondevicemotion\":0,\"ondeviceorientation\":2,\"ondeviceorientationabsolute\":2,\"open\":0,\"OrientationSensor\":0,\"PaymentRequest\":0,\"navigator.clipboard.read\":0,\"navigator.clipboard.readText\":2,\"document.referrer\":0.0001,\"RelativeOrientationSensor\":2,\"RTCPeerConnection\":0,\"screen\":0,\"CookieStore.set\":0,\"navigator.share\":0,\"navigator.userAgent\":0,\"navigator.vibrate\":2,\"navigator.geolocation.watchPosition\":2,\"navigator.webkitGetUserMedia\":2,\"webkitNotification\":2,\"navigator.webkitVibrate\":2,\"WebSocket\":0,\"navigator.clipboard.write\":0,\"navigator.clipboard.writeText\":2,\"network_ga\":2}"
+        },
+        {
+          "name": "HYBRID_SLARDAR_WEBtiktok_pns_web_runtime",
+          "value": "{\"userId\":\"e4eabf93-378a-416b-b66f-851295bbd9c1\",\"deviceId\":\"fc08af2c-543b-475c-95b2-724324468cd4\"}"
+        }
+      ]
+    }
+  ]
+}

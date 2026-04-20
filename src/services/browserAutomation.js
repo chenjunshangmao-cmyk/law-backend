@@ -112,8 +112,9 @@ class BrowserAutomation {
     this.context = null;
   }
 
-  // 获取浏览器启动配置（Phase 1 修复版）
-  getLaunchOptions() {
+  // 获取浏览器启动配置（Phase 1 修复版，支持 per-account 代理）
+  // proxyConfig: { protocol, host, port, username, password } | null
+  getLaunchOptions(proxyConfig = null) {
     const headless = getHeadless();
 
     const args = [
@@ -127,17 +128,30 @@ class BrowserAutomation {
       '--single-process',                                 // 服务器稳定性
     ];
 
-    // 仅在本地开发时添加代理（服务器通常直连）
-    if (!isServerEnvironment() && PROXY_PORT) {
+    // per-account 代理优先；无 per-account 代理时，本地开发环境走系统代理
+    if (proxyConfig && proxyConfig.host && proxyConfig.port) {
+      const proxyUrl = `${proxyConfig.protocol || 'http'}://${proxyConfig.host}:${proxyConfig.port}`;
+      args.push(`--proxy-server=${proxyUrl}`);
+    } else if (!isServerEnvironment() && PROXY_PORT) {
       args.push(`--proxy-server=http://127.0.0.1:${PROXY_PORT}`);
     }
 
-    return {
+    const launchOpts = {
       headless,
       args,
-      // 服务器环境超时设置
       timeout: headless ? 30000 : 60000,
     };
+
+    // 如果 per-account 代理有认证信息，使用 Playwright 原生 proxy 选项
+    if (proxyConfig && proxyConfig.username && proxyConfig.password) {
+      launchOpts.proxy = {
+        server: `${proxyConfig.protocol || 'http'}://${proxyConfig.host}:${proxyConfig.port}`,
+        username: proxyConfig.username,
+        password: proxyConfig.password,
+      };
+    }
+
+    return launchOpts;
   }
 
   // 获取 stealth 上下文配置（Phase 1 新增）
@@ -185,10 +199,11 @@ class BrowserAutomation {
   }
 
   // 启动浏览器（使用已有 session）
-  async launchWithSession(email, accountId = null) {
+  // proxyConfig: { protocol, host, port, username, password } | null
+  async launchWithSession(email, accountId = null, proxyConfig = null) {
     await ensureBrowserInstalled(); // 确保浏览器已安装（兜底机制）
     const sessionPath = this.getSessionPath(email, accountId);
-    const launchOpts = this.getLaunchOptions();
+    const launchOpts = this.getLaunchOptions(proxyConfig);
 
     this.browser = await chromium.launch(launchOpts);
 
@@ -204,9 +219,10 @@ class BrowserAutomation {
   }
 
   // 打开浏览器让客户手动登录
-  async openForManualLogin(email, accountId = null) {
+  // proxyConfig: { protocol, host, port, username, password } | null
+  async openForManualLogin(email, accountId = null, proxyConfig = null) {
     await ensureBrowserInstalled(); // 确保浏览器已安装（兜底机制）
-    const launchOpts = this.getLaunchOptions();
+    const launchOpts = this.getLaunchOptions(proxyConfig);
     this.browser = await chromium.launch(launchOpts);
 
     const contextOpts = {
@@ -303,9 +319,9 @@ class TikTokShopAutomation extends BrowserAutomation {
            url.includes('tiktok.com/login');
   }
 
-  // 打开 TikTok Seller 登录页面（Phase 1 增强版）
-  async openLoginPage(email, accountId = null) {
-    const { browser, context } = await this.openForManualLogin(email, accountId);
+  // 打开 TikTok Seller 登录页面（Phase 1 增强版，支持 per-account 代理）
+  async openLoginPage(email, accountId = null, proxyConfig = null) {
+    const { browser, context } = await this.openForManualLogin(email, accountId, proxyConfig);
     const page = await context.newPage();
 
     console.log('📱 正在打开 TikTok Seller Center 登录页面...');
@@ -344,9 +360,9 @@ class TikTokShopAutomation extends BrowserAutomation {
     });
   }
 
-  // 发布产品（Phase 1 增强版）
+  // 发布产品（Phase 1 增强版，支持 per-account 代理）
   async publishProduct(productData) {
-    const { email, accountId, title, description, price, stock, images } = productData;
+    const { email, accountId, proxyConfig, title, description, price, stock, images } = productData;
 
     // 检查是否有 session
     if (!this.hasSession(email, accountId)) {
@@ -371,7 +387,7 @@ class TikTokShopAutomation extends BrowserAutomation {
 
     let browser = null;
     try {
-      const result = await this.launchWithSession(email, accountId);
+      const result = await this.launchWithSession(email, accountId, proxyConfig);
       browser = result.browser;
       const context = result.context;
       const page = await context.newPage();
@@ -547,9 +563,9 @@ class YouTubeAutomation extends BrowserAutomation {
            (url.includes('youtube.com') && !url.includes('studio'));
   }
 
-  // 打开 YouTube Studio 登录页面
-  async openLoginPage(email, accountId = null) {
-    const { browser, context } = await this.openForManualLogin(email, accountId);
+  // 打开 YouTube Studio 登录页面（支持 per-account 代理）
+  async openLoginPage(email, accountId = null, proxyConfig = null) {
+    const { browser, context } = await this.openForManualLogin(email, accountId, proxyConfig);
     const page = await context.newPage();
 
     console.log('📱 正在打开 YouTube Studio 登录页面...');
@@ -587,9 +603,9 @@ class YouTubeAutomation extends BrowserAutomation {
     });
   }
 
-  // 上传视频（Phase 1 增强版）
+  // 上传视频（Phase 1 增强版，支持 per-account 代理）
   async uploadVideo(videoData) {
-    const { email, accountId, videoPath, title, description, thumbnail, privacy } = videoData;
+    const { email, accountId, proxyConfig, videoPath, title, description, thumbnail, privacy } = videoData;
 
     if (!this.hasSession(email, accountId)) {
       return {
@@ -613,7 +629,7 @@ class YouTubeAutomation extends BrowserAutomation {
 
     let browser = null;
     try {
-      const result = await this.launchWithSession(email, accountId);
+      const result = await this.launchWithSession(email, accountId, proxyConfig);
       browser = result.browser;
       const context = result.context;
       const page = await context.newPage();
@@ -782,8 +798,9 @@ class OzonAutomation extends BrowserAutomation {
            url.includes('seller.ozon.ru') && !url.includes('dashboard');
   }
 
-  async openLoginPage(email, accountId = null) {
-    const { browser, context } = await this.openForManualLogin(email, accountId);
+  // 打开 Ozon Seller 登录页面（支持 per-account 代理）
+  async openLoginPage(email, accountId = null, proxyConfig = null) {
+    const { browser, context } = await this.openForManualLogin(email, accountId, proxyConfig);
     const page = await context.newPage();
 
     console.log('📱 正在打开 Ozon Seller 登录页面...');

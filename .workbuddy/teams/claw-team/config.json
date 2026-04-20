@@ -1,0 +1,48 @@
+{
+  "name": "claw-team",
+  "leadAgentId": "3c40e169e63f43fea23d79fc153f607e",
+  "workspacePath": "c:/Users/Administrator/WorkBuddy/Claw",
+  "createdAt": "2026-04-20T12:39:28.712Z",
+  "options": {
+    "workspacePath": "c:/Users/Administrator/WorkBuddy/Claw",
+    "isAutoTeam": false
+  },
+  "members": [
+    {
+      "memberId": "team-lead@claw-team",
+      "name": "team-lead",
+      "role": "Team Lead - coordinates the team and interacts with the user"
+    },
+    {
+      "memberId": "backend@claw-team",
+      "name": "backend",
+      "role": "Backend-AI 后端开发"
+    },
+    {
+      "memberId": "frontend@claw-team",
+      "name": "frontend",
+      "role": "Frontend-AI 前端开发"
+    },
+    {
+      "memberId": "qa@claw-team",
+      "name": "qa",
+      "role": "QA-AI 第一道审核"
+    },
+    {
+      "memberId": "final-review@claw-team",
+      "name": "final-review",
+      "role": "Final-AI 最终审核"
+    },
+    {
+      "memberId": "youtube-frontend@claw-team",
+      "name": "youtube-frontend",
+      "role": "YouTube前端页面开发"
+    },
+    {
+      "memberId": "avatar-frontend@claw-team",
+      "name": "avatar-frontend",
+      "role": "AI数字人前端页面开发"
+    }
+  ],
+  "isAutoTeam": false
+}

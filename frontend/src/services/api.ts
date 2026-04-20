@@ -227,11 +227,15 @@ export const api = {
   // Generate API
   // ============================================================
   generate: {
-    text: (data: { prompt: string; type?: string; language?: string }) =>
-      authFetch('/api/generate/text', { method: 'POST', body: JSON.stringify(data) }),
-    
-    image: (data: { description: string }) =>
-      authFetch('/api/generate/image', { method: 'POST', body: JSON.stringify(data) }),
+    text: (data: {
+      prompt?: string; productName?: string; productDescription?: string;
+      platform?: string; style?: string; type?: string; language?: string
+    }) => authFetch('/api/generate/text', { method: 'POST', body: JSON.stringify(data) }),
+
+    image: (data: {
+      description?: string; productName?: string;
+      productDescription?: string; style?: string
+    }) => authFetch('/api/generate/image', { method: 'POST', body: JSON.stringify(data) }),
   },
 
   // ============================================================
@@ -309,6 +313,45 @@ export const api = {
         authFetch(`/api/browser/ozon/status?email=${encodeURIComponent(email)}`),
     },
     systemStatus: () => authFetch('/api/browser/system-status'),
+  },
+
+  // ============================================================
+  // Avatar API (AI数字人)
+  // ============================================================
+  avatar: {
+    generateScript: (data: { productName: string; productDesc?: string; scene?: string }) =>
+      authFetch('/api/avatar/generate-script', { method: 'POST', body: JSON.stringify(data) }),
+
+    generate: (data: {
+      script: string;
+      productName: string;
+      productDesc?: string;
+      templateId?: string;
+      avatarStyle?: string;
+      voiceId?: string;
+      background?: string;
+      music?: string;
+    }) => authFetch('/api/avatar/generate', { method: 'POST', body: JSON.stringify(data) }),
+
+    list: (params?: { status?: string; limit?: number; offset?: number }) => {
+      const query = new URLSearchParams();
+      if (params?.status) query.set('status', params.status);
+      if (params?.limit) query.set('limit', String(params.limit));
+      if (params?.offset) query.set('offset', String(params.offset));
+      return authFetch(`/api/avatar/list?${query}`);
+    },
+
+    get: (id: string) => authFetch(`/api/avatar/${id}`),
+
+    deleteVideo: (id: string) => authFetch(`/api/avatar/${id}`, { method: 'DELETE' }),
+
+    upload: (data: { id: string; title: string; description: string; platform: string }) =>
+      authFetch('/api/avatar/upload', { method: 'POST', body: JSON.stringify(data) }),
+
+    scripts: {
+      list: () => authFetch('/api/avatar/scripts/list'),
+      delete: (id: string) => authFetch(`/api/avatar/scripts/${id}`, { method: 'DELETE' }),
+    },
   },
 
   // ============================================================
