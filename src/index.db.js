@@ -34,19 +34,8 @@ const PORT = process.env.PORT || 9000;
 
 // 安全中间件
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https:"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https:"],
-      fontSrc: ["'self'", "https:"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'", "https:"],
-      frameSrc: ["'none'"],
-    },
-  },
+  // 禁用 CSP（CORS 已处理跨域控制，CSP 过于严格会导致同源 API 调用被误拦）
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
   hsts: {
     maxAge: 31536000,
