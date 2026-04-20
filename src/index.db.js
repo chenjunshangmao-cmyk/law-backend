@@ -54,35 +54,33 @@ app.use(helmet({
   }
 }));
 
-// CORS配置
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',')
-  : [
-      'https://claw-app-2026.pages.dev',
-      'https://df98523c.claw-app-2026.pages.dev',
-      'http://localhost:5173',
-      'http://localhost:3000',
-    ];
+// CORS配置 - 简化可靠版
+const corsWhiteList = [
+  'https://claw-app-2026.pages.dev',
+  'https://df98523c.claw-app-2026.pages.dev',
+  'https://60872676.claw-app-2026.pages.dev',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+];
+
+// 支持 ALLOWED_ORIGINS 环境变量扩展
+if (process.env.ALLOWED_ORIGINS) {
+  process.env.ALLOWED_ORIGINS.split(',').forEach(o => {
+    const trimmed = o.trim();
+    if (trimmed && !corsWhiteList.includes(trimmed)) {
+      corsWhiteList.push(trimmed);
+    }
+  });
+}
 
 app.use(cors({
-  origin: function(origin, callback) {
-    // 无 origin 的请求（如 curl、Postman、服务端间调用）直接放行
-    if (!origin) return callback(null, true);
-    // 开发环境放行所有 localhost
-    if (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) {
-      return callback(null, true);
-    }
-    // 检查是否在白名单中
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    console.warn(`CORS拒绝: ${origin}`);
-    callback(new Error('不允许的源: ' + origin));
-  },
+  origin: corsWhiteList,
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: true,
-  maxAge: 86400
+  maxAge: 86400,
 }));
 
 // 请求解析
