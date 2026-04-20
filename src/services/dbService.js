@@ -9,8 +9,31 @@ export const findUserByEmail = async (email) => {
 };
 
 export const findUserById = async (id) => {
+  console.log('[findUserById] 查询用户，ID:', id);
+  
   // id 统一用字符串格式查询（支持 string 和 number）
   const result = await pool.query('SELECT id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at FROM users WHERE id::text = $1', [String(id)]);
+  
+  console.log('[findUserById] 通过ID查询结果:', result.rows.length ? '找到' : '未找到');
+  
+  // 如果通过ID找不到，尝试通过email查找（处理JWT中的user-admin-001情况）
+  if (!result.rows[0] && id.includes('@')) {
+    // id看起来像email
+    console.log('[findUserById] 尝试通过email查询:', id);
+    const emailResult = await pool.query('SELECT id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at FROM users WHERE email = $1', [id]);
+    console.log('[findUserById] 通过email查询结果:', emailResult.rows.length ? '找到' : '未找到');
+    return emailResult.rows[0] || null;
+  }
+  
+  // 特殊处理：如果ID是user-admin-001，返回admin用户
+  if (!result.rows[0] && id === 'user-admin-001') {
+    console.log('[findUserById] 特殊处理user-admin-001，查询admin用户');
+    const adminResult = await pool.query("SELECT id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at FROM users WHERE email = 'admin@claw.com'");
+    console.log('[findUserById] admin查询结果:', adminResult.rows.length ? '找到' : '未找到');
+    return adminResult.rows[0] || null;
+  }
+  
+  console.log('[findUserById] 最终结果:', result.rows[0] ? '返回用户' : '返回null');
   return result.rows[0] || null;
 };
 

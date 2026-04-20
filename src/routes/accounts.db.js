@@ -36,11 +36,15 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const accounts = await getAccountsByUser(req.userId);
     
-    // 返回时隐藏敏感信息
+    // 返回时隐藏敏感信息（pg返回普通对象，无需.toJSON()）
     const sanitizedAccounts = accounts.map(a => ({
-      ...a.toJSON(),
-      credentials: a.credentials ? { ...a.credentials, password: '***' } : null,
-      cookies: a.cookies ? '***' : null
+      id: a.id,
+      platform: a.platform,
+      name: a.account_name,
+      username: a.account_data?.username || null,
+      status: a.account_data?.status || 'active',
+      createdAt: a.created_at,
+      updatedAt: a.updated_at
     }));
     
     res.json({ success: true, data: sanitizedAccounts });
@@ -74,25 +78,36 @@ router.post('/', authenticateToken, validateAccountCreate, async (req, res) => {
       });
     }
     
-    // 加密敏感信息
-    const encryptedCredentials = credentials ? encrypt(JSON.stringify(credentials)) : null;
+    // 加密敏感信息，合并到 account_data
+    const accountDataPayload = {
+      ...(credentials ? { credentials: encrypt(JSON.stringify(credentials)) } : {}),
+      ...(settings || {}),
+      username: username || null,
+      status: 'active'
+    };
     
     const newAccount = await createAccount({
-      userId: req.userId,
+      user_id: req.userId,
       platform: platform.toLowerCase(),
-      name,
-      username: username || null,
-      credentials: encryptedCredentials ? { encrypted: encryptedCredentials } : null,
-      settings: settings || {},
-      status: 'active'
+      account_name: name,
+      account_data: accountDataPayload
     });
     
-    const accountData = newAccount.toJSON();
-    if (accountData.credentials) {
-      accountData.credentials = { ...accountData.credentials, password: '***' };
+    if (!newAccount) {
+      return res.status(500).json({ success: false, error: '创建账号失败' });
     }
+
+    // pg 返回的是普通对象，直接使用
+    const safeAccount = {
+      id: newAccount.id,
+      platform: newAccount.platform,
+      name: newAccount.account_name,
+      username: newAccount.account_data?.username || null,
+      status: newAccount.account_data?.status || 'active',
+      createdAt: newAccount.created_at
+    };
     
-    res.status(201).json({ success: true, data: accountData });
+    res.status(201).json({ success: true, data: safeAccount });
   } catch (error) {
     console.error('添加账号失败:', error);
     res.status(500).json({ success: false, error: '添加账号失败' });
@@ -107,19 +122,20 @@ router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const account = await getAccountById(req.params.id);
     
-    if (!account || account.userId !== req.userId) {
+    if (!account || account.user_id !== req.userId) {
       return res.status(404).json({ success: false, error: '账号不存在' });
     }
     
-    const accountData = account.toJSON();
-    if (accountData.credentials) {
-      accountData.credentials = { ...accountData.credentials, password: '***' };
-    }
-    if (accountData.cookies) {
-      accountData.cookies = '***';
-    }
+    const safeAccount = {
+      id: account.id,
+      platform: account.platform,
+      name: account.account_name,
+      username: account.account_data?.username || null,
+      status: account.account_data?.status || 'active',
+      createdAt: account.created_at
+    };
     
-    res.json({ success: true, data: accountData });
+    res.json({ success: true, data: safeAccount });
   } catch (error) {
     console.error('获取账号详情失败:', error);
     res.status(500).json({ success: false, error: '获取账号详情失败' });
@@ -135,34 +151,37 @@ router.put('/:id', authenticateToken, validateAccountUpdate, async (req, res) =>
     const { platform, name, username, credentials, settings, status, cookies } = req.body;
     
     const account = await getAccountById(req.params.id);
-    if (!account || account.userId !== req.userId) {
+    if (!account || account.user_id !== req.userId) {
       return res.status(404).json({ success: false, error: '账号不存在' });
     }
     
     const updates = {};
     if (platform) updates.platform = platform.toLowerCase();
-    if (name) updates.name = name;
-    if (username !== undefined) updates.username = username;
+    if (name) updates.account_name = name;
+    // 更新 account_data 中的字段
+    const newAccountData = { ...(account.account_data || {}) };
+    if (username !== undefined) newAccountData.username = username;
     if (credentials) {
-      updates.credentials = { encrypted: encrypt(JSON.stringify(credentials)) };
+      newAccountData.credentials = encrypt(JSON.stringify(credentials));
     }
-    if (settings) updates.settings = settings;
+    if (settings) Object.assign(newAccountData, settings);
     if (status && ['active', 'inactive', 'expired', 'error'].includes(status)) {
-      updates.status = status;
+      newAccountData.status = status;
     }
-    if (cookies) updates.cookies = cookies;
+    if (cookies) newAccountData.cookies = cookies;
+    updates.account_data = newAccountData;
     
     const updatedAccount = await updateAccount(req.params.id, updates);
     
-    const accountData = updatedAccount.toJSON();
-    if (accountData.credentials) {
-      accountData.credentials = { ...accountData.credentials, password: '***' };
-    }
-    if (accountData.cookies) {
-      accountData.cookies = '***';
-    }
+    const safeAccount = {
+      id: updatedAccount.id,
+      platform: updatedAccount.platform,
+      name: updatedAccount.account_name,
+      username: updatedAccount.account_data?.username || null,
+      status: updatedAccount.account_data?.status || 'active'
+    };
     
-    res.json({ success: true, data: accountData });
+    res.json({ success: true, data: safeAccount });
   } catch (error) {
     console.error('更新账号失败:', error);
     res.status(500).json({ success: false, error: '更新账号失败' });
@@ -176,7 +195,7 @@ router.put('/:id', authenticateToken, validateAccountUpdate, async (req, res) =>
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const account = await getAccountById(req.params.id);
-    if (!account || account.userId !== req.userId) {
+    if (!account || account.user_id !== req.userId) {
       return res.status(404).json({ success: false, error: '账号不存在' });
     }
     
@@ -198,12 +217,13 @@ router.post('/:id/cookies', authenticateToken, validateCookies, async (req, res)
     const { cookies } = req.body;
     
     const account = await getAccountById(req.params.id);
-    if (!account || account.userId !== req.userId) {
+    if (!account || account.user_id !== req.userId) {
       return res.status(404).json({ success: false, error: '账号不存在' });
     }
 
-    const updates = { cookies };
-    const updatedAccount = await updateAccount(req.params.id, updates);
+    // cookies 存在 account_data 中
+    const newAccountData = { ...(account.account_data || {}), cookies };
+    const updatedAccount = await updateAccount(req.params.id, { account_data: newAccountData });
     
     res.json({ 
       success: true, 
@@ -211,7 +231,7 @@ router.post('/:id/cookies', authenticateToken, validateCookies, async (req, res)
       data: {
         id: updatedAccount.id,
         platform: updatedAccount.platform,
-        name: updatedAccount.name,
+        name: updatedAccount.account_name,
         cookiesUpdated: true
       }
     });
@@ -229,24 +249,22 @@ router.post('/:id/test', authenticateToken, validateAccountTest, async (req, res
   try {
     const account = await getAccountById(req.params.id);
     
-    if (!account || account.userId !== req.userId) {
+    if (!account || account.user_id !== req.userId) {
       return res.status(404).json({ success: false, error: '账号不存在' });
     }
     
     // 模拟连接测试（实际应该调用各平台的API进行验证）
     const testResult = await testPlatformConnection(account);
     
-    // 更新账号状态
-    await updateAccount(req.params.id, {
-      status: testResult.success ? 'active' : 'error',
-      lastUsedAt: testResult.success ? new Date() : account.lastUsedAt
-    });
+    // 更新账号状态（存入 account_data）
+    const newAccountData = { ...(account.account_data || {}), status: testResult.success ? 'active' : 'error' };
+    await updateAccount(req.params.id, { account_data: newAccountData });
     
     res.json({ 
       success: true, 
       data: {
         platform: account.platform,
-        name: account.name,
+        name: account.account_name,
         connected: testResult.success,
         message: testResult.message,
         testedAt: new Date()
@@ -267,7 +285,8 @@ async function testPlatformConnection(account) {
   await new Promise(resolve => setTimeout(resolve, 500));
   
   // 简单验证（实际应该调用平台API）
-  const isValid = account.username && account.username.length >= 3;
+  const username = account.account_data?.username;
+  const isValid = username && username.length >= 3;
   
   return {
     success: isValid,
