@@ -55,7 +55,7 @@ app.use(helmet({
   }
 }));
 
-// CORS配置 - 简化可靠版
+// CORS配置 - 支持 *.claw-app-2026.pages.dev 动态子域名
 const corsWhiteList = [
   'https://claw-app-2026.pages.dev',
   'https://df98523c.claw-app-2026.pages.dev',
@@ -77,7 +77,21 @@ if (process.env.ALLOWED_ORIGINS) {
 }
 
 app.use(cors({
-  origin: corsWhiteList,
+  origin: function (origin, callback) {
+    // 允许无origin（如Postman、服务器端请求）
+    if (!origin) return callback(null, true);
+
+    // 精确匹配白名单
+    if (corsWhiteList.includes(origin)) return callback(null, true);
+
+    // 支持 *.claw-app-2026.pages.dev 所有子域名（Cloudflare Pages 动态部署）
+    if (/^https:\/\/.+\.claw-app-2026\.pages\.dev$/.test(origin)) {
+      return callback(null, true);
+    }
+
+    console.warn(`🚫 CORS拒绝: ${origin}`);
+    callback(new Error('CORS: 不允许的源'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
