@@ -80,8 +80,10 @@ const sequelize = {
 // 测试数据库连接
 export const testConnection = async () => {
   try {
-    await sequelize.authenticate();
+    // 直接使用pool测试连接
+    const client = await pool.connect();
     console.log('✅ PostgreSQL 数据库连接成功');
+    client.release();
     return true;
   } catch (error) {
     console.error('❌ 数据库连接失败:', error.message);

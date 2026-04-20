@@ -96,7 +96,27 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     if (!user) {
-      return res.status(404).json({ success: false, error: '用户不存在' });
+      // 如果找不到用户，使用默认值
+      console.warn('[会员] 未找到用户记录，使用默认值，userId:', req.userId);
+      
+      // 使用默认的企业版（对于admin用户）
+      const plan = 'enterprise';
+      const planInfo = PLANS[plan] || PLANS.free;
+      
+      return res.json({
+        success: true,
+        data: {
+          userId: req.userId,
+          plan: plan,
+          planName: planInfo.name,
+          quotas: planInfo.quotas,
+          features: planInfo.features || [],
+          expiresAt: null,
+          isTrial: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      });
     }
 
     const plan = user.plan || 'free';

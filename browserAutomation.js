@@ -1,401 +1,263 @@
 /**
- * Claw 浏览器自动化核心模块 v2.0
- * 核心流程：客户手动登录一次 → 自动保存Session → 后续自动复用
+ * Claw 浏览器自动化核心模块 v3.0 (Phase 1 修复版)
+ * 根目录独立运行版本（同步自 src/services/browserAutomation.js）
  */
 
 import { chromium } from 'playwright';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 const STATE_DIR = './browser-states';
+if (!fs.existsSync(STATE_DIR)) fs.mkdirSync(STATE_DIR, { recursive: true });
 
-// 确保目录存在
-if (!fs.existsSync(STATE_DIR)) {
-  fs.mkdirSync(STATE_DIR, { recursive: true });
+const PROXY_PORT = process.env.BROWSER_PROXY_PORT || '7890';
+
+function isServerEnvironment() {
+  if (process.env.BROWSER_HEADLESS === 'true') return true;
+  if (process.env.BROWSER_HEADLESS === 'false') return false;
+  if (process.env.RENDER || process.env.NODE_ENV === 'production') return true;
+  if (os.platform() !== 'win32' && !process.env.DISPLAY) return true;
+  return false;
 }
 
-// 代理配置（Clash Verge）
-const PROXY_PORT = '6789';
+function getHeadless() {
+  if (isServerEnvironment()) { console.log('[Browser] 服务器环境 → headless: true'); return true; }
+  console.log('[Browser] 本地开发环境 → headless: false'); return false;
+}
 
 class BrowserAutomation {
-  constructor(platform) {
-    this.platform = platform;
-    this.browser = null;
-    this.context = null;
+  constructor(platform) { this.platform = platform; this.browser = null; this.context = null; }
+
+  getLaunchOptions() {
+    const headless = getHeadless();
+    const args = ['--disable-blink-features=AutomationControlled', '--no-sandbox',
+      '--disable-dev-shm-usage', '--disable-setuid-sandbox', '--disable-web-security',
+      '--disable-features=IsolateOrigins,site-per-process', '--disable-gpu', '--single-process'];
+    if (!isServerEnvironment() && PROXY_PORT) args.push(`--proxy-server=http://127.0.0.1:${PROXY_PORT}`);
+    return { headless, args, timeout: headless ? 30000 : 60000 };
   }
 
-  // 获取浏览器启动配置
-  getLaunchOptions() {
+  getStealthContextOptions() {
+    const uas = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36',
+    ];
     return {
-      headless: false,
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--no-sandbox',
-        '--disable-dev-shm-usage',
-        `--proxy-server=http://127.0.0.1:${PROXY_PORT}`
-      ]
+      viewport: { width: 1920, height: 1080 }, locale: 'zh-CN', timezoneId: 'Asia/Shanghai',
+      permissions: ['geolocation'], colorScheme: 'light', deviceScaleFactor: 1,
+      extraHTTPHeaders: { 'Accept-Language': 'zh-CN,zh;q=0.9', 'Accept': 'text/html,application/xhtml+xml' },
+      userAgent: uas[Math.floor(Math.random() * uas.length)],
     };
   }
 
-  // 获取session文件路径
-  getSessionPath(email) {
-    return path.join(STATE_DIR, `${this.platform}-${email}.json`);
+  getSessionPath(email, accountId = null) {
+    return path.join(STATE_DIR, accountId ? `${this.platform}-${email}-${accountId}.json` : `${this.platform}-${email}.json`);
   }
+  hasSession(email, accountId = null) { return fs.existsSync(this.getSessionPath(email, accountId)); }
 
-  // 检查是否有保存的session
-  hasSession(email) {
-    return fs.existsSync(this.getSessionPath(email));
-  }
-
-  // 启动浏览器（使用已有session）
-  async launchWithSession(email) {
-    const sessionPath = this.getSessionPath(email);
-    
-    this.browser = await chromium.launch(this.getLaunchOptions());
-
-    // 加载已保存的session
-    this.context = await this.browser.newContext({
-      storageState: sessionPath,
-      viewport: { width: 1280, height: 800 }
-    });
-
+  async launchWithSession(email, accountId = null) {
+    const sp = this.getSessionPath(email, accountId);
+    const opts = this.getLaunchOptions();
+    this.browser = await chromium.launch(opts);
+    this.context = await this.browser.newContext({ storageState: sp, ...this.getStealthContextOptions() });
     return { browser: this.browser, context: this.context };
   }
 
-  // 打开浏览器让客户手动登录
-  async openForManualLogin(email) {
+  async openForManualLogin(email, accountId = null) {
     this.browser = await chromium.launch(this.getLaunchOptions());
-
-    this.context = await this.browser.newContext({
-      viewport: { width: 1280, height: 800 },
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    });
-
+    this.context = await this.browser.newContext(this.getStealthContextOptions());
     return { browser: this.browser, context: this.context };
   }
 
-  // 保存登录状态
-  async saveSession(email) {
-    const sessionPath = this.getSessionPath(email);
-    await this.context.storageState({ path: sessionPath });
-    return sessionPath;
+  async saveSession(email, accountId = null) {
+    await this.context.storageState({ path: this.getSessionPath(email, accountId) });
   }
 
-  // 关闭浏览器
   async close() {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-      this.context = null;
-    }
+    if (this.browser) { try { await this.browser.close(); } catch(e) {} this.browser = null; this.context = null; }
   }
 
-  async newPage() {
-    return await this.context.newPage();
+  async validateSession(email, accountId = null) {
+    if (!this.hasSession(email, accountId)) return { valid: false, reason: 'session_not_found' };
+    try {
+      const { browser, context } = await this.launchWithSession(email, accountId);
+      const page = await context.newPage();
+      await page.goto(this.dashboardUrl || this.loginUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      const url = page.url();
+      await browser.close();
+      return this.isLoginPage(url) ? { valid: false, reason: 'session_expired', url } : { valid: true, url };
+    } catch (e) { await this.close(); return { valid: false, reason: 'validation_error', error: e.message }; }
   }
+  isLoginPage(url) { return false; }
 }
 
 class TikTokShopAutomation extends BrowserAutomation {
-  constructor() {
-    super('tiktok');
-    this.loginUrl = 'https://seller.tiktok.com';
-    this.dashboardUrl = 'https://seller.tiktok.com/home';
-  }
+  constructor() { super('tiktok'); this.loginUrl = 'https://seller-accounts.tiktok.com/account/login'; this.dashboardUrl = 'https://seller-accounts.tiktok.com/home'; this.productAddUrl = 'https://seller-accounts.tiktok.com/product/add'; }
+  isLoginPage(url) { return url.includes('seller-accounts.tiktok.com/account/login') || url.includes('login.tiktok.com') || url.includes('account.tiktok.com'); }
 
-  // 打开TikTok Seller登录页面，让客户手动登录
-  async openLoginPage(email) {
-    const { browser, context } = await this.openForManualLogin(email);
+  async openLoginPage(email, accountId = null) {
+    const { browser, context } = await this.openForManualLogin(email, accountId);
     const page = await context.newPage();
-
-    console.log('📱 正在打开 TikTok Seller Center 登录页面...');
-
-    try {
-      await page.goto(this.loginUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout: 60000
-      });
-      console.log('✅ 页面已加载，请手动登录');
-    } catch (err) {
-      console.log('⚠️ 页面加载超时，但浏览器已打开，请手动操作');
-    }
-
-    console.log('✅ 请在浏览器中手动登录，登录成功后关闭窗口');
-
-    // 监听窗口关闭事件
+    console.log(`📱 TikTok: ${this.loginUrl}`);
+    try { await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded', timeout: 60000 }); console.log('✅ 页面已加载，请在浏览器中手动登录'); }
+    catch (e) { console.log('⚠️ 页面加载超时，请手动操作'); }
     return new Promise((resolve) => {
       browser.on('disconnected', async () => {
-        // 检查是否登录成功（session是否存在）
-        if (fs.existsSync(this.getSessionPath(email))) {
-          resolve({
-            success: true,
-            message: '登录成功，Session已保存',
-            sessionPath: this.getSessionPath(email)
-          });
-        } else {
-          resolve({
-            success: false,
-            error: '登录未完成或Session保存失败'
-          });
-        }
+        const sp = this.getSessionPath(email, accountId);
+        if (fs.existsSync(sp)) resolve({ success: true, message: '登录成功，Session已保存', sessionPath: sp });
+        else resolve({ success: false, error: '登录未完成或Session保存失败' });
       });
     });
   }
 
-  // 发布产品（使用已保存的session）
-  async publishProduct(productData) {
-    const { email, title, description, price, stock, images } = productData;
-
-    // 检查是否有session
-    if (!this.hasSession(email)) {
-      return {
-        success: false,
-        error: '未找到登录状态，请先登录',
-        needLogin: true,
-        instruction: `请调用 POST /api/browser/tiktok/login?email=${email} 进行登录`
-      };
-    }
-
+  async publishProduct({ email, accountId, title, description = '', price = 0, stock = 100, images = [] }) {
+    if (!this.hasSession(email, accountId)) return { success: false, needLogin: true };
+    const v = await this.validateSession(email, accountId);
+    if (!v.valid) return { success: false, error: 'Session已过期', needLogin: true };
+    let browser = null;
     try {
-      const { browser, context } = await this.launchWithSession(email);
+      const { browser: b, context } = await this.launchWithSession(email, accountId);
+      browser = b;
       const page = await context.newPage();
-
-      console.log('📦 正在打开添加产品页面...');
-      await page.goto('https://seller-accounts.tiktok.com/product/add', {
-        waitUntil: 'networkidle',
-        timeout: 60000
-      });
-
-      // 填写产品信息（需要根据实际页面调整选择器）
+      console.log('📦 打开添加产品页面...');
+      await page.goto(this.productAddUrl, { waitUntil: 'networkidle', timeout: 60000 });
+      await page.waitForTimeout(2000);
       console.log('✏️ 填写产品信息...');
-      
-      // 标题
-      const titleInput = await page.$('input[name="title"], [data-testid="title"], textarea[name="title"]');
-      if (titleInput) await titleInput.fill(title);
-
-      // 描述
-      const descInput = await page.$('textarea[name="description"], [data-testid="description"]');
-      if (descInput) await descInput.fill(description);
-
-      // 价格
-      const priceInput = await page.$('input[name="price"], [data-testid="price"]');
-      if (priceInput) await priceInput.fill(price.toString());
-
-      // 库存
-      const stockInput = await page.$('input[name="stock"], [data-testid="stock"]');
-      if (stockInput) await stockInput.fill((stock || 100).toString());
-
-      // 上传图片
-      if (images && images.length > 0) {
-        const imageInput = await page.$('input[type="file"][accept*="image"]');
-        if (imageInput) {
-          await imageInput.setInputFiles(images);
-          await page.waitForTimeout(2000);
-        }
+      for (const [sel, val] of [['input[name="title"]', title], ['textarea[name="description"]', description], ['input[name="price"]', price.toString()], ['input[name="stock"]', stock.toString()]]) {
+        const el = await page.$(sel); if (el) { await el.click({ clickCount: 3 }); await el.fill(val); console.log(`  ✓ 已填: ${sel}`); }
       }
-
-      // 点击发布
+      if (images.length > 0) { const inp = await page.$('input[type="file"][accept*="image"]'); if (inp) { await inp.setInputFiles(images); await page.waitForTimeout(3000); console.log('  ✓ 图片已上传'); } }
       console.log('🚀 提交发布...');
-      const submitBtn = await page.$('button[type="submit"], button:has-text("发布"), button:has-text("Submit"), button:has-text("Publish")');
-      if (submitBtn) await submitBtn.click();
-
-      // 等待发布成功
+      for (const sel of ['button[type="submit"]', 'button:has-text("发布")', 'button:has-text("Publish")']) { const btn = await page.$(sel); if (btn && await btn.isVisible()) { await btn.click(); console.log(`  ✓ 点击: ${sel}`); break; } }
       await page.waitForTimeout(3000);
-
       await browser.close();
-
-      return {
-        success: true,
-        message: '产品发布成功'
-      };
-
-    } catch (error) {
-      console.error('❌ 发布失败:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
+      return { success: true, message: '产品提交完成', productTitle: title };
+    } catch (e) { if (browser) await browser.close().catch(() => {}); return { success: false, error: e.message }; }
   }
 
-  // 检查登录状态
-  async checkLogin(email) {
-    return {
-      loggedIn: this.hasSession(email),
-      sessionPath: this.getSessionPath(email)
-    };
+  async checkLogin(email, accountId = null) {
+    const sp = this.getSessionPath(email, accountId);
+    const exists = this.hasSession(email, accountId);
+    let info = null;
+    if (exists) try { const s = fs.statSync(sp); info = { size: s.size, modified: s.mtime.toISOString() }; } catch(e) {}
+    return { loggedIn: exists, sessionPath: sp, sessionInfo: info };
   }
 }
 
 class YouTubeAutomation extends BrowserAutomation {
-  constructor() {
-    super('youtube');
-    this.loginUrl = 'https://studio.youtube.com/';
-  }
+  constructor() { super('youtube'); this.loginUrl = 'https://studio.youtube.com/'; this.uploadUrl = 'https://studio.youtube.com/channel/upload'; this.dashboardUrl = 'https://studio.youtube.com/channel/dashboard'; }
+  isLoginPage(url) { return url.includes('accounts.google.com'); }
 
-  // 打开YouTube Studio登录页面
-  async openLoginPage(email) {
-    const { browser, context } = await this.openForManualLogin(email);
+  async openLoginPage(email, accountId = null) {
+    const { browser, context } = await this.openForManualLogin(email, accountId);
     const page = await context.newPage();
-
-    console.log('📱 正在打开 YouTube Studio 登录页面...');
-    await page.goto(this.loginUrl, { waitUntil: 'networkidle', timeout: 120000 });
-
-    console.log('✅ 请在浏览器中手动登录Google账号，登录成功后关闭窗口');
-
+    console.log(`📱 YouTube Studio: ${this.loginUrl}`);
+    try { await page.goto(this.loginUrl, { waitUntil: 'networkidle', timeout: 120000 }); console.log('✅ 页面已加载，请在浏览器中手动登录'); }
+    catch (e) { console.log('⚠️ 页面加载超时，请手动操作'); }
     return new Promise((resolve) => {
       browser.on('disconnected', async () => {
-        if (fs.existsSync(this.getSessionPath(email))) {
-          resolve({
-            success: true,
-            message: '登录成功，Session已保存',
-            sessionPath: this.getSessionPath(email)
-          });
-        } else {
-          resolve({
-            success: false,
-            error: '登录未完成或Session保存失败'
-          });
-        }
+        const sp = this.getSessionPath(email, accountId);
+        if (fs.existsSync(sp)) resolve({ success: true, message: '登录成功', sessionPath: sp });
+        else resolve({ success: false, error: '登录未完成' });
       });
     });
   }
 
-  // 上传视频
-  async uploadVideo(videoData) {
-    const { email, videoPath, title, description, thumbnail } = videoData;
-
-    if (!this.hasSession(email)) {
-      return {
-        success: false,
-        error: '未找到登录状态，请先登录',
-        needLogin: true,
-        instruction: `请调用 POST /api/browser/youtube/login?email=${email} 进行登录`
-      };
-    }
-
+  async uploadVideo({ email, accountId, videoPath, title = '', description = '', thumbnail, privacy = 'public' }) {
+    if (!this.hasSession(email, accountId)) return { success: false, needLogin: true };
+    const v = await this.validateSession(email, accountId);
+    if (!v.valid) return { success: false, error: 'Session已过期', needLogin: true };
+    let browser = null;
     try {
-      const { browser, context } = await this.launchWithSession(email);
+      const { browser: b, context } = await this.launchWithSession(email, accountId);
+      browser = b;
       const page = await context.newPage();
-
-      console.log('🎬 正在打开上传页面...');
-      await page.goto('https://studio.youtube.com/channel/upload', {
-        waitUntil: 'networkidle',
-        timeout: 60000
-      });
-
-      // 上传视频文件
-      console.log('📁 上传视频文件...');
-      const fileInput = await page.$('input[type="file"][accept*="video"]');
-      if (fileInput) {
-        await fileInput.setInputFiles(videoPath);
-      } else {
-        return { success: false, error: '找不到文件上传控件' };
-      }
-
-      // 等待上传完成
-      await page.waitForTimeout(5000);
-
-      // 填写标题
-      console.log('✏️ 填写视频信息...');
-      const titleInput = await page.$('input[id="title"], input[name="title"]');
-      if (titleInput) await titleInput.fill(title);
-
-      // 填写描述
-      const descInput = await page.$('textarea[id="description"], textarea[name="description"]');
-      if (descInput) await descInput.fill(description || '');
-
-      // 上传缩略图
-      if (thumbnail) {
-        const thumbInput = await page.$('input[data-testid="thumbnail-upload"]');
-        if (thumbInput) await thumbInput.setInputFiles(thumbnail);
-      }
-
-      // 设置为公开
-      const publicRadio = await page.$('input[type="radio"][value="public"]');
-      if (publicRadio) await publicRadio.click();
-
-      // 点击发布
-      console.log('🚀 发布视频...');
-      const publishBtn = await page.$('button:has-text("发布"), button:has-text("Publish")');
-      if (publishBtn) await publishBtn.click();
-
+      console.log('🎬 打开上传页面...');
+      await page.goto(this.uploadUrl, { waitUntil: 'networkidle', timeout: 60000 });
+      await page.waitForTimeout(2000);
+      const inp = await page.$('input[type="file"][accept*="video"]');
+      if (!inp) { await browser.close(); return { success: false, error: '找不到视频上传控件' }; }
+      await inp.setInputFiles(videoPath);
+      console.log(`  ✓ 视频已选择: ${videoPath}`);
+      await page.waitForTimeout(8000);
+      const titleInput = await page.$('input[id="title-input"], input[id="title"], input[placeholder*="标题"]');
+      if (titleInput) { await titleInput.click({ clickCount: 3 }); await titleInput.fill(title); console.log('  ✓ 标题已填写'); }
+      const descInput = await page.$('textarea[id="description"]');
+      if (descInput) { await descInput.fill(description); console.log('  ✓ 描述已填写'); }
+      console.log('🚀 发布...');
+      for (const sel of ['button:has-text("下一步")', 'button:has-text("Next")', 'button:has-text("发布")', 'button:has-text("Publish")']) { const btn = await page.$(sel); if (btn && await btn.isEnabled()) { await btn.click(); await page.waitForTimeout(2000); console.log(`  ✓ 点击: ${sel}`); break; } }
       await page.waitForTimeout(3000);
       await browser.close();
-
-      return {
-        success: true,
-        message: '视频发布成功'
-      };
-
-    } catch (error) {
-      console.error('❌ 上传失败:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
+      return { success: true, message: '视频上传完成', videoTitle: title };
+    } catch (e) { if (browser) await browser.close().catch(() => {}); return { success: false, error: e.message }; }
   }
 
-  async checkLogin(email) {
-    return {
-      loggedIn: this.hasSession(email),
-      sessionPath: this.getSessionPath(email)
-    };
+  async checkLogin(email, accountId = null) {
+    const sp = this.getSessionPath(email, accountId);
+    const exists = this.hasSession(email, accountId);
+    let info = null;
+    if (exists) try { const s = fs.statSync(sp); info = { size: s.size, modified: s.mtime.toISOString() }; } catch(e) {}
+    return { loggedIn: exists, sessionPath: sp, sessionInfo: info };
   }
 }
 
-class OzonAutomation extends BrowserAutomation {
-  constructor() {
-    super('ozon');
-    this.loginUrl = 'https://seller.ozon.ru/';
-    this.dashboardUrl = 'https://seller.ozon.ru/app/dashboard';
-  }
+async function main() {
+  const [,, cmd, subcmd, ...args] = process.argv;
 
-  // 打开Ozon Seller登录页面
-  async openLoginPage(email) {
-    const { browser, context } = await this.openForManualLogin(email);
-    const page = await context.newPage();
-
-    console.log('📱 正在打开 Ozon Seller 登录页面...');
-
-    try {
-      await page.goto(this.loginUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout: 60000
-      });
-      console.log('✅ 页面已加载，请手动登录');
-    } catch (err) {
-      console.log('⚠️ 页面加载超时，但浏览器已打开，请手动操作');
+  if (cmd === 'system-status') {
+    console.log('\n🖥️ 浏览器自动化系统状态');
+    console.log('─'.repeat(50));
+    console.log(`环境: ${isServerEnvironment() ? '服务器 (headless)' : '本地开发'}`);
+    console.log(`headless: ${getHeadless()}`);
+    console.log(`平台: ${os.platform()} | Node: ${process.version}`);
+    console.log('\n📁 Session 文件:');
+    if (fs.existsSync(STATE_DIR)) {
+      const files = fs.readdirSync(STATE_DIR).filter(f => f.endsWith('.json'));
+      for (const f of files) { const s = fs.statSync(path.join(STATE_DIR, f)); console.log(`  ${f} (${(s.size/1024).toFixed(1)} KB)`); }
     }
-
-    console.log('✅ 请在浏览器中手动登录，登录成功后关闭窗口');
-
-    // 监听窗口关闭事件
-    return new Promise((resolve) => {
-      browser.on('disconnected', async () => {
-        if (fs.existsSync(this.getSessionPath(email))) {
-          resolve({
-            success: true,
-            message: '登录成功，Session已保存',
-            sessionPath: this.getSessionPath(email)
-          });
-        } else {
-          resolve({
-            success: false,
-            error: '登录未完成或Session保存失败'
-          });
-        }
-      });
-    });
+    console.log('\n用法:');
+    console.log('  node browserAutomation.js tiktok login <email>');
+    console.log('  node browserAutomation.js tiktok status <email>');
+    console.log('  node browserAutomation.js tiktok publish <email> <标题> [价格]');
+    console.log('  node browserAutomation.js youtube login <email>');
+    console.log('  node browserAutomation.js youtube upload <email> <视频路径> <标题>');
+    return;
   }
 
-  // 检查登录状态
-  async checkLogin(email) {
-    return {
-      loggedIn: this.hasSession(email),
-      sessionPath: this.getSessionPath(email)
-    };
+  if (cmd === 'tiktok') {
+    const tiktok = new TikTokShopAutomation();
+    const email = subcmd;
+    if (!email) { console.log('用法: tiktok <login|status|publish> <email> [参数...]'); return; }
+    if (subcmd === 'login') { const r = await tiktok.openLoginPage(email); console.log(r); }
+    else if (subcmd === 'status') { const r = await tiktok.checkLogin(email); console.log(r); }
+    else if (subcmd === 'publish') { const [title, price] = args; const r = await tiktok.publishProduct({ email, title: title || '产品', price: parseFloat(price) || 19.99 }); console.log(r); }
+    await tiktok.close(); return;
   }
+
+  if (cmd === 'youtube') {
+    const youtube = new YouTubeAutomation();
+    const email = subcmd;
+    if (!email) { console.log('用法: youtube <login|status|upload> <email> [参数...]'); return; }
+    if (subcmd === 'login') { const r = await youtube.openLoginPage(email); console.log(r); }
+    else if (subcmd === 'status') { const r = await youtube.checkLogin(email); console.log(r); }
+    else if (subcmd === 'upload') { const [vp, title] = args; const r = await youtube.uploadVideo({ email, videoPath: vp || 'video.mp4', title: title || '视频' }); console.log(r); }
+    await youtube.close(); return;
+  }
+
+  console.log(`
+🔧 Claw 浏览器自动化 CLI v3.0 (Phase 1 修复)
+
+用法: node browserAutomation.js <命令> [参数]
+
+命令:
+  system-status               系统状态
+  tiktok login <email>        TikTok 登录
+  tiktok status <email>       TikTok 状态
+  tiktok publish <email> <标题> [价格]  发布产品
+  youtube login <email>        YouTube 登录
+  youtube upload <email> <视频> <标题>  上传视频
+  `);
 }
 
-export { TikTokShopAutomation, YouTubeAutomation, OzonAutomation };
+main().catch(console.error);

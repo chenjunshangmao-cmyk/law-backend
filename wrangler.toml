@@ -1,0 +1,6 @@
+name = "claw-app-2026"
+compatibility_flags = ["no-hash-asset-names"]
+pages_build_output_dir = "complete-deploy"
+
+# Cloudflare Pages 自动构建配置
+# Push 后 Cloudflare Pages 会自动执行: cd frontend && npm install && npm run build
