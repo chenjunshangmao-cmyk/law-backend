@@ -7,6 +7,8 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  // Google OAuth 直接登录（token + user 对象）
+  loginWithToken: (token: string, user: User) => void;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -51,6 +53,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(newUser);
   };
 
+  // Google OAuth 直接登录（token + user 对象）
+  const loginWithToken = (newToken: string, newUser: User) => {
+    localStorage.setItem('token', newToken);
+    setToken(newToken);
+    setUser(newUser);
+  };
+
   const register = async (email: string, password: string, name: string) => {
     const res = await api.auth.register(email, password, name);
     const { token: newToken, user: newUser } = res.data || res;
@@ -67,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginWithToken, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
