@@ -197,6 +197,7 @@ router.post('/create', authenticateToken, async (req, res) => {
           testMode: true,
           message: '支付功能测试模式'
         };
+      }
     } else {
       // 无有效终端配置，降级为测试模式（立即返回，不挂起）
       console.log('[支付] 无收钱吧配置，进入测试模式，订单号:', orderNo);
