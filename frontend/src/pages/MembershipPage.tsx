@@ -56,16 +56,16 @@ export default function MembershipPage() {
     setError('');
     setSelectedPlan(planId);
     setOrder(null);
-    
+
     try {
       const res = await api.payment.createOrder({ plan: planId });
-      
+
       if (!res.success) {
         throw new Error(res.error || '创建订单失败');
       }
-      
+
       setOrder(res.data);
-      
+
       // 如果有支付链接，开始轮询订单状态
       if (res.data?.orderNo) {
         startPolling(res.data.orderNo);
@@ -74,6 +74,53 @@ export default function MembershipPage() {
       setError(e.message || '支付服务暂时不可用，请稍后重试');
     } finally {
       setLoading(false);  // Bug4 修复：无论成功失败都重置 loading
+    }
+  };
+
+  // 收钱吧支付（微信/支付宝）
+  const [sqOrder, setSqOrder] = useState<{ sn: string; clientSn: string; payUrl: string; totalAmount: string } | null>(null);
+  const [sqPolling, setSqPolling] = useState(false);
+
+  const handleShouqianbaPay = async (planId: string, price: number) => {
+    setLoading(true);
+    setError('');
+    setSelectedPlan(planId);
+    setSqOrder(null);
+
+    try {
+      // 先激活终端
+      await api.shouqianba.activate();
+
+      // 创建订单
+      const res = await api.shouqianba.createOrder(planId, price);
+      if (!res.success) throw new Error(res.error || '创建收钱吧订单失败');
+
+      setSqOrder(res.data);
+
+      // 轮询查询支付状态
+      setSqPolling(true);
+      const poll = setInterval(async () => {
+        try {
+          const status = await api.shouqianba.query(res.data.sn);
+          if (status.data?.orderStatus === 'PAID' || status.data?.status === 'SUCCESS') {
+            clearInterval(poll);
+            setSqPolling(false);
+            setSqOrder(null);
+            alert('✅ 支付成功！会员已激活');
+            refreshUser();
+          }
+        } catch { /* ignore */ }
+      }, 3000);
+
+      // 5分钟超时
+      setTimeout(() => {
+        clearInterval(poll);
+        setSqPolling(false);
+      }, 5 * 60 * 1000);
+    } catch (e: any) {
+      setError(e.message || '收钱吧支付暂时不可用，请稍后重试');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -143,6 +190,50 @@ export default function MembershipPage() {
           <p className="font-medium">支付失败</p>
           <p className="text-sm mt-1">{error}</p>
           <button onClick={() => setError('')} className="text-sm underline mt-2">关闭</button>
+        </div>
+      )}
+
+      {/* 收钱吧支付弹窗（微信/支付宝） */}
+      {sqOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">
+                {PLANS.find(p => p.id === selectedPlan)?.name} - ¥{Number(sqOrder.totalAmount) / 100}
+              </h2>
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">收钱吧</span>
+            </div>
+
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-sm text-green-800">
+              请用 <b>微信</b> 或 <b>支付宝</b> 扫码支付
+            </div>
+
+            {sqOrder.payUrl && (
+              <div className="text-center mb-4">
+                <img
+                  src={'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(sqOrder.payUrl)}
+                  alt="支付二维码"
+                  className="mx-auto rounded-lg border border-gray-200"
+                  style={{ width: 200, height: 200 }}
+                />
+                <p className="text-xs text-gray-500 mt-2">扫码 → 打开微信/支付宝支付</p>
+              </div>
+            )}
+
+            {sqPolling && (
+              <div className="flex items-center justify-center gap-2 text-sm text-green-600 mb-4">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                等待支付确认（支付后页面自动更新）...
+              </div>
+            )}
+
+            <button
+              onClick={() => { setSqOrder(null); setSqPolling(false); setSelectedPlan(''); }}
+              className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            >
+              取消
+            </button>
+          </div>
         </div>
       )}
 
@@ -247,20 +338,25 @@ export default function MembershipPage() {
               <button
                 onClick={() => handlePay(plan.id)}
                 disabled={loading || isCurrentPlan}
-                className={`w-full py-3 rounded-xl font-medium transition-colors ${
+                className={`w-full py-2.5 rounded-xl font-medium transition-colors text-sm mb-2 ${
                   isCurrentPlan
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : plan.popular
                     ? 'bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50'
-                    : `bg-${plan.color}-600 text-white hover:bg-${plan.color}-700 disabled:opacity-50`
+                    : `bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50`
                 }`}
               >
-                {isCurrentPlan
-                  ? '当前套餐'
-                  : loading && selectedPlan === plan.id
-                  ? '处理中...'
-                  : '立即开通'}
+                {isCurrentPlan ? '当前套餐' : loading && selectedPlan === plan.id ? '处理中...' : '💳 银行卡支付'}
               </button>
+              {!isCurrentPlan && (
+                <button
+                  onClick={() => handleShouqianbaPay(plan.id, plan.price)}
+                  disabled={loading && selectedPlan !== plan.id}
+                  className="w-full py-2.5 rounded-xl font-medium transition-colors text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  {loading && selectedPlan === plan.id ? '处理中...' : '💚 微信/支付宝'}
+                </button>
+              )}
             </div>
           );
         })}

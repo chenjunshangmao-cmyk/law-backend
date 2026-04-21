@@ -216,6 +216,25 @@ export const api = {
   },
 
   // ============================================================
+  // 收钱吧 API
+  // ============================================================
+  shouqianba: {
+    activate: () => authFetch('/api/shouqianba/activate', { method: 'POST' }),
+    checkin: () => authFetch('/api/shouqianba/checkin', { method: 'POST' }),
+    status: () => authFetch('/api/shouqianba/status'),
+    createOrder: (planId: string, price: number) =>
+      authFetch('/api/shouqianba/create-order', {
+        method: 'POST',
+        body: JSON.stringify({
+          clientSn: `claw-${planId}-${Date.now()}`,
+          totalAmount: price,
+          subject: `Claw会员-${planId}`
+        })
+      }),
+    query: (sn: string) => authFetch(`/api/shouqianba/query?sn=${sn}`),
+  },
+
+  // ============================================================
   // Membership API
   // ============================================================
   membership: {
