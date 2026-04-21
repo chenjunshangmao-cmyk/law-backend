@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   LogIn, 
   Mail, 
@@ -18,11 +18,26 @@ import { useAuth } from '../contexts/AuthContext';
 export default function ModernLogin() {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // 显示 Google OAuth 失败的错误提示
+  useEffect(() => {
+    const authError = searchParams.get('error') || searchParams.get('auth_error');
+    if (authError) {
+      const errorMessages = {
+        google_denied: 'Google 授权被取消，请重试',
+        no_code: '授权信息缺失，请重试',
+        google_callback_failed: '登录失败，请重试',
+        callback_failed: '登录处理失败，请重试',
+      };
+      setError(errorMessages[authError] || '登录失败，请重试');
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,7 +195,7 @@ export default function ModernLogin() {
                 <button
                   type="button"
                   onClick={() => {
-                    window.location.href = `${import.meta.env.VITE_API_URL || 'https://claw-app-backend.onrender.com'}/api/auth/google`;
+                    window.location.href = `${import.meta.env.VITE_API_URL || 'https://claw-backend-2026.onrender.com'}/api/auth/google`;
                   }}
                   className="w-full flex items-center justify-center gap-3 py-3 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors text-gray-700 font-medium"
                 >
