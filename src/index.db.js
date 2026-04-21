@@ -16,7 +16,6 @@ import { rateLimitMiddleware } from './middleware/auth.js';
 
 // 路由
 import authRoutes from './routes/auth.min.js';
-import googleAuthRoutes from './routes/auth.google.js';
 import youtubeAuthRoutes from './routes/auth.youtube.js';
 import productRoutes from './routes/products.db.js';
 import generateRoutes from './routes/generate.js';
@@ -160,7 +159,7 @@ const initDatabase = async () => {
 
 // API路由
 app.use('/api/auth', authRoutes);
-app.use('/api/auth/google', googleAuthRoutes);  // Google OAuth 路由（网站登录）
+
 app.use('/api/auth/youtube', youtubeAuthRoutes);  // YouTube OAuth 路由（视频授权）
 app.get('/api/health', healthCheck);
 app.get('/health', healthCheck);
