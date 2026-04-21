@@ -1,11 +1,11 @@
-import React, { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { Suspense, lazy, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import MainLayout from './components/MainLayout';
-import LoginPage from './pages/LoginPage';
+import ModernLayout from './components/ModernLayout';
+import LoginPage from './pages/ModernLogin';
 
 // 懒加载页面（减少首屏体积）
-const DashboardPage      = lazy(() => import('./pages/DashboardPage'));
+const DashboardPage      = lazy(() => import('./pages/ModernDashboard'));
 const TrendingPage       = lazy(() => import('./pages/TrendingPage'));
 const SmartPublishPage   = lazy(() => import('./pages/PublishPage'));
 const AdCollectionPage   = lazy(() => import('./pages/AdCollectionPage'));
@@ -18,6 +18,38 @@ const SettingsPage       = lazy(() => import('./pages/SettingsPage'));
 const TikTokPage          = lazy(() => import('./pages/TikTokPage'));
 const YouTubePage          = lazy(() => import('./pages/YouTubePage'));
 const AvatarPage           = lazy(() => import('./pages/AvatarPage'));
+
+// Google OAuth 回调处理组件（处理 google_token + google_user URL参数）
+function GoogleCallbackHandler({ children }: { children: React.ReactNode }) {
+  const [searchParams] = useSearchParams();
+  const { loginWithToken } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = searchParams.get('google_token');
+    const userStr = searchParams.get('google_user');
+    const authError = searchParams.get('auth_error');
+
+    if (authError) {
+      console.error('[Auth] Google OAuth 错误:', authError);
+      navigate('/login?error=' + authError);
+      return;
+    }
+
+    if (token && userStr) {
+      try {
+        const user = JSON.parse(decodeURIComponent(userStr));
+        loginWithToken(token, user);
+        navigate('/', { replace: true });
+      } catch (err) {
+        console.error('[Auth] Google OAuth 回调解析失败:', err);
+        navigate('/login?error=callback_failed');
+      }
+    }
+  }, []);
+
+  return <>{children}</>;
+}
 
 // 加载中组件
 function PageLoading() {
@@ -63,7 +95,7 @@ function AppRoutes() {
       {/* 受保护路由 */}
       <Route path="/" element={
         <ProtectedRoute>
-          <MainLayout />
+          <ModernLayout />
         </ProtectedRoute>
       }>
         <Route index element={<Navigate to="/dashboard" replace />} />
@@ -92,7 +124,9 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <AppRoutes />
+        <GoogleCallbackHandler>
+          <AppRoutes />
+        </GoogleCallbackHandler>
       </BrowserRouter>
     </AuthProvider>
   );
