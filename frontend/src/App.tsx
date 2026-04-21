@@ -7,11 +7,12 @@ import LoginPage from './pages/LoginPage';
 // 懒加载页面（减少首屏体积）
 const DashboardPage      = lazy(() => import('./pages/DashboardPage'));
 const TrendingPage       = lazy(() => import('./pages/TrendingPage'));
-const SmartPublishPage   = lazy(() => import('./pages/SmartPublishPage'));
+const SmartPublishPage   = lazy(() => import('./pages/PublishPage'));
 const AdCollectionPage   = lazy(() => import('./pages/AdCollectionPage'));
 const ProductsPage       = lazy(() => import('./pages/ProductsPage'));
 const AccountsPage       = lazy(() => import('./pages/AccountsPage'));
 const MembershipPage     = lazy(() => import('./pages/MembershipPage'));
+const ServicesPage       = lazy(() => import('./pages/ServicesPage'));
 const CalculatorPage     = lazy(() => import('./pages/CalculatorPage'));
 const SettingsPage       = lazy(() => import('./pages/SettingsPage'));
 const TikTokPage          = lazy(() => import('./pages/TikTokPage'));
@@ -73,6 +74,7 @@ function AppRoutes() {
         <Route path="products"       element={<Suspense fallback={<PageLoading />}><ProductsPage /></Suspense>} />
         <Route path="accounts"       element={<Suspense fallback={<PageLoading />}><AccountsPage /></Suspense>} />
         <Route path="membership"     element={<Suspense fallback={<PageLoading />}><MembershipPage /></Suspense>} />
+        <Route path="services"       element={<Suspense fallback={<PageLoading />}><ServicesPage /></Suspense>} />
         <Route path="calculator"     element={<Suspense fallback={<PageLoading />}><CalculatorPage /></Suspense>} />
         <Route path="settings"       element={<Suspense fallback={<PageLoading />}><SettingsPage /></Suspense>} />
         <Route path="tiktok"         element={<Suspense fallback={<PageLoading />}><TikTokPage /></Suspense>} />
