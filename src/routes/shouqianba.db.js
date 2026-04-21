@@ -1,11 +1,18 @@
 /**
  * 收钱吧支付路由
  * 完整流程：激活 → 签到 → 创建支付 → 查询 → 回调处理
+ * 终端信息持久化存储，重启不丢失
  */
 
 import express from 'express';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import config from '../config/shouqianba.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TERMINAL_FILE = path.join(__dirname, '../../data/shouqianba-terminal.json');
 
 const router = express.Router();
 
@@ -37,7 +44,7 @@ async function sqbRequest(endpoint, body, sn, key) {
   return resp.data;
 }
 
-const SQB_PUBLIC_KEY = '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5+MNqcjgw4bsSWhJfw2M\n+gQB7P+pEiYOfvRmA6kt7Wisp0J3JbOtsLXGnErn5ZY2D8KkSAHtMYbeddphFZQJ\nzUbiaDi75GUAG9XS3MfoKAhvNkK15VcCd8hFgNYCZdwEjZrvx6Zu1B7c29S64LQP\nHceS0nyXF8DwMIVRcIWKy02cexgX0UmUPE0A2sJFoV19ogAHaBIhx5FkTy+eeBJE\nbU03Do97q5G9IN1O3TssvbYBAzugz+yUPww2LadaKexhJGg+5+ufoDd0+V3oFL0/\nebkJvD0uiBzdE3/ci/tANpInHAUDIHoWZCKxhn60f3/3KiR8xuj2vASgEqphxT5O\nfwIDAQAB\n-----END PUBLIC KEY-----';
+const SQB_PUBLIC_KEY = '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5+MNqcjgw4bsSWhJfw2M\ngQB7P+pEiYOfvRmA6kt7Wisp0J3JbOtsLXGnErn5ZY2D8KkSAHtMYbeddphFZQJ\nzUbiaDi75GUAG9XS3MfoKAhvNkK15VcCd8hFgNYCZdwEjZrvx6Zu1B7c29S64LQP\nHceS0nyXF8DwMIVRcIWKy02cexgX0UmUPE0A2sJFoV19ogAHaBIhx5FkTy+eeBJE\nbU03Do97q5G9IN1O3TssvbYBAzugz+yUPww2LadaKexhJGg+5+ufoDd0+V3oFL0/\nebkJvD0uiBzdE3/ci/tANpInHAUDIHoWZCKxhn60f3/3KiR8xuj2vASgEqphxT5O\nfwIDAQAB\n-----END PUBLIC KEY-----';
 
 async function verifyRsaSign(bodyStr, signBase64) {
   try {
@@ -50,7 +57,33 @@ async function verifyRsaSign(bodyStr, signBase64) {
   }
 }
 
+// ============================================================
+// 终端持久化存储
+// ============================================================
 const terminalCache = {};
+
+function loadTerminals() {
+  try {
+    if (fs.existsSync(TERMINAL_FILE)) {
+      const data = JSON.parse(fs.readFileSync(TERMINAL_FILE, 'utf8'));
+      Object.assign(terminalCache, data);
+      console.log('[收钱吧] 已从文件加载终端:', Object.keys(terminalCache));
+    }
+  } catch (e) {
+    console.error('[收钱吧] 加载终端文件失败:', e.message);
+  }
+}
+
+function saveTerminals() {
+  try {
+    const dir = path.dirname(TERMINAL_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(TERMINAL_FILE, JSON.stringify(terminalCache, null, 2));
+    console.log('[收钱吧] 终端已保存到文件');
+  } catch (e) {
+    console.error('[收钱吧] 保存终端文件失败:', e.message);
+  }
+}
 
 function getTerminal(deviceId) {
   return terminalCache[deviceId] || null;
@@ -58,11 +91,30 @@ function getTerminal(deviceId) {
 
 function saveTerminal(deviceId, data) {
   terminalCache[deviceId] = { ...data, updatedAt: Date.now() };
+  saveTerminals();
 }
 
+// 启动时加载
+loadTerminals();
+
+// ============================================================
+// API 路由
+// ============================================================
+
+// 激活终端（如果已激活则直接返回，不重复激活）
 router.post('/activate', async (req, res) => {
   try {
     const { deviceId = 'claw-web-default' } = req.body;
+
+    // 已激活 → 直接返回缓存的终端（不重复调用激活接口）
+    const existing = getTerminal(deviceId);
+    if (existing && existing.terminalSn) {
+      console.log('[收钱吧] 终端已激活，直接返回缓存:', existing.terminalSn);
+      return res.json({ success: true, data: existing, cached: true });
+    }
+
+    // 未激活 → 调用激活接口
+    console.log('[收钱吧] 正在激活终端...');
     const body = {
       app_id: config.appId,
       code: config.testCode,
@@ -76,7 +128,7 @@ router.post('/activate', async (req, res) => {
     });
     const result = resp.data;
     if (result.result_code !== '200') {
-      return res.status(400).json({ success: false, error: result.error_message || '激活失败' });
+      return res.status(400).json({ success: false, error: result.error_message || '激活失败（' + result.result_code + '）' });
     }
     const terminal = {
       terminalSn: result.terminal_sn,
@@ -86,13 +138,15 @@ router.post('/activate', async (req, res) => {
       deviceId
     };
     saveTerminal(deviceId, terminal);
-    res.json({ success: true, data: terminal });
+    console.log('[收钱吧] 终端激活成功:', result.terminal_sn);
+    res.json({ success: true, data: terminal, cached: false });
   } catch (err) {
     console.error('激活失败:', err.response && err.response.data || err.message);
     res.status(500).json({ success: false, error: err.response && err.response.data && err.response.data.error_message || err.message });
   }
 });
 
+// 签到
 router.post('/checkin', async (req, res) => {
   try {
     const { deviceId = 'claw-web-default' } = req.body;
@@ -109,6 +163,7 @@ router.post('/checkin', async (req, res) => {
   }
 });
 
+// 创建支付订单
 router.post('/create-order', async (req, res) => {
   try {
     const { deviceId = 'claw-web-default', clientSn, totalAmount, subject } = req.body;
@@ -116,7 +171,7 @@ router.post('/create-order', async (req, res) => {
       return res.status(400).json({ success: false, error: '缺少必要参数' });
     }
     const terminal = getTerminal(deviceId);
-    if (!terminal) return res.status(400).json({ success: false, error: '终端未激活' });
+    if (!terminal) return res.status(400).json({ success: false, error: '终端未激活，请先调用 /activate' });
     const baseUrl = process.env.RENDER_EXTERNAL_URL || (req.protocol + '://' + req.get('host'));
     const requestParams = {
       terminal_sn: terminal.terminalSn,
@@ -143,6 +198,7 @@ router.post('/create-order', async (req, res) => {
   }
 });
 
+// 查询订单
 router.get('/query', async (req, res) => {
   try {
     const { sn, deviceId = 'claw-web-default' } = req.query;
@@ -157,6 +213,7 @@ router.get('/query', async (req, res) => {
   }
 });
 
+// 退款
 router.post('/refund', async (req, res) => {
   try {
     const { sn, refundAmount, deviceId = 'claw-web-default' } = req.body;
@@ -171,6 +228,7 @@ router.post('/refund', async (req, res) => {
   }
 });
 
+// 回调通知
 router.post('/notify', async (req, res) => {
   try {
     const bodyStr = JSON.stringify(req.body);
@@ -192,10 +250,11 @@ router.post('/notify', async (req, res) => {
   }
 });
 
+// 状态查询
 router.get('/status', (req, res) => {
   const { deviceId = 'claw-web-default' } = req.query;
   const terminal = getTerminal(deviceId);
-  res.json({ success: true, data: { activated: !!terminal, deviceId } });
+  res.json({ success: true, data: { activated: !!terminal, deviceId, terminalSn: terminal?.terminalSn || null } });
 });
 
 export default router;
