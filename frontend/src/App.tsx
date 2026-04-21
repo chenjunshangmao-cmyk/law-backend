@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useSearchParams, useNavigate } 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ModernLayout from './components/ModernLayout';
 import LoginPage from './pages/ModernLogin';
+import RegisterPage from './pages/ModernRegister';
 
 // 懒加载页面（减少首屏体积）
 const DashboardPage      = lazy(() => import('./pages/ModernDashboard'));
@@ -90,6 +91,9 @@ function AppRoutes() {
       {/* 公开路由 */}
       <Route path="/login" element={
         <PublicRoute><LoginPage /></PublicRoute>
+      } />
+      <Route path="/register" element={
+        <PublicRoute><RegisterPage /></PublicRoute>
       } />
 
       {/* 受保护路由 */}

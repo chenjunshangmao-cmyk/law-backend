@@ -220,7 +220,10 @@ export default function ModernLogin() {
               <div className="mt-8 pt-8 border-t border-gray-200 text-center">
                 <p className="text-gray-600">
                   还没有账户？{' '}
-                  <button className="text-blue-600 hover:text-blue-700 font-medium">
+                  <button
+                    onClick={() => navigate('/register')}
+                    className="text-blue-600 hover:text-blue-700 font-medium"
+                  >
                     立即注册 →
                   </button>
                 </p>
