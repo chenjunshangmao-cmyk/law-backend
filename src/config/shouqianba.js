@@ -13,17 +13,17 @@ const config = {
   vendorKey: process.env.SHOUQIANBA_VENDOR_KEY || '677da351628d3fe7664321669c3439b2',
   appId: process.env.SHOUQIANBA_APP_ID || '2026041600011122',
 
-  // 主设备ID（claw-web-new1/new2 都已被绑定，改用全新设备）
-  defaultDeviceId: 'claw-web-prod-01',
+  // 主设备ID
+  defaultDeviceId: 'claw-web-new1',
 
-  // 激活码（⚠️ 明天联系客户经理获取新码，设备ID: claw-web-prod-01）
-  testCode: 'PLACEHOLDER',
+  // 激活码（claw-web-new1 已激活，码 81119079 绑定成功）
+  testCode: '81119079',
 
   storeDevices: {
-    'claw-web-prod-01': {
-      code: 'PLACEHOLDER',  // ⚠️ 待客户经理提供新码
-      merchantId: null,
-      storeSn: null
+    'claw-web-new1': {
+      code: '81119079',  // 有效期至 2026-04-30，已激活
+      merchantId: '18956397746',  // 激活后获取
+      storeSn: '00010101001200200046406'  // 激活后获取
     }
   },
 
