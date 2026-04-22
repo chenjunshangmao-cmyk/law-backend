@@ -1,7 +1,7 @@
 /**
  * 收钱吧配置
  * 敏感凭证不提交到 Git！
- * 测试激活码有效期：2026-04-24
+ * 2026-04-22：claw-web-new1（终端100111220054361978）已绑定其他商户，切换到claw-web-new2
  */
 
 const config = {
@@ -13,15 +13,15 @@ const config = {
   vendorKey: process.env.SHOUQIANBA_VENDOR_KEY || '677da351628d3fe7664321669c3439b2',
   appId: process.env.SHOUQIANBA_APP_ID || '2026041600011122',
 
-  // 测试激活码（有效期至 2026-04-24）
-  testCode: '66172491',
+  // 激活码（联系收钱吧客户经理获取，每个设备只能用一次）
+  // 2026-04-22：claw-web-new1 绑定冲突，切换到 claw-web-new2
+  testCode: '66172491',  // ⚠️ 待替换为客户经理提供的新码
 
-  // 正式激活码（上线后填入）
-  // 格式：{ deviceId: '品牌+场景+门店编号', code: '激活码' }
-  // 例如: { deviceId: 'claw-web-main', code: 'XXXXXXXX' }
+  // 统一使用 claw-web-new2 作为主终端设备ID
+  defaultDeviceId: 'claw-web-new2',
   storeDevices: {
-    default: {
-      code: '66172491',  // 测试用，2026-04-24过期
+    'claw-web-new2': {
+      code: '66172491',  // ⚠️ 待替换为客户经理提供的新码
       merchantId: null,  // 激活后填入
       storeSn: null
     }
