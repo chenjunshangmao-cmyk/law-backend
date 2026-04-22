@@ -390,6 +390,54 @@ router.get('/query', async (req, res) => {
   }
 });
 
+// 手动确认支付（WAP订单收钱吧查询接口不可用，回调也不稳定）
+// 前端「我已支付」按钮调用此接口，强制将订单标记为已支付
+router.post('/force-confirm', async (req, res) => {
+  try {
+    const { sn, planId, totalAmount } = req.body;
+    if (!sn) return res.status(400).json({ success: false, error: '缺少 sn' });
+
+    console.log('[收钱吧] 手动确认订单:', sn);
+
+    // 1. 更新本地文件（持久化）
+    const fileOrder = getOrder(sn);
+    if (!fileOrder) {
+      // 如果文件里没有（可能是其他方式创建的订单），新建记录
+      saveOrder({
+        clientSn: sn,
+        sn: sn,
+        orderStatus: 'PAID',
+        status: 'SUCCESS',
+        totalAmount: Number(totalAmount) || 0,
+        planId: planId || null,
+        confirmedAt: Date.now()
+      });
+    } else {
+      // 已存在，更新状态
+      updateOrder(sn, {
+        orderStatus: 'PAID',
+        status: 'SUCCESS',
+        confirmedAt: Date.now()
+      });
+    }
+
+    // 2. 同时更新内存缓存（如果有）
+    orderStatusCache.set(sn, {
+      sn,
+      clientSn: sn,
+      orderStatus: 'PAID',
+      status: 'SUCCESS',
+      totalAmount: Number(totalAmount) || (fileOrder ? fileOrder.totalAmount : 0),
+      confirmedAt: Date.now()
+    });
+
+    res.json({ success: true, data: { sn, orderStatus: 'PAID', status: 'SUCCESS' } });
+  } catch (err) {
+    console.error('[收钱吧] 手动确认失败:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 退款
 router.post('/refund', async (req, res) => {
   try {
