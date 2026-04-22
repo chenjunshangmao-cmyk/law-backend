@@ -102,7 +102,7 @@ loadTerminals();
 if (Object.keys(terminalCache).length === 0 && process.env.SHOUQIANBA_SEED_TERMINAL) {
   try {
     const seedData = JSON.parse(Buffer.from(process.env.SHOUQIANBA_SEED_TERMINAL, 'base64').toString('utf8'));
-    Object.entries(seedData).forEach(([deviceId, data]: [string, any]) => {
+    Object.entries(seedData).forEach(([deviceId, data]) => {
       terminalCache[deviceId] = { ...data, updatedAt: Date.now() };
     });
     saveTerminals();

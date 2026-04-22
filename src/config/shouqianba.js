@@ -25,7 +25,6 @@ const config = {
       merchantId: '18956397746',
       storeSn: '00010101001200200046406'
     }
-    }
   },
 
   // 终端缓存（激活后在这里存储 terminal_sn + terminal_key）
