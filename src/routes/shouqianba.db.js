@@ -99,14 +99,41 @@ loadTerminals();
 
 // Render环境：从环境变量读取种子终端数据（base64编码的JSON）
 // ⚠️ 终端凭证只允许通过环境变量传入，禁止硬编码！
-if (Object.keys(terminalCache).length === 0 && process.env.SHOUQIANBA_SEED_TERMINAL) {
-  try {
-    const seedData = JSON.parse(Buffer.from(process.env.SHOUQIANBA_SEED_TERMINAL, 'base64').toString('utf8'));
-    Object.entries(seedData).forEach(([deviceId, data]) => {
-      terminalCache[deviceId] = { ...data, updatedAt: Date.now() };
-    });
-    saveTerminals();
-    console.log('[收钱吧] 已从环境变量加载种子终端数据');
+// 如果环境变量和文件都没有，从 config.storeDevices 预置数据（claw-web-new3 已激活）
+if (Object.keys(terminalCache).length === 0) {
+  if (process.env.SHOUQIANBA_SEED_TERMINAL) {
+    try {
+      const seedData = JSON.parse(Buffer.from(process.env.SHOUQIANBA_SEED_TERMINAL, 'base64').toString('utf8'));
+      Object.entries(seedData).forEach(([deviceId, data]) => {
+        terminalCache[deviceId] = { ...data, updatedAt: Date.now() };
+      });
+      saveTerminals();
+      console.log('[收钱吧] 已从环境变量加载种子终端数据');
+    } catch (e) {
+      console.error('[收钱吧] 解析环境变量终端数据失败:', e.message);
+    }
+  } else {
+    // 无环境变量时，从 config 预置的已激活终端加载（claw-web-new3）
+    // 这些数据在 config/shouqianba.js 中维护（2026-04-22 已激活）
+    try {
+      const deviceInfo = config.storeDevices?.[config.defaultDeviceId];
+      if (deviceInfo && deviceInfo.terminalSn && deviceInfo.terminalKey) {
+        terminalCache[config.defaultDeviceId] = {
+          terminalSn: deviceInfo.terminalSn,
+          terminalKey: deviceInfo.terminalKey,
+          merchantId: deviceInfo.merchantId || null,
+          storeSn: deviceInfo.storeSn || null,
+          deviceId: config.defaultDeviceId,
+          updatedAt: Date.now()
+        };
+        saveTerminals();
+        console.log('[收钱吧] 已从代码配置加载预置终端:', config.defaultDeviceId);
+      }
+    } catch (e) {
+      console.error('[收钱吧] 加载预置终端失败:', e.message);
+    }
+  }
+}
   } catch (e) {
     console.error('[收钱吧] 加载种子终端失败:', e.message);
   }
@@ -249,11 +276,11 @@ router.post('/create-order', async (req, res) => {
     res.json({
       success: true,
       data: {
-        clientSn,
+        sn: clientSn,         // 修复：统一用 sn 供前端轮询
+        clientSn,             // 保留兼容
         totalAmount: Number(totalAmount),
-        payUrl, // 前端直接跳转到此URL即可完成支付
+        payUrl,               // 前端直接跳转到此URL即可完成支付
         gateway: gatewayUrl,
-        remark: '请在微信环境中打开payUrl（如通过window.location.href跳转）'
       }
     });
   } catch (err) {

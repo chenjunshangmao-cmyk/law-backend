@@ -36,16 +36,30 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const accounts = await getAccountsByUser(req.userId);
     
-    // 返回时隐藏敏感信息（pg返回普通对象，无需.toJSON()）
-    const sanitizedAccounts = accounts.map(a => ({
-      id: a.id,
-      platform: a.platform,
-      name: a.account_name,
-      username: a.account_data?.username || null,
-      status: a.account_data?.status || 'active',
-      createdAt: a.created_at,
-      updatedAt: a.updated_at
-    }));
+    // 返回时隐藏敏感信息，但保留 accountId（浏览器自动化需要）
+    const sanitizedAccounts = accounts.map(a => {
+      // 解密 credentials，提取 accountId
+      let accountId = null;
+      if (a.account_data?.credentials) {
+        try {
+          const decrypted = decrypt(a.account_data.credentials);
+          const creds = JSON.parse(decrypted);
+          accountId = creds?.accountId || null;
+        } catch {
+          // ignore
+        }
+      }
+      return {
+        id: a.id,
+        platform: a.platform,
+        name: a.account_name,
+        username: a.account_data?.username || null,
+        accountId,  // ✅ 修复：返回 accountId 供浏览器自动化使用
+        status: a.account_data?.status || 'active',
+        createdAt: a.created_at,
+        updatedAt: a.updated_at
+      };
+    });
     
     res.json({ success: true, data: sanitizedAccounts });
   } catch (error) {
