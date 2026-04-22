@@ -119,8 +119,7 @@ if (Object.keys(terminalCache).length === 0 && process.env.SHOUQIANBA_SEED_TERMI
 // 激活终端（如果已激活则直接返回，不重复激活）
 router.post('/activate', async (req, res) => {
   try {
-    // 统一使用配置的主终端设备ID
-    const deviceId = config.defaultDeviceId;
+    const { deviceId = config.defaultDeviceId } = req.body;
 
     // 已激活 → 直接返回缓存的终端（不重复调用激活接口）
     const existing = getTerminal(deviceId);
@@ -165,11 +164,39 @@ router.post('/activate', async (req, res) => {
   }
 });
 
+// 激活终端 - GET 方便浏览器直接测试
+// 同时修复默认 deviceId: 原来用 'claw-web-default'，改为 config.defaultDeviceId ('claw-web-new2')
+router.get('/activate', async (req, res) => {
+  const deviceId = config.defaultDeviceId;
+  try {
+    const existing = getTerminal(deviceId);
+    if (existing && existing.terminalSn) {
+      return res.json({ success: true, data: existing, cached: true, note: '终端已激活' });
+    }
+    const body = { app_id: config.appId, code: config.testCode, device_id: deviceId };
+    const bodyStr = JSON.stringify(body);
+    const sign = md5Sign(bodyStr, config.vendorKey);
+    const { default: axios } = await import('axios');
+    const resp = await axios.post(config.apiBase + '/terminal/activate', bodyStr, {
+      headers: { 'Content-Type': 'application/json', 'Authorization': config.vendorSn + ' ' + sign }
+    });
+    const result = resp.data;
+    if (result.result_code !== '200') {
+      return res.status(400).json({ success: false, error: result.error_message || '激活失败', code: result.result_code, deviceId });
+    }
+    const terminal = { terminalSn: result.terminal_sn, terminalKey: result.terminal_key, merchantId: result.merchant_id, storeSn: result.store_sn, deviceId };
+    saveTerminal(deviceId, terminal);
+    res.json({ success: true, data: terminal, cached: false });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.response?.data?.error_message || err.message, deviceId });
+  }
+});
+
 // 签到
 router.post('/checkin', async (req, res) => {
   try {
     const { deviceId = config.defaultDeviceId } = req.body;
-    const terminal = getTerminal(deviceId || config.defaultDeviceId);
+    const terminal = getTerminal(deviceId);
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活' });
     const body = { terminal_sn: terminal.terminalSn, device_id: deviceId };
     const result = await sqbRequest('/terminal/checkin', body, terminal.terminalSn, terminal.terminalKey);

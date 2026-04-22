@@ -37,3 +37,13 @@ backend.log
 
 # Browser automation data (large, not needed in repo)
 browser-data/
+
+# Temp / development files (never commit)
+.env.production
+.env.test
+.env.updated
+deploy-to-render.js
+ecosystem.config.cjs
+simple-payment-server.js
+test-payment.js
+deploy-files/局域网共享说明.md
