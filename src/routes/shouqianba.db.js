@@ -134,10 +134,6 @@ if (Object.keys(terminalCache).length === 0) {
     }
   }
 }
-  } catch (e) {
-    console.error('[收钱吧] 加载种子终端失败:', e.message);
-  }
-}
 
 // ============================================================
 // API 路由
