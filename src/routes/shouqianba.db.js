@@ -16,6 +16,10 @@ const TERMINAL_FILE = path.join(__dirname, '../../data/shouqianba-terminal.json'
 
 const router = express.Router();
 
+// 本地订单状态缓存（key=clientSn，收到回调后更新）
+// 不依赖收钱吧 query API，收到回调即确认支付成功
+const orderStatusCache = new Map();
+
 function md5Sign(bodyStr, key) {
   return crypto.createHash('md5').update(bodyStr + key).digest('hex');
 }
@@ -251,8 +255,8 @@ router.post('/create-order', async (req, res) => {
       client_sn: clientSn,
       total_amount: String(Math.round(Number(totalAmount))), // 金额（分，已在前端×100）
       subject,
-      return_url: baseUrl + '/membership', // 支付完成后跳转回此页面
-      notify_url: baseUrl + '/api/webhook/shouqianba', // 服务器异步回调
+      return_url: baseUrl + '/api/shouqianba/return?clientSn=' + clientSn, // 支付完成后跳转（带sn）
+      notify_url: baseUrl + '/api/shouqianba/notify', // 服务器异步回调（收钱吧主动通知）
       operator: 'claw_admin' // 门店操作员（必填，文档明确要求）
     };
 
@@ -285,17 +289,27 @@ router.post('/create-order', async (req, res) => {
   }
 });
 
-// 查询订单
+// 查询订单（优先读本地缓存，WAP场景下收钱吧query接口可能不支持）
 router.get('/query', async (req, res) => {
   try {
     const { sn, deviceId = config.defaultDeviceId } = req.query;
     if (!sn) return res.status(400).json({ success: false, error: '缺少 sn' });
+
+    // 1. 优先从本地缓存读取（收到回调后立即更新，保证准确）
+    const cached = orderStatusCache.get(sn);
+    if (cached) {
+      console.log('[收钱吧] 订单 ' + sn + ' 从本地缓存返回: ' + cached.orderStatus);
+      return res.json({ success: true, data: cached });
+    }
+
+    // 2. 缓存没有，尝试查收钱吧 API
     const terminal = getTerminal(deviceId);
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活' });
     const body = { terminal_sn: terminal.terminalSn, sn };
     const result = await sqbRequest('/query', body, terminal.terminalSn, terminal.terminalKey);
     res.json({ success: true, data: { sn: result.sn, clientSn: result.client_sn, orderStatus: result.order_status, status: result.status, paywayName: result.payway_name, totalAmount: result.total_amount, netAmount: result.net_amount, tradeNo: result.trade_no } });
   } catch (err) {
+    console.error('[收钱吧] 查询失败:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -315,26 +329,51 @@ router.post('/refund', async (req, res) => {
   }
 });
 
-// 回调通知
+// 回调通知（收钱吧主动推送支付结果）
 router.post('/notify', async (req, res) => {
   try {
     const bodyStr = JSON.stringify(req.body);
     const sign = req.headers['authorization'];
     const isValid = await verifyRsaSign(bodyStr, sign);
     if (!isValid) {
-      console.error('收钱吧回调验签失败');
+      console.error('[收钱吧] 回调验签失败');
       return res.status(403).send('fail');
     }
     const data = req.body;
-    console.log('收钱吧回调:', data);
+    console.log('[收钱吧] 回调收到:', data);
+
+    // 保存本地订单状态（供前端轮询）
+    if (data.client_sn) {
+      orderStatusCache.set(data.client_sn, {
+        sn: data.sn,
+        clientSn: data.client_sn,
+        orderStatus: data.order_status,
+        status: data.order_status === 'PAID' ? 'SUCCESS' : data.order_status,
+        totalAmount: data.total_amount ? Number(data.total_amount) / 100 : 0,
+        tradeNo: data.trade_no,
+        payTime: data.pay_time,
+        updatedAt: Date.now()
+      });
+      console.log('[收钱吧] 订单状态已缓存:', data.client_sn, '→', data.order_status);
+    }
+
     if (data.order_status === 'PAID') {
-      console.log('订单 ' + data.client_sn + ' 支付成功，金额:' + (data.total_amount / 100) + '元');
+      console.log('[收钱吧] ✅ 订单 ' + data.client_sn + ' 支付成功，金额:' + (data.total_amount / 100) + '元');
     }
     res.send('success');
   } catch (err) {
-    console.error('回调处理失败:', err.message);
+    console.error('[收钱吧] 回调处理失败:', err.message);
     res.status(500).send('fail');
   }
+});
+
+// return_url 跳转页（收钱吧支付完成后跳转到这里）
+router.get('/return', async (req, res) => {
+  const { clientSn } = req.query;
+  console.log('[收钱吧] 用户返回（return_url）: clientSn =', clientSn);
+  // 重定向到前端会员页
+  const frontendUrl = process.env.FRONTEND_URL || 'https://4d12215a.claw-app-2026.pages.dev';
+  res.redirect(frontendUrl + '/membership?paid=' + encodeURIComponent(clientSn || ''));
 });
 
 // 状态查询
