@@ -146,8 +146,12 @@ const sequelize = {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    // 先删除 accounts 表（解决历史遗留外键问题）
+    await pool.query(`DROP TABLE IF EXISTS account_sync_data CASCADE`).catch(() => {});
+    await pool.query(`DROP TABLE IF EXISTS products CASCADE`).catch(() => {});
+    await pool.query(`DROP TABLE IF EXISTS accounts CASCADE`).catch(() => {});
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS accounts (
+      CREATE TABLE accounts (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         platform VARCHAR(50) NOT NULL,
@@ -158,7 +162,7 @@ const sequelize = {
       )
     `);
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS products (
+      CREATE TABLE products (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         title VARCHAR(255) NOT NULL,
@@ -169,6 +173,8 @@ const sequelize = {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    // 先尝试删除旧表（解决历史遗留的外键类型不匹配问题）
+    await pool.query(`DROP TABLE IF EXISTS account_sync_data CASCADE`).catch(() => {});
     await pool.query(`
       CREATE TABLE IF NOT EXISTS account_sync_data (
         id SERIAL PRIMARY KEY,
