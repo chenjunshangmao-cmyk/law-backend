@@ -291,19 +291,27 @@ function getCallbackBase(req) {
   const host = req.get('host') || '';
   const protocol = req.protocol === 'http' ? 'http' : 'https';
 
-  if (host.includes('localhost') || host.includes('127.0.0.1')) {
-    return 'http://localhost:3001';
+  // 生产环境
+  if (host.includes('chenjuntrading.cn')) {
+    return 'https://api.chenjuntrading.cn';
   }
+  
+  // 开发环境
+  if (host.includes('localhost') || host.includes('127.0.0.1')) {
+    return 'http://localhost:8089';
+  }
+  
+  // Render环境
   if (host.includes('.onrender.com')) {
     return `${protocol}://${host}`;
   }
-  if (process.env.RENDER_EXTERNAL_URL) {
-    return process.env.RENDER_EXTERNAL_URL;
+  
+  // 环境变量
+  if (process.env.API_BASE_URL) {
+    return process.env.API_BASE_URL;
   }
-  if (process.env.ORIGINAL_URL) {
-    const u = new URL(process.env.ORIGINAL_URL);
-    return `${u.protocol}//${u.host}`;
-  }
+  
+  // 兜底
   return 'https://claw-backend-2026.onrender.com';
 }
 

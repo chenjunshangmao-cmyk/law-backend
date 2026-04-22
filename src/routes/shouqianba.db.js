@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { pool } from '../config/database.js';
 import config from '../config/shouqianba.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -139,6 +140,22 @@ function getTerminal(deviceId) {
 function saveTerminal(deviceId, data) {
   terminalCache[deviceId] = { ...data, updatedAt: Date.now() };
   saveTerminals();
+  // 同时写入 PostgreSQL 数据库（payment.db.js 通过数据库读取终端）
+  if (data.terminalSn && data.terminalKey) {
+    pool.query(`
+      INSERT INTO shouqianba_terminals
+        (terminal_sn, terminal_key, device_id, merchant_id, store_sn, status)
+      VALUES ($1, $2, $3, $4, $5, 'active')
+      ON CONFLICT (terminal_sn) DO UPDATE SET
+        terminal_key = EXCLUDED.terminal_key,
+        device_id = EXCLUDED.device_id,
+        merchant_id = EXCLUDED.merchant_id,
+        store_sn = EXCLUDED.store_sn,
+        status = 'active',
+        last_checkin_at = CURRENT_TIMESTAMP
+    `, [data.terminalSn, data.terminalKey, deviceId, data.merchantId || null, data.storeSn || null])
+      .catch(err => console.error('[收钱吧] 保存终端到数据库失败:', err.message));
+  }
 }
 
 // 启动时加载

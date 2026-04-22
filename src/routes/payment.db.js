@@ -12,6 +12,19 @@ import {
 } from '../services/shouqianba.js';
 import { authenticateToken } from '../middleware/auth.js';
 import pool from '../config/database.js';
+import fs from 'fs';
+import path from 'path';
+
+// 从 shouqianba.db.js 共享的终端缓存文件读取（与 payment.db.js 共享同一终端数据源）
+const TERMINAL_FILE = path.join(process.cwd(), 'data', 'shouqianba-terminal.json');
+function loadTerminalCache() {
+  try {
+    if (fs.existsSync(TERMINAL_FILE)) {
+      return JSON.parse(fs.readFileSync(TERMINAL_FILE, 'utf8'));
+    }
+  } catch (e) { /* ignore */ }
+  return {};
+}
 
 const router = express.Router();
 
@@ -67,6 +80,8 @@ async function ensurePaymentTables() {
         id SERIAL PRIMARY KEY,
         terminal_sn VARCHAR(50) UNIQUE,
         terminal_key VARCHAR(100),
+        merchant_id VARCHAR(100),
+        store_sn VARCHAR(100),
         device_id VARCHAR(100),
         status VARCHAR(20) DEFAULT 'active',
         last_checkin_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -74,18 +89,8 @@ async function ensurePaymentTables() {
       )
     `);
 
-    // 创建真实激活的终端（如果没有激活的终端）
-    const termResult = await pool.query(
-      "SELECT COUNT(*) FROM shouqianba_terminals WHERE status = 'active'"
-    );
-    if (parseInt(termResult.rows[0].count) === 0) {
-      await pool.query(`
-        INSERT INTO shouqianba_terminals (terminal_sn, terminal_key, device_id, status)
-        VALUES ('100111220054328800', '05bcfdff9ea62982d54e8093bb651fb1', 'CLAW-PROD-001', 'active')
-        ON CONFLICT (terminal_sn) DO NOTHING
-      `);
-      console.log('[支付] 真实收钱吧终端已创建（100111220054328800）');
-    }
+    // 终端数据由 shouqianba.db.js 激活时写入此处
+    // 不再插入测试终端，让真实激活的终端优先
 
     console.log('[支付] 表初始化完成');
   } catch (err) {
@@ -111,13 +116,29 @@ const SERVICES = {
   'ads-account': { name: '广告户开户', price: 50000 }        // ¥500/户
 };
 
-// 收钱吧终端配置（从数据库读取）
+// 收钱吧终端配置（从共享终端缓存文件读取，与 shouqianba.db.js 同步）
 async function getActiveTerminal() {
-  const result = await pool.query(
-    'SELECT * FROM shouqianba_terminals WHERE status = $1 ORDER BY last_checkin_at DESC LIMIT 1',
-    ['active']
-  );
-  return result.rows[0];
+  // 优先从共享终端缓存文件读取（shouqianba.db.js 激活时写入）
+  const cache = loadTerminalCache();
+  const deviceIds = Object.keys(cache);
+  if (deviceIds.length > 0) {
+    const t = cache[deviceIds[0]];
+    if (t.terminalSn && t.terminalKey) {
+      console.log('[支付] 从共享缓存读取终端:', t.terminalSn);
+      return t;
+    }
+  }
+  // 降级：从数据库读取
+  try {
+    const result = await pool.query(
+      'SELECT terminal_sn, terminal_key, merchant_id, store_sn, device_id FROM shouqianba_terminals WHERE status = $1 ORDER BY last_checkin_at DESC LIMIT 1',
+      ['active']
+    );
+    return result.rows[0];
+  } catch (e) {
+    console.error('[支付] 数据库读取终端失败:', e.message);
+    return null;
+  }
 }
 
 /**
@@ -128,6 +149,21 @@ router.post('/create', authenticateToken, async (req, res) => {
   try {
     // 确保表已初始化
     await ensurePaymentTables();
+
+    // 获取终端，如果没有则自动触发激活
+    let terminal = await getActiveTerminal();
+    if (!terminal || !(terminal.terminalSn || terminal.terminal_sn)) {
+      console.log('[支付] 终端未就绪，尝试激活...');
+      try {
+        // 动态 import shouqianba 激活逻辑
+        const { default: shouqianbaRoutes } = await import('./shouqianba.db.js');
+        // shouqianba.db.js 会触发 activate，终端写入共享缓存文件
+        // 重新读取
+        terminal = await getActiveTerminal();
+      } catch (e) {
+        console.error('[支付] 自动激活失败:', e.message);
+      }
+    }
 
     const { plan, serviceId, serviceName, amount, returnUrl } = req.body;
     const userId = req.userId;
@@ -163,23 +199,19 @@ router.post('/create', authenticateToken, async (req, res) => {
     const notifyUrl = `${process.env.API_BASE_URL || 'https://claw-backend-2026.onrender.com'}/api/webhook/shouqianba`;
     const returnUrlFull = returnUrl || `${process.env.FRONTEND_URL || 'https://claw-frontend.pages.dev'}/payment/result`;
 
-    // 获取收钱吧终端（已确保表中有测试终端）
-    const terminal = await getActiveTerminal();
-
-    // 检查是否有有效的收钱吧配置
+    // 检查是否有有效的收钱吧配置（兼容驼峰和蛇形命名）
+    const sn = terminal.terminalSn || terminal.terminal_sn;
+    const key = terminal.terminalKey || terminal.terminal_key;
     const hasShouqianbaConfig =
-      terminal &&
-      terminal.terminal_sn &&
-      terminal.terminal_key &&
-      terminal.terminal_sn !== '100111220054328800'; // 排除硬编码测试终端
+      terminal && sn && key && sn !== '100111220054328800'; // 排除硬编码测试终端
 
     let paymentResult;
 
     if (hasShouqianbaConfig) {
       try {
         paymentResult = await createWapPayment({
-          terminalSn: terminal.terminal_sn,
-          terminalKey: terminal.terminal_key,
+          terminalSn: sn,
+          terminalKey: key,
           clientSn: orderNo,
           totalAmount: orderAmount,
           subject: subject,
