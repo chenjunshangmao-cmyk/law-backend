@@ -105,6 +105,16 @@ app.get('/', healthCheck);
 // 详细健康检查
 app.get('/api/health', healthCheck);
 
+// 版本信息 API
+app.get('/api/version', (req, res) => {
+  res.json({
+    success: true,
+    version: '1.1.0422',
+    buildTime: '2026-04-22',
+    mode: process.env.DATABASE_URL ? 'database' : 'memory'
+  });
+});
+
 // 全局速率限制
 app.use(rateLimitMiddleware());
 
