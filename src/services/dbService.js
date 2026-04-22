@@ -1,9 +1,13 @@
-// 数据库服务 - 完整版（使用纯 pg）
-import pool from '../config/database.js';
+// 数据库服务 - 完整版（使用纯 pg + 内存模式降级）
+import pool, { useMemoryMode, memoryStore } from '../config/database.js';
 
 // ==================== 用户相关操作 ====================
 
 export const findUserByEmail = async (email) => {
+  if (useMemoryMode) {
+    const users = Array.from(memoryStore.users.values());
+    return users.find(u => u.email === email) || null;
+  }
   const result = await pool.query('SELECT id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at FROM users WHERE email = $1', [email]);
   return result.rows[0] || null;
 };
@@ -11,8 +15,27 @@ export const findUserByEmail = async (email) => {
 export const findUserById = async (id) => {
   console.log('[findUserById] 查询用户，ID:', id);
   
-  // id 统一用字符串格式查询（支持 string 和 number）
-  // 使用COALESCE处理可能不存在的字段
+  if (useMemoryMode) {
+    // 内存模式
+    let user = memoryStore.users.get(String(id));
+    
+    // 如果通过ID找不到，尝试通过email查找
+    if (!user && id.includes('@')) {
+      const users = Array.from(memoryStore.users.values());
+      user = users.find(u => u.email === id);
+    }
+    
+    // 特殊处理：如果ID是user-admin-001，返回admin用户
+    if (!user && id === 'user-admin-001') {
+      const users = Array.from(memoryStore.users.values());
+      user = users.find(u => u.email === 'admin@claw.com');
+    }
+    
+    console.log('[findUserById] 内存模式结果:', user ? '找到' : '未找到');
+    return user || null;
+  }
+  
+  // PostgreSQL 模式
   const result = await pool.query(`
     SELECT 
       id::text, 
@@ -76,6 +99,23 @@ export const findUserById = async (id) => {
 
 export const createUser = async (userData) => {
   const { email, password, name, membership_type = 'free' } = userData;
+  
+  if (useMemoryMode) {
+    const id = String(memoryStore.idCounters.users++);
+    const newUser = {
+      id,
+      email,
+      password,
+      name,
+      membership_type,
+      membership_expires_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    memoryStore.users.set(id, newUser);
+    return newUser;
+  }
+  
   const result = await pool.query(
     'INSERT INTO users (email, password, name, membership_type) VALUES ($1, $2, $3, $4) RETURNING id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at',
     [email, password, name, membership_type]
@@ -84,6 +124,15 @@ export const createUser = async (userData) => {
 };
 
 export const updateUser = async (id, updates) => {
+  if (useMemoryMode) {
+    const user = memoryStore.users.get(String(id));
+    if (user) {
+      Object.assign(user, updates, { updated_at: new Date().toISOString() });
+      return user;
+    }
+    return null;
+  }
+  
   const fields = Object.keys(updates);
   const values = Object.values(updates);
   const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
@@ -174,6 +223,12 @@ export const countUserProducts = async (userId) => {
 // ==================== 账号相关操作 ====================
 
 export const getAccountsByUser = async (userId) => {
+  if (useMemoryMode) {
+    const accounts = Array.from(memoryStore.accounts.values());
+    return accounts.filter(a => String(a.user_id) === String(userId)).sort((a, b) => 
+      new Date(b.created_at) - new Date(a.created_at)
+    );
+  }
   const result = await pool.query('SELECT * FROM accounts WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
   return result.rows;
 };
@@ -185,6 +240,22 @@ export const getAccountById = async (id) => {
 
 export const createAccount = async (accountData) => {
   const { user_id, platform, account_name, account_data = {} } = accountData;
+  
+  if (useMemoryMode) {
+    const id = String(memoryStore.idCounters.accounts++);
+    const newAccount = {
+      id,
+      user_id: String(user_id),
+      platform,
+      account_name,
+      account_data: typeof account_data === 'string' ? account_data : JSON.stringify(account_data),
+      status: 'active',
+      created_at: new Date().toISOString()
+    };
+    memoryStore.accounts.set(id, newAccount);
+    return newAccount;
+  }
+  
   const result = await pool.query(
     'INSERT INTO accounts (user_id, platform, account_name, account_data) VALUES ($1, $2, $3, $4) RETURNING *',
     [user_id, platform, account_name, JSON.stringify(account_data)]
