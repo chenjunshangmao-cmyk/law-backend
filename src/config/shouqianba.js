@@ -18,11 +18,12 @@ const config = {
 
   // 激活码（联系收钱吧客户经理获取，每个设备只能用一次）
   // 2026-04-22：claw-web-new1 绑定冲突，切换到 claw-web-new2
-  testCode: '66172491',  // ⚠️ 待替换为客户经理提供的新码
+  // 新码有效期至 2026-04-30
+  testCode: '81119079',
 
   storeDevices: {
     'claw-web-new2': {
-      code: '66172491',  // ⚠️ 待替换为客户经理提供的新码
+      code: '81119079',  // 有效期至 2026-04-30
       merchantId: null,  // 激活后填入
       storeSn: null
     }
