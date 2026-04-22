@@ -13,12 +13,55 @@ import config from '../config/shouqianba.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TERMINAL_FILE = path.join(__dirname, '../../data/shouqianba-terminal.json');
+const ORDERS_FILE = path.join(__dirname, '../../data/shouqianba-orders.json');
 
 const router = express.Router();
 
 // 本地订单状态缓存（key=clientSn，收到回调后更新）
 // 不依赖收钱吧 query API，收到回调即确认支付成功
 const orderStatusCache = new Map();
+
+// ========== 文件持久化工具（保证重启后数据不丢失）==========
+function ensureDataDir() {
+  const dir = path.dirname(ORDERS_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+function loadOrders() {
+  ensureDataDir();
+  if (!fs.existsSync(ORDERS_FILE)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8'));
+  } catch { return {}; }
+}
+
+function saveOrders(orders) {
+  ensureDataDir();
+  fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
+}
+
+function saveOrder(orderData) {
+  const orders = loadOrders();
+  orders[orderData.clientSn] = { ...orderData, updatedAt: Date.now() };
+  saveOrders(orders);
+}
+
+function getOrder(clientSn) {
+  const orders = loadOrders();
+  return orders[clientSn] || null;
+}
+
+function updateOrder(clientSn, updates) {
+  const orders = loadOrders();
+  if (orders[clientSn]) {
+    orders[clientSn] = { ...orders[clientSn], ...updates, updatedAt: Date.now() };
+    saveOrders(orders);
+  }
+  // 同时更新内存缓存
+  if (orderStatusCache.has(clientSn)) {
+    orderStatusCache.set(clientSn, { ...orderStatusCache.get(clientSn), ...updates });
+  }
+}
 
 function md5Sign(bodyStr, key) {
   return crypto.createHash('md5').update(bodyStr + key).digest('hex');
@@ -272,6 +315,18 @@ router.post('/create-order', async (req, res) => {
       .join('&');
     const payUrl = gatewayUrl + '?' + queryString;
 
+    // 持久化订单（重启不丢失，查询时优先读文件）
+    saveOrder({
+      clientSn,
+      sn: clientSn,
+      orderStatus: 'CREATED',  // WAP 订单，收钱吧 query API 查不到，靠回调更新
+      status: 'CREATED',
+      totalAmount: Number(totalAmount),
+      subject,
+      payUrl,
+      createdAt: Date.now()
+    });
+
     console.log('[收钱吧] WAP支付URL已生成:', payUrl.substring(0, 100) + '...');
     res.json({
       success: true,
@@ -289,26 +344,47 @@ router.post('/create-order', async (req, res) => {
   }
 });
 
-// 查询订单（优先读本地缓存，WAP场景下收钱吧query接口可能不支持）
+// 查询订单
+// WAP 订单的收钱吧 /query 接口返回 404，故优先读本地文件（持久化）+ 内存缓存
 router.get('/query', async (req, res) => {
   try {
     const { sn, deviceId = config.defaultDeviceId } = req.query;
     if (!sn) return res.status(400).json({ success: false, error: '缺少 sn' });
 
-    // 1. 优先从本地缓存读取（收到回调后立即更新，保证准确）
+    // 1. 优先从内存缓存读取（收到回调后立即更新）
     const cached = orderStatusCache.get(sn);
     if (cached) {
-      console.log('[收钱吧] 订单 ' + sn + ' 从本地缓存返回: ' + cached.orderStatus);
+      console.log('[收钱吧] 订单 ' + sn + ' 从内存缓存返回: ' + cached.orderStatus);
       return res.json({ success: true, data: cached });
     }
 
-    // 2. 缓存没有，尝试查收钱吧 API
+    // 2. 从文件读取（持久化存储，重启后仍可查）
+    const fileOrder = getOrder(sn);
+    if (fileOrder) {
+      console.log('[收钱吧] 订单 ' + sn + ' 从文件返回: ' + fileOrder.orderStatus);
+      // 如果文件里已经是 PAID 状态，说明支付成功了
+      if (fileOrder.orderStatus === 'PAID' || fileOrder.orderStatus === 'TRADE_SUCCESS') {
+        return res.json({ success: true, data: fileOrder });
+      }
+      // 否则返回 pending 状态（WAP 订单的正常状态，收钱吧 query API 查不到）
+      return res.json({
+        success: true,
+        data: { ...fileOrder, orderStatus: 'PENDING', status: 'PENDING', note: 'WAP订单，收钱吧查询接口暂不支持，后台回调确认' }
+      });
+    }
+
+    // 3. 尝试查收钱吧 API（仅用于兼容其他类型订单）
     const terminal = getTerminal(deviceId);
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活' });
     const body = { terminal_sn: terminal.terminalSn, sn };
     const result = await sqbRequest('/query', body, terminal.terminalSn, terminal.terminalKey);
     res.json({ success: true, data: { sn: result.sn, clientSn: result.client_sn, orderStatus: result.order_status, status: result.status, paywayName: result.payway_name, totalAmount: result.total_amount, netAmount: result.net_amount, tradeNo: result.trade_no } });
   } catch (err) {
+    // WAP 订单的收钱吧 /query 接口返回 404（不支持WAP），静默返回 pending 而不报错
+    if (err.message && err.message.includes('404')) {
+      console.log('[收钱吧] 查询404（WAP订单不支持），返回pending状态');
+      return res.json({ success: true, data: { orderStatus: 'PENDING', status: 'PENDING', note: 'WAP订单，收钱吧查询接口暂不支持' } });
+    }
     console.error('[收钱吧] 查询失败:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
@@ -342,9 +418,9 @@ router.post('/notify', async (req, res) => {
     const data = req.body;
     console.log('[收钱吧] 回调收到:', data);
 
-    // 保存本地订单状态（供前端轮询）
+    // 保存本地订单状态（供前端轮询）并持久化到文件
     if (data.client_sn) {
-      orderStatusCache.set(data.client_sn, {
+      const orderData = {
         sn: data.sn,
         clientSn: data.client_sn,
         orderStatus: data.order_status,
@@ -353,8 +429,10 @@ router.post('/notify', async (req, res) => {
         tradeNo: data.trade_no,
         payTime: data.pay_time,
         updatedAt: Date.now()
-      });
-      console.log('[收钱吧] 订单状态已缓存:', data.client_sn, '→', data.order_status);
+      };
+      orderStatusCache.set(data.client_sn, orderData);
+      saveOrder(orderData); // 持久化到文件，重启不丢失
+      console.log('[收钱吧] 订单状态已缓存+持久化:', data.client_sn, '→', data.order_status);
     }
 
     if (data.order_status === 'PAID') {
