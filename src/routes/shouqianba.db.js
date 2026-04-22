@@ -97,6 +97,21 @@ function saveTerminal(deviceId, data) {
 // 启动时加载
 loadTerminals();
 
+// Render环境：从环境变量读取种子终端数据（base64编码的JSON）
+// ⚠️ 终端凭证只允许通过环境变量传入，禁止硬编码！
+if (Object.keys(terminalCache).length === 0 && process.env.SHOUQIANBA_SEED_TERMINAL) {
+  try {
+    const seedData = JSON.parse(Buffer.from(process.env.SHOUQIANBA_SEED_TERMINAL, 'base64').toString('utf8'));
+    Object.entries(seedData).forEach(([deviceId, data]) => {
+      terminalCache[deviceId] = { ...data, updatedAt: Date.now() };
+    });
+    saveTerminals();
+    console.log('[收钱吧] 已从环境变量加载种子终端数据');
+  } catch (e) {
+    console.error('[收钱吧] 加载种子终端失败:', e.message);
+  }
+}
+
 // ============================================================
 // API 路由
 // ============================================================
@@ -114,10 +129,11 @@ router.post('/activate', async (req, res) => {
     }
 
     // 未激活 → 调用激活接口
-    console.log('[收钱吧] 正在激活终端...');
+    const device = config.storeDevices[deviceId];
+    console.log('[收钱吧] 正在激活终端 (deviceId=' + deviceId + ')...');
     const body = {
       app_id: config.appId,
-      code: config.testCode,
+      code: device?.code || config.testCode,
       device_id: deviceId
     };
     const bodyStr = JSON.stringify(body);
@@ -130,15 +146,17 @@ router.post('/activate', async (req, res) => {
     if (result.result_code !== '200') {
       return res.status(400).json({ success: false, error: result.error_message || '激活失败（' + result.result_code + '）' });
     }
+    // 激活接口返回数据在 biz_response 嵌套层
+    const biz = result.biz_response || result;
     const terminal = {
-      terminalSn: result.terminal_sn,
-      terminalKey: result.terminal_key,
-      merchantId: result.merchant_id,
-      storeSn: result.store_sn,
+      terminalSn: biz.terminal_sn,
+      terminalKey: biz.terminal_key,
+      merchantId: biz.merchant_sn,
+      storeSn: biz.store_sn,
       deviceId
     };
     saveTerminal(deviceId, terminal);
-    console.log('[收钱吧] 终端激活成功:', result.terminal_sn);
+    console.log('[收钱吧] 终端激活成功:', biz.terminal_sn);
     res.json({ success: true, data: terminal, cached: false });
   } catch (err) {
     console.error('激活失败:', err.response && err.response.data || err.message);
@@ -183,7 +201,9 @@ router.post('/checkin', async (req, res) => {
     const body = { terminal_sn: terminal.terminalSn, device_id: deviceId };
     const result = await sqbRequest('/terminal/checkin', body, terminal.terminalSn, terminal.terminalKey);
     if (result.result_code !== '200') return res.status(400).json({ success: false, error: result.error_message || '签到失败' });
-    const updated = { ...terminal, terminalSn: result.terminal_sn, terminalKey: result.terminal_key };
+    // 签到返回也在 biz_response 嵌套层
+    const biz = result.biz_response || result;
+    const updated = { ...terminal, terminalSn: biz.terminal_sn, terminalKey: biz.terminal_key };
     saveTerminal(deviceId, updated);
     res.json({ success: true, data: updated });
   } catch (err) {
@@ -191,37 +211,53 @@ router.post('/checkin', async (req, res) => {
   }
 });
 
-// 创建支付订单
+// 创建支付订单（WAP跳转支付）
 router.post('/create-order', async (req, res) => {
   try {
     const { deviceId = config.defaultDeviceId, clientSn, totalAmount, subject } = req.body;
     if (!clientSn || !totalAmount || !subject) {
       return res.status(400).json({ success: false, error: '缺少必要参数' });
     }
-    const terminal = getTerminal(deviceId);
+    const terminal = getTerminal(deviceId || config.defaultDeviceId);
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活，请先调用 /activate' });
     const baseUrl = process.env.RENDER_EXTERNAL_URL || (req.protocol + '://' + req.get('host'));
+
+    // WAP支付参数（参考官方文档，必填：terminal_sn, client_sn, total_amount, subject, return_url, operator）
     const requestParams = {
       terminal_sn: terminal.terminalSn,
       client_sn: clientSn,
-      total_amount: String(Math.round(Number(totalAmount) * 100)),
+      total_amount: String(Math.round(Number(totalAmount))), // 金额（分，已在前端×100）
       subject,
-      return_url: baseUrl + '/membership',
-      notify_url: baseUrl + '/api/shouqianba/notify'
+      return_url: baseUrl + '/membership', // 支付完成后跳转回此页面
+      notify_url: baseUrl + '/api/webhook/shouqianba', // 服务器异步回调
+      operator: 'claw_admin' // 门店操作员（必填，文档明确要求）
     };
+
+    // WAP签名：参数排序 + &key= + MD5 + 大写
     const sign = wapSign(requestParams, terminal.terminalKey);
-    const body = { ...requestParams, sign, sign_type: 'MD5' };
-    const { default: axios } = await import('axios');
-    const resp = await axios.post(config.apiBase + '/upay/v2/wap2', JSON.stringify(body), {
-      headers: { 'Content-Type': 'application/json' }
+    const signedParams = { ...requestParams, sign, sign_type: 'MD5' };
+
+    // 构建网关URL（GET请求，参数拼在URL后面）
+    const gatewayUrl = 'https://m.wosai.cn/qr/gateway';
+    const queryString = Object.keys(signedParams)
+      .sort()
+      .map(k => `${k}=${encodeURIComponent(signedParams[k])}`)
+      .join('&');
+    const payUrl = gatewayUrl + '?' + queryString;
+
+    console.log('[收钱吧] WAP支付URL已生成:', payUrl.substring(0, 100) + '...');
+    res.json({
+      success: true,
+      data: {
+        clientSn,
+        totalAmount: Number(totalAmount),
+        payUrl, // 前端直接跳转到此URL即可完成支付
+        gateway: gatewayUrl,
+        remark: '请在微信环境中打开payUrl（如通过window.location.href跳转）'
+      }
     });
-    const result = resp.data;
-    if (result.result_code !== '200') {
-      return res.status(400).json({ success: false, error: result.error_message || '创建支付订单失败' });
-    }
-    res.json({ success: true, data: { sn: result.sn, clientSn: result.client_sn, payUrl: result.pay_url, totalAmount: result.total_amount } });
   } catch (err) {
-    console.error('创建支付订单失败:', err.response && err.response.data || err.message);
+    console.error('创建支付订单失败:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -246,7 +282,7 @@ router.post('/refund', async (req, res) => {
   try {
     const { sn, refundAmount, deviceId = config.defaultDeviceId } = req.body;
     if (!sn || !refundAmount) return res.status(400).json({ success: false, error: '缺少参数' });
-    const terminal = getTerminal(deviceId);
+    const terminal = getTerminal(deviceId || config.defaultDeviceId);
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活' });
     const body = { terminal_sn: terminal.terminalSn, sn, refund_amount: String(Math.round(Number(refundAmount) * 100)) };
     const result = await sqbRequest('/refund', body, terminal.terminalSn, terminal.terminalKey);
@@ -280,9 +316,9 @@ router.post('/notify', async (req, res) => {
 
 // 状态查询
 router.get('/status', (req, res) => {
-  const { deviceId = 'claw-web-default' } = req.query;
-  const terminal = getTerminal(deviceId);
-  res.json({ success: true, data: { activated: !!terminal, deviceId, terminalSn: terminal?.terminalSn || null } });
+  const { deviceId = config.defaultDeviceId } = req.query;
+  const terminal = getTerminal(deviceId || config.defaultDeviceId);
+  res.json({ success: true, data: { activated: !!terminal, deviceId: deviceId || config.defaultDeviceId, terminalSn: terminal?.terminalSn || null } });
 });
 
 export default router;
