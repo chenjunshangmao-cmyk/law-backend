@@ -5,25 +5,25 @@ import cors from 'cors';
 import helmet from 'helmet';
 
 // 数据库配置
-import { testConnection, syncDatabase, sequelize } from './config/database.js';
+import { testConnection, syncDatabase, sequelize } from './src/config/database.js';
 
 // 中间件
-import { requestLogger, securityHeaders, errorHandler, notFoundHandler, healthCheck } from './middleware/errorHandler.js';
-import { rateLimitMiddleware } from './middleware/auth.js';
+import { requestLogger, securityHeaders, errorHandler, notFoundHandler, healthCheck } from './src/middleware/errorHandler.js';
+import { rateLimitMiddleware } from './src/middleware/auth.js';
 
 // 路由
-import authRoutes from './routes/auth.min.js';
-import productRoutes from './routes/products.db.js';
-import generateRoutes from './routes/generate.js';
-import calculateRoutes from './routes/calculate.js';
-import accountsRoutes from './routes/accounts.db.js';
-import tasksRoutes from './routes/tasks.db.js';
-import membershipRoutes from './routes/membership.db.js';
-import browserRoutes from './routes/browser.js';
-import avatarRoutes from './routes/avatar.db.js';
-import publishRoutes from './routes/publish.js';
-import customerServiceRoutes from './routes/customerService.js';
-import paymentRoutes from './routes/payment.db.js';
+import authRoutes from './src/routes/auth.min.js';
+import productRoutes from './src/routes/products.db.js';
+import generateRoutes from './src/routes/generate.js';
+import calculateRoutes from './src/routes/calculate.js';
+import accountsRoutes from './src/routes/accounts.db.js';
+import tasksRoutes from './src/routes/tasks.db.js';
+import membershipRoutes from './src/routes/membership.db.js';
+import browserRoutes from './src/routes/browser.js';
+import avatarRoutes from './src/routes/avatar.db.js';
+import publishRoutes from './src/routes/publish.js';
+import customerServiceRoutes from './src/routes/customerService.js';
+import paymentRoutes from './src/routes/payment.db.js';
 
 const app = express();
 const PORT = process.env.PORT || 9000;
@@ -116,9 +116,8 @@ const initDatabase = async () => {
   
   // 自动激活收钱吧终端
   try {
-    const { ShouqianbaService } = await import('./services/shouqianba.js');
-    const sqbService = new ShouqianbaService();
-    const result = await sqbService.activateTerminal('Claw-001', 'Claw主终端');
+    const shouqianbaModule = await import('./src/services/shouqianba.js');
+    const result = await shouqianbaModule.default.activateTerminal('Claw-001', 'Claw主终端');
     if (result.success) {
       console.log('✅ 收钱吧终端激活成功:', result.terminal.terminal_sn);
     } else {

@@ -194,7 +194,7 @@ router.post('/checkin', async (req, res) => {
 // 创建支付订单
 router.post('/create-order', async (req, res) => {
   try {
-    const { deviceId = 'claw-web-default', clientSn, totalAmount, subject } = req.body;
+    const { deviceId = config.defaultDeviceId, clientSn, totalAmount, subject } = req.body;
     if (!clientSn || !totalAmount || !subject) {
       return res.status(400).json({ success: false, error: '缺少必要参数' });
     }
@@ -229,7 +229,7 @@ router.post('/create-order', async (req, res) => {
 // 查询订单
 router.get('/query', async (req, res) => {
   try {
-    const { sn, deviceId = 'claw-web-default' } = req.query;
+    const { sn, deviceId = config.defaultDeviceId } = req.query;
     if (!sn) return res.status(400).json({ success: false, error: '缺少 sn' });
     const terminal = getTerminal(deviceId);
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活' });
@@ -244,7 +244,7 @@ router.get('/query', async (req, res) => {
 // 退款
 router.post('/refund', async (req, res) => {
   try {
-    const { sn, refundAmount, deviceId = 'claw-web-default' } = req.body;
+    const { sn, refundAmount, deviceId = config.defaultDeviceId } = req.body;
     if (!sn || !refundAmount) return res.status(400).json({ success: false, error: '缺少参数' });
     const terminal = getTerminal(deviceId);
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活' });

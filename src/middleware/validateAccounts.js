@@ -6,8 +6,8 @@ export const validateAccountCreate = (req, res, next) => {
   // 平台验证
   if (!platform) {
     errors.push('平台不能为空');
-  } else if (!['1688', 'amazon', 'tiktok', 'ozon', 'lazada', 'shopee', 'youtube', 'taobao', 'pdd'].includes(platform.toLowerCase())) {
-    errors.push(`不支持的平台: ${platform}，支持的平台: 1688, amazon, tiktok, ozon, lazada, shopee, youtube, taobao, pdd`);
+  } else if (!['1688', 'amazon', 'tiktok', 'tiktok_shop', 'tiktok_web', 'ozon', 'lazada', 'shopee', 'youtube', 'taobao', 'pdd'].includes(platform.toLowerCase())) {
+    errors.push(`不支持的平台: ${platform}，支持的平台: 1688, amazon, tiktok, tiktok_shop, tiktok_web, ozon, lazada, shopee, youtube, taobao, pdd`);
   }
 
   // 名称验证
@@ -57,8 +57,8 @@ export const validateAccountUpdate = (req, res, next) => {
   const errors = [];
 
   // 平台验证
-  if (platform && !['1688', 'amazon', 'tiktok', 'ozon', 'lazada', 'shopee', 'youtube', 'taobao', 'pdd'].includes(platform.toLowerCase())) {
-    errors.push(`不支持的平台: ${platform}，支持的平台: 1688, amazon, tiktok, ozon, lazada, shopee, youtube, taobao, pdd`);
+  if (platform && !['1688', 'amazon', 'tiktok', 'tiktok_shop', 'tiktok_web', 'ozon', 'lazada', 'shopee', 'youtube', 'taobao', 'pdd'].includes(platform.toLowerCase())) {
+    errors.push(`不支持的平台: ${platform}，支持的平台: 1688, amazon, tiktok, tiktok_shop, tiktok_web, ozon, lazada, shopee, youtube, taobao, pdd`);
   }
 
   // 名称验证

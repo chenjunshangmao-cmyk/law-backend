@@ -30,7 +30,7 @@ let pool = null;
 if (databaseUrl) {
   pool = new Pool({
     connectionString: databaseUrl,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    ssl: { rejectUnauthorized: false },
   });
 } else {
   console.warn('⚠️  DATABASE_URL 未设置，将使用内存模式运行');
