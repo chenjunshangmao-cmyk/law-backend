@@ -510,12 +510,12 @@ router.post('/notify', async (req, res) => {
 });
 
 // return_url 跳转页（收钱吧支付完成后跳转到这里）
+// 跳转到不需要登录的公开页面 /payment-result，避免被路由守卫踢到登录页
 router.get('/return', async (req, res) => {
   const { clientSn } = req.query;
   console.log('[收钱吧] 用户返回（return_url）: clientSn =', clientSn);
-  // 重定向到前端会员页
   const frontendUrl = process.env.FRONTEND_URL || 'https://4d12215a.claw-app-2026.pages.dev';
-  res.redirect(frontendUrl + '/membership?paid=' + encodeURIComponent(clientSn || ''));
+  res.redirect(frontendUrl + '/payment-result?paid=' + encodeURIComponent(clientSn || '') + '&status=success');
 });
 
 // 状态查询
