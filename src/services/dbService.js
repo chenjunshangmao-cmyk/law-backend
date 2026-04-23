@@ -149,20 +149,129 @@ export const updateLastLogin = async (id) => {
 
 // ==================== 额度相关操作 ====================
 
+// 套餐额度限制（2026-04-23 更新：5级套餐）
+const PLAN_LIMITS = {
+  free: {
+    aiCopyMonthly: 0,
+    aiImageMonthly: 0,
+    aiVideoDaily: 0,
+    agentCountries: 0,
+    storeLimit: 2,
+  },
+  basic: {
+    aiCopyMonthly: 50,
+    aiImageMonthly: 20,
+    aiVideoDaily: 1,
+    agentCountries: 0,
+    storeLimit: 5,
+  },
+  pro: {
+    aiCopyMonthly: -1,   // 无限
+    aiImageMonthly: 100,
+    aiVideoDaily: 2,
+    agentCountries: 1,
+    storeLimit: 10,
+  },
+  enterprise: {
+    aiCopyMonthly: -1,
+    aiImageMonthly: 500,
+    aiVideoDaily: 10,
+    agentCountries: 6,
+    storeLimit: -1,
+  },
+  flagship: {
+    aiCopyMonthly: -1,
+    aiImageMonthly: -1,
+    aiVideoDaily: -1,
+    agentCountries: 12,
+    storeLimit: -1,
+  },
+};
+
 export const getQuotaByUserId = async (userId) => {
-  // 返回默认额度
-  const user = await findUserById(userId);
-  const plan = user?.membership_type || 'free';
-  const limits = {
-    free: { textLimit: 50, imageLimit: 10, productsLimit: 20, tasksLimit: 100 },
-    basic: { textLimit: 500, imageLimit: 100, productsLimit: 200, tasksLimit: 1000 },
-    pro: { textLimit: 5000, imageLimit: 1000, productsLimit: 2000, tasksLimit: 10000 },
-    enterprise: { textLimit: 99999, imageLimit: 9999, productsLimit: 99999, tasksLimit: 99999 },
-  };
-  return { userId, plan, ...(limits[plan] || limits.free) };
+  try {
+    const user = await findUserById(userId);
+    const plan = user?.membership_type || 'free';
+    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+
+    // 尝试从数据库 quotas 表读取实际使用量
+    let used = { aiCopyUsed: 0, aiImageUsed: 0, aiVideoUsed: 0 };
+    try {
+      const result = await pool.query(
+        'SELECT ai_copy_used, ai_image_used, ai_video_used, monthly_reset_date, daily_reset_date FROM quotas WHERE user_id = $1',
+        [userId]
+      );
+      if (result.rows[0]) {
+        const row = result.rows[0];
+        const now = new Date();
+        // 月度重置检查
+        const monthlyReset = row.monthly_reset_date ? new Date(row.monthly_reset_date) : null;
+        if (!monthlyReset || monthlyReset < now) {
+          // 需要重置月度额度
+          used = { aiCopyUsed: 0, aiImageUsed: 0, aiVideoUsed: 0 };
+        } else {
+          used = {
+            aiCopyUsed: row.ai_copy_used || 0,
+            aiImageUsed: row.ai_image_used || 0,
+            aiVideoUsed: row.ai_video_used || 0,
+          };
+        }
+      }
+    } catch (_) { /* 降级使用默认值 */ }
+
+    return {
+      userId,
+      plan,
+      ...limits,
+      ...used,
+    };
+  } catch (err) {
+    console.warn('[getQuotaByUserId] 失败:', err.message);
+    return { userId, plan: 'free', ...PLAN_LIMITS.free, aiCopyUsed: 0, aiImageUsed: 0, aiVideoUsed: 0 };
+  }
 };
 
 export const updateQuota = async (userId, updates) => {
+  try {
+    const { aiCopyUsed, aiImageUsed, aiVideoUsed, ...rest } = updates;
+    const fields = [];
+    const values = [];
+    let idx = 1;
+
+    if (aiCopyUsed !== undefined) {
+      fields.push(`ai_copy_used = $${idx++}`);
+      values.push(aiCopyUsed);
+    }
+    if (aiImageUsed !== undefined) {
+      fields.push(`ai_image_used = $${idx++}`);
+      values.push(aiImageUsed);
+    }
+    if (aiVideoUsed !== undefined) {
+      fields.push(`ai_video_used = $${idx++}`);
+      values.push(aiVideoUsed);
+    }
+
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const nextDay = new Date(now.getTime() + 86400000);
+    nextDay.setHours(0, 0, 0, 0);
+
+    fields.push(`monthly_reset_date = $${idx++}`);
+    values.push(nextMonth);
+    fields.push(`daily_reset_date = $${idx++}`);
+    values.push(nextDay);
+
+    values.push(userId);
+
+    await pool.query(
+      `INSERT INTO quotas (user_id, ai_copy_used, ai_image_used, ai_video_used, monthly_reset_date, daily_reset_date)
+       VALUES ($${idx - 5}, $${idx - 4}, $${idx - 3}, $${idx - 2}, $${idx - 1}, $${idx})
+       ON CONFLICT (user_id) DO UPDATE SET ${fields.join(', ')}`,
+      values
+    );
+  } catch (err) {
+    console.warn('[updateQuota] 失败:', err.message);
+  }
   return { userId, ...updates };
 };
 

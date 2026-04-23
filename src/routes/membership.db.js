@@ -19,51 +19,113 @@ import { authenticateToken, rateLimitMiddleware, requireRole } from '../middlewa
 
 const router = express.Router();
 
-// 会员套餐定义
+// 会员套餐定义（2026-04-23 最终版）
 const PLANS = {
   free: {
-    name: '免费版',
-    quotas: {
-      dailyGenerate: 5,
-      totalProducts: 20,
-      aiCallsPerDay: 20,
-      automationTasks: 2
-    },
+    name: '免费会员',
     price: 0,
-    features: ['基础产品管理', '每天5次AI生成', '最多20个产品', '2个自动化任务']
+    color: 'gray',
+    storeLimit: 2,         // 绑定店铺上限（仅国内平台）
+    storePlatforms: ['taobao', 'pinduoduo', 'douyin'],
+    aiCopyMonthly: 0,       // AI文案 月度（次）
+    aiImageMonthly: 0,      // AI图片 月度（次）
+    aiVideoDaily: 0,       // AI视频 每日（次）
+    agentCountries: 0,      // 代理服务国家数
+    customDev: false,
+    prioritySupport: false,
+    features: [
+      '绑定店铺：2个（国内平台）',
+      '产品上架：无限次（手动）',
+      '智能定价：无限次（手动）',
+      'AI功能：0次',
+      '适合：国内卖家试用'
+    ]
   },
   basic: {
     name: '基础版',
-    quotas: {
-      dailyGenerate: 50,
-      totalProducts: 200,
-      aiCallsPerDay: 200,
-      automationTasks: 20
-    },
     price: 199,
-    features: ['高级产品管理', '每天50次AI生成', '最多200个产品', '20个自动化任务', '浏览器自动化']
+    color: 'blue',
+    storeLimit: 5,
+    storePlatforms: ['taobao', 'pinduoduo', 'douyin'],
+    aiCopyMonthly: 50,
+    aiImageMonthly: 20,
+    aiVideoDaily: 1,
+    agentCountries: 0,
+    customDev: false,
+    prioritySupport: false,
+    features: [
+      '绑定店铺：5个（仅限国内平台）',
+      'AI文案：50次/月',
+      'AI图片：20次/月',
+      'AI视频：1次/天',
+      '代理服务：不可用',
+      '适合：国内卖家（淘宝/拼多多/抖音）'
+    ]
   },
-  premium: {
-    name: '高级版',
-    quotas: {
-      dailyGenerate: 200,
-      totalProducts: 1000,
-      aiCallsPerDay: 1000,
-      automationTasks: 100
-    },
+  pro: {
+    name: '专业版',
     price: 499,
-    features: ['无限制产品管理', '每天200次AI生成', '最多1000个产品', '100个自动化任务', '浏览器自动化', '数字人视频生成']
+    color: 'purple',
+    popular: true,
+    storeLimit: 10,
+    storePlatforms: ['taobao', 'pinduoduo', 'douyin', 'tiktok', 'youtube'],
+    aiCopyMonthly: -1,      // 无限
+    aiImageMonthly: 100,
+    aiVideoDaily: 2,
+    agentCountries: 1,
+    customDev: false,
+    prioritySupport: false,
+    features: [
+      '绑定店铺：10个（国内+海外）',
+      'AI文案：无限次',
+      'AI图片：100次/月',
+      'AI视频：2次/天',
+      '代理服务：1个国家',
+      '适合：做1个海外平台（TikTok或YouTube）'
+    ]
   },
   enterprise: {
     name: '企业版',
-    quotas: {
-      dailyGenerate: -1, // 无限制
-      totalProducts: -1,
-      aiCallsPerDay: -1,
-      automationTasks: -1
-    },
-    price: 1999,
-    features: ['所有功能无限制', '专属技术支持', '定制开发', '私有化部署', 'API调用权限']
+    price: 1599,
+    color: 'amber',
+    storeLimit: -1,         // 无限
+    storePlatforms: ['taobao', 'pinduoduo', 'douyin', 'tiktok', 'youtube'],
+    aiCopyMonthly: -1,
+    aiImageMonthly: 500,
+    aiVideoDaily: 10,
+    agentCountries: 6,
+    customDev: false,
+    prioritySupport: false,
+    features: [
+      '绑定店铺：无限个',
+      'AI文案：无限次',
+      'AI图片：500次/月',
+      'AI视频：10次/天',
+      '代理服务：6个国家',
+      '适合：TikTok多店铺运营'
+    ]
+  },
+  flagship: {
+    name: '旗舰版',
+    price: 5888,
+    color: 'red',
+    storeLimit: -1,
+    storePlatforms: ['taobao', 'pinduoduo', 'douyin', 'tiktok', 'youtube'],
+    aiCopyMonthly: -1,
+    aiImageMonthly: -1,      // 无限
+    aiVideoDaily: -1,       // 无限
+    agentCountries: 12,
+    customDev: true,
+    prioritySupport: true,  // 7x24
+    features: [
+      '绑定店铺：无限个',
+      'AI文案：无限次',
+      'AI图片：无限次',
+      'AI视频：无限次',
+      '代理服务：12个国家',
+      '定制开发：支持',
+      '专属客服：7×24小时'
+    ]
   }
 };
 
@@ -145,13 +207,20 @@ router.get('/', authenticateToken, async (req, res) => {
         plan,
         planName: planInfo.name,
         price: planInfo.price,
+        color: planInfo.color,
+        storeLimit: planInfo.storeLimit,
+        storePlatforms: planInfo.storePlatforms,
+        aiCopyMonthly: planInfo.aiCopyMonthly,
+        aiImageMonthly: planInfo.aiImageMonthly,
+        aiVideoDaily: planInfo.aiVideoDaily,
+        agentCountries: planInfo.agentCountries,
+        customDev: planInfo.customDev,
+        prioritySupport: planInfo.prioritySupport,
         features: planInfo.features,
-        quotas: planInfo.quotas,
         used: {
-          dailyGenerate: quotaData.dailyGenerate || 0,
-          totalProducts: quotaData.totalProducts || 0,
-          aiCallsToday: quotaData.aiCallsToday || 0,
-          activeTasks: quotaData.activeTasks || 0
+          aiCopyUsed: quotaData.aiCopyUsed || 0,
+          aiImageUsed: quotaData.aiImageUsed || 0,
+          aiVideoUsed: quotaData.aiVideoUsed || 0,
         },
         expiresAt: user.expiresAt || user.membership_expires_at || null,
         createdAt: user.createdAt
@@ -165,7 +234,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
 /**
  * GET /api/membership/plans
- * 获取所有可用套餐
+ * 获取所有可用套餐（2026-04-23 新版）
  */
 router.get('/plans', async (req, res) => {
   try {
@@ -173,10 +242,18 @@ router.get('/plans', async (req, res) => {
       plan: key,
       name: value.name,
       price: value.price,
-      quotas: value.quotas,
+      color: value.color,
+      popular: value.popular || false,
+      storeLimit: value.storeLimit,
+      storePlatforms: value.storePlatforms,
+      aiCopyMonthly: value.aiCopyMonthly,
+      aiImageMonthly: value.aiImageMonthly,
+      aiVideoDaily: value.aiVideoDaily,
+      agentCountries: value.agentCountries,
+      customDev: value.customDev,
+      prioritySupport: value.prioritySupport,
       features: value.features
     }));
-    
     res.json({ success: true, data: plansList });
   } catch (error) {
     console.error('获取套餐列表失败:', error);
@@ -269,13 +346,22 @@ router.get('/quota', authenticateToken, async (req, res) => {
 /**
  * POST /api/quota/consume
  * 消费额度（内部接口，被其他API调用）
+ * 支持新额度类型：aiCopyMonthly, aiImageMonthly, aiVideoDaily
  */
 router.post('/consume', authenticateToken, async (req, res) => {
   try {
     const { type, amount = 1 } = req.body;
-    const validTypes = ['dailyGenerate', 'totalProducts', 'aiCallsToday', 'activeTasks'];
-
-    if (!validTypes.includes(type)) {
+    // 支持新类型 + 兼容旧类型
+    const typeMap = {
+      aiCopyMonthly: 'aiCopyUsed',
+      aiImageMonthly: 'aiImageUsed',
+      aiVideoDaily: 'aiVideoUsed',
+      dailyGenerate: 'aiCopyUsed',
+      textGenerations: 'aiCopyUsed',
+    };
+    const mappedType = typeMap[type] || type;
+    const validTypes = ['aiCopyUsed', 'aiImageUsed', 'aiVideoUsed'];
+    if (!validTypes.includes(mappedType)) {
       return res.status(400).json({ success: false, error: `无效的额度类型: ${type}` });
     }
 
@@ -286,27 +372,44 @@ router.post('/consume', authenticateToken, async (req, res) => {
 
     const plan = user.plan || 'free';
     const planInfo = PLANS[plan] || PLANS.free;
-    const limit = planInfo.quotas[type];
 
+    // 从 planInfo 获取对应 limit
+    const planKeyMap = {
+      aiCopyUsed: 'aiCopyMonthly',
+      aiImageUsed: 'aiImageMonthly',
+      aiVideoUsed: 'aiVideoDaily',
+    };
+    const limitKey = planKeyMap[mappedType];
+    const limit = limitKey ? planInfo[limitKey] : 0;
+
+    // -1 = 无限
     if (limit === -1) {
-      return res.json({ success: true, allowed: true, remaining: -1 });
+      return res.json({ success: true, allowed: true, remaining: -1, unlimited: true });
     }
 
-    let quotaData = { userId: req.userId, dailyGenerate: 0, totalProducts: 0, aiCallsToday: 0, activeTasks: 0 };
+    let quotaData = { aiCopyUsed: 0, aiImageUsed: 0, aiVideoUsed: 0 };
     try {
-      const userQuota = await getQuotaByUser(req.userId);
-      if (userQuota) quotaData = userQuota.toJSON ? userQuota.toJSON() : userQuota;
+      quotaData = await getQuotaByUser(req.userId);
     } catch (_) {}
 
-    const currentVal = quotaData[type] || 0;
+    const currentVal = quotaData[mappedType] || 0;
     if (currentVal + amount > limit) {
-      return res.json({ success: true, allowed: false, error: '额度不足', remaining: limit - currentVal });
+      return res.json({
+        success: true,
+        allowed: false,
+        error: '额度不足',
+        remaining: Math.max(0, limit - currentVal),
+        limit,
+        used: currentVal
+      });
     }
 
-    quotaData[type] = currentVal + amount;
-    try { await updateUserQuota(req.userId, { [type]: quotaData[type] }); } catch (_) {}
+    const newVal = currentVal + amount;
+    try {
+      await updateUserQuota(req.userId, { [mappedType]: newVal });
+    } catch (_) {}
 
-    res.json({ success: true, allowed: true, remaining: limit - quotaData[type], consumed: amount });
+    res.json({ success: true, allowed: true, remaining: limit - newVal, consumed: amount, used: newVal });
   } catch (error) {
     console.error('消费额度失败:', error);
     res.status(500).json({ success: false, error: '消费额度失败' });
