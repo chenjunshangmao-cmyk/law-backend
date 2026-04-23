@@ -356,8 +356,8 @@ router.post('/create-order', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('创建支付订单失败:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+    console.error('创建支付订单失败:', err);
+    res.status(500).json({ success: false, error: '创建订单失败: ' + (err.message || String(err)), stack: err.stack });
   }
 });
 

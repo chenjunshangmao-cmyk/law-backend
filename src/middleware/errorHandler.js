@@ -106,6 +106,12 @@ export const errorHandler = (err, req, res, next) => {
     path
   };
 
+  // 始终附加原始错误信息（便于调试），生产环境下 error 字段用通用消息，detail 字段放原始信息
+  if (err.message && message !== err.message) {
+    errorResponse.detail = err.message;
+    errorResponse.error = message;
+  }
+
   // 如果有详细错误信息
   if (errors.length > 0) {
     errorResponse.errors = errors;
