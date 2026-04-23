@@ -68,7 +68,9 @@ if (!YT_CONFIG.client_id || !YT_CONFIG.client_secret) {
 router.get('/', (req, res) => {
   const mode = req.query.mode || 'popup';
   const callbackBase = getCallbackBase(req);
-  const callbackUrl = `${callbackBase}/api/auth/youtube/callback?mode=${mode}`;
+  // Google OAuth redirect_uri 必须完全匹配，不能带查询参数
+  // mode 信息通过 state 参数传递
+  const callbackUrl = `${callbackBase}/api/auth/youtube/callback`;
 
   const state = Buffer.from(JSON.stringify({
     mode,
@@ -100,7 +102,13 @@ router.get('/', (req, res) => {
 // ============================================================
 router.get('/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  const mode = req.query.mode || 'popup';
+
+  // 解析 state 获取 mode（Google OAuth redirect_uri 必须完全匹配，不能带查询参数）
+  let stateData = {};
+  try {
+    if (state) stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
+  } catch { /* ignore */ }
+  const mode = stateData.mode || 'popup';
 
   if (error) {
     const errMsg = `用户拒绝授权: ${error}`;
@@ -115,14 +123,9 @@ router.get('/callback', async (req, res) => {
     return res.status(400).json({ success: false, message: '缺少授权码' });
   }
 
-  // 解析 state
-  let stateData = {};
-  try {
-    if (state) stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
-  } catch { /* ignore */ }
-
   const callbackBase = getCallbackBase(req);
-  const callbackUrl = `${callbackBase}/api/auth/youtube/callback?mode=${mode}`;
+  // Google OAuth redirect_uri 必须完全匹配，不能带查询参数
+  const callbackUrl = `${callbackBase}/api/auth/youtube/callback`;
 
   try {
     // 用 code 换 token
