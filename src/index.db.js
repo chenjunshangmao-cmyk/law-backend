@@ -272,6 +272,37 @@ app.post('/api/competitor/search', async (req, res) => {
 });
 
 // ==========================================
+// 调试端点：对比 dbService vs auth.min 路径
+// ==========================================
+app.get('/api/debug/paths', (req, res) => {
+  const selfDirname = path.dirname(fileURLToPath(import.meta.url)); // backend/src/
+  const authDirname = path.dirname(fileURLToPath(import.meta.url));  // same for now
+  // 直接读 dbService.js 计算的路径
+  const dbServiceProjectRoot = path.resolve(path.dirname(fileURLToPath(new URL(import.meta.url))), '../..');
+  const authProjectRoot = path.resolve(path.dirname(fileURLToPath(new URL(import.meta.url))), '../..');
+  
+  // 读取JSON文件
+  const authJsonPath = path.join(authProjectRoot, 'data', 'users.json');
+  const dbJsonPath = path.join(dbServiceProjectRoot, 'data', 'users.json');
+  let authJsonUsers = [];
+  let dbJsonUsers = [];
+  try { authJsonUsers = JSON.parse(fs.readFileSync(authJsonPath, 'utf8')).map(u => ({id: u.id, email: u.email, passwordLen: u.password ? u.password.length : 0})); } catch(e) {}
+  try { dbJsonUsers = JSON.parse(fs.readFileSync(dbJsonPath, 'utf8')).map(u => ({id: u.id, email: u.email, passwordLen: u.password ? u.password.length : 0})); } catch(e) {}
+  
+  res.json({
+    selfDirname,
+    dbServiceProjectRoot,
+    authProjectRoot,
+    authJsonPath,
+    dbJsonPath,
+    pathsMatch: authJsonPath === dbJsonPath,
+    authJsonUsers,
+    dbJsonUsers,
+    sameUsers: JSON.stringify(authJsonUsers) === JSON.stringify(dbJsonUsers)
+  });
+});
+
+// ==========================================
 // 调试端点：直接测试 findUserById
 // ==========================================
 app.get('/api/debug/find-user', async (req, res) => {
