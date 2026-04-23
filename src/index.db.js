@@ -275,31 +275,12 @@ app.post('/api/competitor/search', async (req, res) => {
 // 调试端点：对比 dbService vs auth.min 路径
 // ==========================================
 app.get('/api/debug/paths', (req, res) => {
-  const selfDirname = path.dirname(fileURLToPath(import.meta.url)); // backend/src/
-  const authDirname = path.dirname(fileURLToPath(import.meta.url));  // same for now
-  // 直接读 dbService.js 计算的路径
-  const dbServiceProjectRoot = path.resolve(path.dirname(fileURLToPath(new URL(import.meta.url))), '../..');
-  const authProjectRoot = path.resolve(path.dirname(fileURLToPath(new URL(import.meta.url))), '../..');
-  
-  // 读取JSON文件
-  const authJsonPath = path.join(authProjectRoot, 'data', 'users.json');
-  const dbJsonPath = path.join(dbServiceProjectRoot, 'data', 'users.json');
-  let authJsonUsers = [];
-  let dbJsonUsers = [];
-  try { authJsonUsers = JSON.parse(fs.readFileSync(authJsonPath, 'utf8')).map(u => ({id: u.id, email: u.email, passwordLen: u.password ? u.password.length : 0})); } catch(e) {}
-  try { dbJsonUsers = JSON.parse(fs.readFileSync(dbJsonPath, 'utf8')).map(u => ({id: u.id, email: u.email, passwordLen: u.password ? u.password.length : 0})); } catch(e) {}
-  
-  res.json({
-    selfDirname,
-    dbServiceProjectRoot,
-    authProjectRoot,
-    authJsonPath,
-    dbJsonPath,
-    pathsMatch: authJsonPath === dbJsonPath,
-    authJsonUsers,
-    dbJsonUsers,
-    sameUsers: JSON.stringify(authJsonUsers) === JSON.stringify(dbJsonUsers)
-  });
+  // 使用统一的路径计算方式
+  const unifiedDataDir = path.join(process.cwd(), 'src', 'data');
+  const unifiedUsersFile = path.join(unifiedDataDir, 'users.json');
+  let users = [];
+  try { users = JSON.parse(fs.readFileSync(unifiedUsersFile, 'utf8')).map(u => ({id: u.id, email: u.email, passwordLen: u.password ? u.password.length : 0})); } catch(e) { users = []; }
+  res.json({ dataDir: unifiedDataDir, usersFile: unifiedUsersFile, count: users.length, users });
 });
 
 // ==========================================
@@ -323,24 +304,13 @@ app.get('/api/debug/find-user', async (req, res) => {
 // ==========================================
 app.get('/api/debug/users', (req, res) => {
   try {
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    const PROJECT_ROOT = path.resolve(__dirname, '..');
-    const DATA_DIR = path.join(PROJECT_ROOT, 'data');
+    const DATA_DIR = path.join(process.cwd(), 'src', 'data');
     const USERS_FILE = path.join(DATA_DIR, 'users.json');
     const content = fs.readFileSync(USERS_FILE, 'utf8');
     const users = JSON.parse(content);
-    // 只返回基本信息（隐藏密码）
     const safe = users.map(u => ({
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      role: u.role,
-      plan: u.plan,
-      member_id: u.member_id,
-      hasToken: !!u.token,
-      tokenType: typeof u.token,
-      tokenSample: u.token ? (typeof u.token === 'string' ? u.token.slice(0, 50) : JSON.stringify(u.token).slice(0, 100)) : null,
-      passwordLen: u.password ? u.password.length : 0
+      id: u.id, email: u.email, name: u.name, role: u.role, plan: u.plan,
+      member_id: u.member_id, passwordLen: u.password ? u.password.length : 0
     }));
     res.json({ count: users.length, users: safe, path: USERS_FILE });
   } catch (e) {
