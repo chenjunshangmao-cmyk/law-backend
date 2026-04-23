@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 
 // 数据库配置
 import { testConnection, syncDatabase, sequelize, pool } from './config/database.js';
+import { findUserById } from './services/dbService.js';
 
 // 中间件
 import { requestLogger, securityHeaders, errorHandler, notFoundHandler, healthCheck } from './middleware/errorHandler.js';
@@ -267,6 +268,22 @@ app.post('/api/competitor/search', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// ==========================================
+// 调试端点：直接测试 findUserById
+// ==========================================
+app.get('/api/debug/find-user', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) {
+    return res.json({ error: '需要 userId 参数', example: '/api/debug/find-user?userId=xxx' });
+  }
+  try {
+    const user = await findUserById(userId);
+    res.json({ userId, found: !!user, user: user ? { id: user.id, email: user.email, name: user.name, role: user.role, passwordLen: user.password ? user.password.length : 0 } : null });
+  } catch (e) {
+    res.json({ userId, error: e.message });
   }
 });
 
