@@ -1,6 +1,6 @@
 {
   "name": "claw-backend",
-  "version": "1.1.0422",
+  "version": "1.1.0423",
   "description": "Claw外贸网站后端API",
   "main": "src/index.db.js",
   "type": "module",
