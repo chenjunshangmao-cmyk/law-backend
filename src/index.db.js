@@ -359,6 +359,31 @@ app.get('/api/debug/users', (req, res) => {
   }
 });
 
+// 直接测试 pool + dbService（绕过 dbService 的 useMemoryMode）
+app.get('/api/debug/direct-pg', async (req, res) => {
+  const { userId } = req.query;
+  try {
+    const { pool: directPool, useMemoryMode: directMM } = await import('./config/database.js');
+    // 直接用 pool.query
+    let directRows = [];
+    let directErr = null;
+    try {
+      if (directPool) {
+        directRows = (await directPool.query('SELECT id::text, email FROM users WHERE id::text = $1', [userId || 'none'])).rows;
+      } else {
+        directErr = 'pool is null';
+      }
+    } catch(e) { directErr = e.message; }
+    // 测试 dbService
+    let svcRows = null;
+    let svcErr = null;
+    try {
+      svcRows = await findUserById(userId || 'none');
+    } catch(e) { svcErr = e.message; }
+    res.json({ userId: userId || 'none', poolExists: !!directPool, poolNull: directPool === null, directMemMode: directMM, directRows, directErr, svcResult: svcRows, svcErr });
+  } catch(e) { res.json({ error: e.message }); }
+});
+
 // 调试端点：直接测试 useMemoryMode 和 pool 状态
 app.get('/api/debug/db-state', async (req, res) => {
   const { userId } = req.query;
