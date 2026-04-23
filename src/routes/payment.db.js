@@ -587,7 +587,7 @@ async function upgradeUserMembership(userId, planType) {
 
     // 更新用户套餐（字段名匹配 users 表：membership_type / membership_expires_at）
     await pool.query(
-      'UPDATE users SET membership_type = $1, membership_expires_at = $2, updated_at = NOW() WHERE id = $3',
+      'UPDATE users SET membership_type = $1, membership_expires_at = $2, updated_at = NOW() WHERE id::text = $3',
       [planType, expiresAt, userId]
     );
 
