@@ -298,7 +298,7 @@ router.post('/checkin', async (req, res) => {
   }
 });
 
-// 创建支付订单（WAP跳转支付）
+// 创建支付订单（扫码支付B扫C模式 → 微信/支付宝静态付款码）
 router.post('/create-order', async (req, res) => {
   try {
     const { deviceId = config.defaultDeviceId, clientSn, totalAmount, subject } = req.body || {};
@@ -310,50 +310,54 @@ router.post('/create-order', async (req, res) => {
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活，请先调用 /activate' });
     const baseUrl = process.env.RENDER_EXTERNAL_URL || (req.protocol + '://' + req.get('host'));
 
-    // WAP支付参数（参考官方文档，必填：terminal_sn, client_sn, total_amount, subject, return_url, operator）
-    const requestParams = {
+    // 调用收钱吧扫码支付API（/upay/v2/pay）生成微信/支付宝静态付款二维码
+    // 用户手机扫码后直接出支付确认界面，不会跳转
+    const payBody = {
       terminal_sn: terminal.terminalSn,
       client_sn: clientSn,
-      total_amount: String(Math.round(Number(totalAmount) * 100)), // 金额（元→分，乘100）
+      total_amount: String(Math.round(Number(totalAmount) * 100)),
       subject,
-      return_url: baseUrl + '/api/shouqianba/return?clientSn=' + clientSn, // 支付完成后跳转（带sn）
-      notify_url: baseUrl + '/api/shouqianba/notify', // 服务器异步回调（收钱吧主动通知）
-      operator: 'claw_admin' // 门店操作员（必填，文档明确要求）
+      payway: 'WEIXIN',  // 首先生成微信支付码
+      operator: 'claw_admin',
+      notify_url: baseUrl + '/api/shouqianba/notify?clientSn=' + clientSn
     };
 
-    // WAP签名：参数排序 + &key= + MD5 + 大写
-    const sign = wapSign(requestParams, terminal.terminalKey);
-    const signedParams = { ...requestParams, sign, sign_type: 'MD5' };
+    let qrCode = null;
+    let paywayResult = 'WEIXIN';
+    try {
+      const payResult = await sqbRequest('/upay/v2/pay', payBody, terminal.terminalSn, terminal.terminalKey);
+      qrCode = payResult.qr_code || payResult.code_url || null;
+      console.log('[收钱吧] 微信扫码支付二维码已生成');
+    } catch (payErr) {
+      console.warn('[收钱吧] 微信扫码支付失败，切换支付宝:', payErr.message);
+      payBody.payway = 'ALIPAY';
+      paywayResult = 'ALIPAY';
+      const payResult = await sqbRequest('/upay/v2/pay', payBody, terminal.terminalSn, terminal.terminalKey);
+      qrCode = payResult.qr_code || payResult.code_url || null;
+      console.log('[收钱吧] 支付宝扫码支付二维码已生成');
+    }
 
-    // 构建网关URL（GET请求，参数拼在URL后面）
-    const gatewayUrl = 'https://m.wosai.cn/qr/gateway';
-    const queryString = Object.keys(signedParams)
-      .sort()
-      .map(k => `${k}=${encodeURIComponent(signedParams[k])}`)
-      .join('&');
-    const payUrl = gatewayUrl + '?' + queryString;
+    if (!qrCode) {
+      throw new Error('收钱吧未返回付款二维码');
+    }
 
-    // 持久化订单（重启不丢失，查询时优先读文件）
+    // 持久化订单
     saveOrder({
-      clientSn,
-      sn: clientSn,
-      orderStatus: 'CREATED',  // WAP 订单，收钱吧 query API 查不到，靠回调更新
-      status: 'CREATED',
+      clientSn, sn: clientSn,
+      orderStatus: 'CREATED', status: 'CREATED',
       totalAmount: Number(totalAmount),
-      subject,
-      payUrl,
+      subject, qrCode, payway: paywayResult,
       createdAt: Date.now()
     });
 
-    console.log('[收钱吧] WAP支付URL已生成:', payUrl.substring(0, 100) + '...');
     res.json({
       success: true,
       data: {
-        sn: clientSn,         // 修复：统一用 sn 供前端轮询
-        clientSn,             // 保留兼容
+        sn: clientSn,
+        clientSn,
         totalAmount: Number(totalAmount),
-        payUrl,               // 前端直接跳转到此URL即可完成支付
-        gateway: gatewayUrl,
+        qrCode,              // 微信/支付宝静态付款二维码
+        payway: paywayResult,
       }
     });
   } catch (err) {

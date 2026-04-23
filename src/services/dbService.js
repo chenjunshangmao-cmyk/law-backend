@@ -96,48 +96,8 @@ export const findUserById = async (id) => {
     return null; // 降级：不阻断业务流程
   }
   
-  console.log('[findUserById] 通过ID查询结果:', result.rows.length ? '找到' : '未找到');
-  
-  if (!result.rows[0] && id.includes('@')) {
-    console.log('[findUserById] 尝试通过email查询:', id);
-    try {
-      const emailResult = await pool.query(`
-        SELECT id::text, email, password, name, COALESCE(membership_type, 'free') as membership_type, 
-        membership_expires_at, created_at, updated_at FROM users WHERE email = $1
-      `, [id]);
-      console.log('[findUserById] 通过email查询结果:', emailResult.rows.length ? '找到' : '未找到');
-      return emailResult.rows[0] || null;
-    } catch (e) {
-      console.error('[findUserById] email查询失败:', e.message);
-      return null;
-    }
-  }
-  
-  if (!result.rows[0] && id === 'user-admin-001') {
-    console.log('[findUserById] 特殊处理user-admin-001');
-    try {
-      const adminResult = await pool.query(`
-        SELECT id::text, email, password, name, COALESCE(membership_type, 'free') as membership_type,
-        membership_expires_at, created_at, updated_at FROM users WHERE email = 'admin@claw.com'
-      `);
-      console.log('[findUserById] admin查询结果:', adminResult.rows.length ? '找到' : '未找到');
-      return adminResult.rows[0] || null;
-    } catch (e) {
-      console.error('[findUserById] admin查询失败:', e.message);
-      return null;
-    }
-  }
-  
-  console.log('[findUserById] 通过ID查询结果:', result.rows.length ? '找到' : '未找到');
-
   // PostgreSQL 没找到 → 降级到 JSON 文件兜底（auth.min.js 注册先写 JSON）
-  if (!result.rows[0]) {
-    const jsonUser = findUserInJsonFile(String(id));
-    if (jsonUser) {
-      console.log('[findUserById] ✅ 从JSON文件找到用户:', jsonUser.email);
-      return jsonUser;
-    }
-  }
+  // 兜底逻辑统一在下面：无论ID格式，都尝试JSON文件
 
   if (!result.rows[0] && id.includes('@')) {
     console.log('[findUserById] 尝试通过email查询:', id);
