@@ -87,7 +87,7 @@ export default function MembershipPage() {
   };
 
   // 收钱吧支付（微信/支付宝）
-  const [sqOrder, setSqOrder] = useState<{ sn: string; clientSn: string; qrCode: string; totalAmount: string; payway?: string } | null>(null);
+  const [sqOrder, setSqOrder] = useState<{ sn: string; clientSn: string; payUrl: string; totalAmount: string } | null>(null);
   const [sqPolling, setSqPolling] = useState(false);
 
   const handleShouqianbaPay = async (planId: string, price: number) => {
@@ -97,21 +97,25 @@ export default function MembershipPage() {
     setSqOrder(null);
 
     try {
-      // 先激活终端
-      await api.shouqianba.activate();
+      // 使用 payment.createOrder 创建订单（会写入数据库，回调自动升级会员）
+      const res = await api.payment.createOrder({ plan: planId });
+      if (!res.success) throw new Error(res.error || '创建订单失败');
 
-      // 创建订单
-      const res = await api.shouqianba.createOrder(planId, price);
-      if (!res.success) throw new Error(res.error || '创建收钱吧订单失败');
+      const orderData = res.data;
+      // 适配：payment.createOrder 返回 { orderNo, payUrl, ... }
+      setSqOrder({
+        sn: orderData.orderNo,
+        clientSn: orderData.orderNo,
+        payUrl: orderData.payUrl,
+        totalAmount: String(price)
+      });
 
-      setSqOrder(res.data);
-
-      // 轮询查询支付状态
+      // 轮询查询支付状态（用 payment.status）
       setSqPolling(true);
       const poll = setInterval(async () => {
         try {
-          const status = await api.shouqianba.query(res.data.sn);
-          if (status.data?.orderStatus === 'PAID' || status.data?.status === 'SUCCESS') {
+          const statusRes = await api.payment.status(orderData.orderNo);
+          if (statusRes.data?.status === 'paid') {
             clearInterval(poll);
             setSqPolling(false);
             setSqOrder(null);
@@ -127,7 +131,7 @@ export default function MembershipPage() {
         setSqPolling(false);
       }, 5 * 60 * 1000);
     } catch (e: any) {
-      setError(e.message || '收钱吧支付暂时不可用，请稍后重试');
+      setError(e.message || '支付服务暂时不可用，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -217,15 +221,15 @@ export default function MembershipPage() {
               请用 <b>微信</b> 或 <b>支付宝</b> 扫码支付
             </div>
 
-            {sqOrder.qrCode && (
+            {sqOrder.payUrl && (
               <div className="text-center mb-4">
                 <img
-                  src={sqOrder.qrCode}
+                  src={'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(sqOrder.payUrl)}
                   alt="支付二维码"
                   className="mx-auto rounded-lg border border-gray-200"
                   style={{ width: 200, height: 200 }}
                 />
-                <p className="text-xs text-gray-500 mt-2">请用{sqOrder.payway === 'ALIPAY' ? '支付宝' : '微信'}扫码支付</p>
+                <p className="text-xs text-gray-500 mt-2">请用微信或支付宝扫码支付</p>
               </div>
             )}
 
