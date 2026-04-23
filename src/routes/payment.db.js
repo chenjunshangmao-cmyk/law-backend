@@ -103,9 +103,10 @@ async function ensurePaymentTables() {
 // ============================================================
 // 套餐配置（与 membership.db.js 保持一致）
 const PLANS = {
-  basic: { name: '基础版', price: 19900, duration: 30 },      // 价格单位：分
+  basic: { name: '基础版', price: 19900, duration: 30 },
   premium: { name: '高级版', price: 49900, duration: 30 },
-  enterprise: { name: '企业版', price: 199900, duration: 30 }
+  enterprise: { name: '企业版', price: 159900, duration: 30 },
+  vip: { name: 'VIP版', price: 588800, duration: 30 }
 };
 
 // 业务服务配置
