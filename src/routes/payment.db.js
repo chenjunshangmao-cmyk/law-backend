@@ -386,32 +386,70 @@ router.get('/status/:orderNo', authenticateToken, async (req, res) => {
 /**
  * POST /api/webhook/shouqianba
  * 收钱吧支付回调（路由已挂载到 /api/webhook，故此处直接写 /shouqianba）
+ *
+ * 验收标准要求三层状态判断：
+ *   第一层（通讯层）：result_code
+ *   第二层（业务结果层）：biz_response.result_code
+ *   第三层（订单状态层）：order_status
  */
 router.post('/shouqianba', async (req, res) => {
   try {
-    console.log('收到收钱吧回调:', req.body);
+    const params = req.body;
+    console.log('【收钱吧回调】收到:', JSON.stringify(params));
 
     // 验签并解析回调
-    const notifyData = handleNotify(req.body);
+    let notifyData;
+    try {
+      notifyData = handleNotify(params);
+    } catch (err) {
+      console.error('【收钱吧回调】验签失败:', err.message);
+      return res.send('fail');
+    }
 
-    // 查询订单
+    // ========== 三层状态判断（验收标准要求）==========
+
+    // 第一层：通讯层
+    if (params.result_code !== 'SUCCESS') {
+      console.error(`【收钱吧回调】第一层（通讯层）失败 result_code=${params.result_code}`);
+      return res.send('success');
+    }
+
+    // 第二层：业务结果层
+    const bizResultCode = params.biz_response?.result_code;
+    if (bizResultCode !== 'SUCCESS') {
+      console.error(`【收钱吧回调】第二层（业务结果层）失败 biz_response.result_code=${bizResultCode}`);
+      return res.send('success');
+    }
+
+    // 第三层：订单状态层
+    const orderStatus = notifyData.status;
+    console.log(`【收钱吧回调】三层通过 → sn=${notifyData.clientSn} order_status=${orderStatus}`);
+
+    // ========== 订单处理 ==========
+
+    // 查询本地订单
     const orderResult = await pool.query(
       'SELECT * FROM payment_orders WHERE order_no = $1',
       [notifyData.clientSn]
     );
 
     if (orderResult.rows.length === 0) {
-      console.error('回调订单不存在:', notifyData.clientSn);
-      return res.send('success'); // 返回success避免重试
+      console.error('【收钱吧回调】订单不存在:', notifyData.clientSn);
+      return res.send('success');
     }
 
     const order = orderResult.rows[0];
 
-    // 更新订单状态
-    if (notifyData.status === 'PAID') {
+    // 防止重复处理
+    if (order.status === 'paid') {
+      console.log(`【收钱吧回调】订单 ${notifyData.clientSn} 已是 paid，跳过`);
+      return res.send('success');
+    }
+
+    if (orderStatus === 'PAID') {
       await pool.query(
-        `UPDATE payment_orders 
-         SET status = $1, payway = $2, paid_at = $3, updated_at = NOW() 
+        `UPDATE payment_orders
+         SET status = $1, payway = $2, paid_at = $3, updated_at = NOW()
          WHERE order_no = $4`,
         ['paid', notifyData.payway, new Date(), notifyData.clientSn]
       );
@@ -419,15 +457,20 @@ router.post('/shouqianba', async (req, res) => {
       // 更新用户会员
       await upgradeUserMembership(order.user_id, order.plan_type);
 
-      console.log('订单支付成功:', notifyData.clientSn);
+      console.log(`【收钱吧回调】✅ 订单 ${notifyData.clientSn} 支付成功，金额:¥${notifyData.totalAmount}`);
+    } else if (orderStatus === 'CLOSED' || orderStatus === 'REFUND') {
+      await pool.query(
+        `UPDATE payment_orders SET status = $1, updated_at = NOW() WHERE order_no = $2`,
+        [orderStatus === 'REFUND' ? 'refunded' : 'closed', notifyData.clientSn]
+      );
+      console.log(`【收钱吧回调】订单 ${notifyData.clientSn} 状态: ${orderStatus}`);
     }
 
     // 必须返回 success，否则收钱吧会重试
     res.send('success');
 
   } catch (error) {
-    console.error('处理收钱吧回调失败:', error);
-    // 即使失败也返回success，避免无限重试
+    console.error('【收钱吧回调】处理异常:', error);
     res.send('success');
   }
 });
