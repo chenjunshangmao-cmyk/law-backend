@@ -18,6 +18,22 @@ import path from 'path';
 // shouqianba.db.js 写入: path.join(__dirname, '../../data/shouqianba-terminal.json')
 // __dirname = /app/src/routes，故 '../../data/' = /app/data/shouqianba-terminal.json
 const _paymentDir = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * 验签函数：WAP支付回调 MD5 验签
+ * 与 shouqianba.db.js 中 wapSign() 完全一致
+ * 规则：排除 sign/sign_type，按 key 字典序拼接，末尾加 &key=terminalKey，MD5大写
+ */
+function verifyWapSign(params, terminalKey) {
+  const filtered = { ...params };
+  delete filtered.sign;
+  delete filtered.sign_type;
+  const sortedKeys = Object.keys(filtered).sort();
+  const pairs = sortedKeys.map(k => `${k}=${filtered[k]}`);
+  const signStr = pairs.join('&') + '&key=' + terminalKey;
+  const expected = crypto.createHash('md5').update(signStr).digest('hex').toUpperCase();
+  return expected === (params.sign || '').toUpperCase();
+}
 const TERMINAL_FILE = path.join(_paymentDir, '../../data', 'shouqianba-terminal.json');
 function loadTerminalCache() {
   try {
@@ -398,12 +414,38 @@ router.post('/shouqianba', async (req, res) => {
     const params = req.body;
     console.log('【收钱吧回调】收到:', JSON.stringify(params));
 
-    // 验签并解析回调
-    let notifyData;
-    try {
-      notifyData = handleNotify(params);
-    } catch (err) {
-      console.error('【收钱吧回调】验签失败:', err.message);
+    // 验签：WAP支付回调用 terminalKey（不是 vendorKey）
+    // 1. 从回调参数中获取 terminal_sn
+    // 2. 从数据库 shouqianba_terminals 表查询对应的 terminal_key
+    // 3. 用 terminal_key 进行 MD5 验签
+    const terminalSn = params.terminal_sn;
+    let terminalKeyForVerify = null;
+
+    if (terminalSn) {
+      try {
+        const termResult = await pool.query(
+          'SELECT terminal_key FROM shouqianba_terminals WHERE terminal_sn = $1 AND status = $2',
+          [terminalSn, 'active']
+        );
+        if (termResult.rows.length > 0) {
+          terminalKeyForVerify = termResult.rows[0].terminal_key;
+        }
+      } catch (e) {
+        console.warn('【收钱吧回调】查询终端密钥失败:', e.message);
+      }
+    }
+
+    // 如果数据库查不到，回退用环境变量的 vendorKey（旧版兼容）
+    if (!terminalKeyForVerify) {
+      terminalKeyForVerify = process.env.SHOUQIANBA_VENDOR_KEY || '677da351628d3fe7664321669c3439b2';
+      console.warn('【收钱吧回调】使用 vendorKey 验签（终端密钥未找到）:', terminalSn);
+    }
+
+    // 使用与创建支付时相同的验签方式：参数排序 + &key= + MD5
+    const isValid = verifyWapSign(params, terminalKeyForVerify);
+
+    if (!isValid) {
+      console.error('【收钱吧回调】验签失败，terminal_sn:', terminalSn, 'params:', JSON.stringify(params));
       return res.send('fail');
     }
 
@@ -423,19 +465,19 @@ router.post('/shouqianba', async (req, res) => {
     }
 
     // 第三层：订单状态层
-    const orderStatus = notifyData.status;
-    console.log(`【收钱吧回调】三层通过 → sn=${notifyData.clientSn} order_status=${orderStatus}`);
+    const orderStatus = params.order_status;
+    console.log(`【收钱吧回调】三层通过 → sn=${params.client_sn} order_status=${orderStatus}`);
 
     // ========== 订单处理 ==========
 
     // 查询本地订单
     const orderResult = await pool.query(
       'SELECT * FROM payment_orders WHERE order_no = $1',
-      [notifyData.clientSn]
+      [params.client_sn]
     );
 
     if (orderResult.rows.length === 0) {
-      console.error('【收钱吧回调】订单不存在:', notifyData.clientSn);
+      console.error('【收钱吧回调】订单不存在:', params.client_sn);
       return res.send('success');
     }
 
@@ -443,7 +485,7 @@ router.post('/shouqianba', async (req, res) => {
 
     // 防止重复处理
     if (order.status === 'paid') {
-      console.log(`【收钱吧回调】订单 ${notifyData.clientSn} 已是 paid，跳过`);
+      console.log(`【收钱吧回调】订单 ${params.client_sn} 已是 paid，跳过`);
       return res.send('success');
     }
 
@@ -452,19 +494,19 @@ router.post('/shouqianba', async (req, res) => {
         `UPDATE payment_orders
          SET status = $1, payway = $2, paid_at = $3, updated_at = NOW()
          WHERE order_no = $4`,
-        ['paid', notifyData.payway, new Date(), notifyData.clientSn]
+        ['paid', params.payway || null, new Date(), params.client_sn]
       );
 
       // 更新用户会员
       await upgradeUserMembership(order.user_id, order.plan_type);
 
-      console.log(`【收钱吧回调】✅ 订单 ${notifyData.clientSn} 支付成功，金额:¥${notifyData.totalAmount}`);
+      console.log(`【收钱吧回调】✅ 订单 ${params.client_sn} 支付成功，金额:¥${(params.total_amount / 100).toFixed(2)}`);
     } else if (orderStatus === 'CLOSED' || orderStatus === 'REFUND') {
       await pool.query(
         `UPDATE payment_orders SET status = $1, updated_at = NOW() WHERE order_no = $2`,
-        [orderStatus === 'REFUND' ? 'refunded' : 'closed', notifyData.clientSn]
+        [orderStatus === 'REFUND' ? 'refunded' : 'closed', params.client_sn]
       );
-      console.log(`【收钱吧回调】订单 ${notifyData.clientSn} 状态: ${orderStatus}`);
+      console.log(`【收钱吧回调】订单 ${params.client_sn} 状态: ${orderStatus}`);
     }
 
     // 必须返回 success，否则收钱吧会重试
