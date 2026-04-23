@@ -114,13 +114,14 @@ export const authMiddleware = async (req, res, next) => {
 
   if (!user) {
     // 降级：检查内置用户（不在数据库中，但登录后可获得token）
+    // 按 email 匹配，因为内置用户的UUID与数据库中存储的id不同
     const BUILTIN_USERS = {
       'admin@claw.com': { id: 'user-admin-001', email: 'admin@claw.com', name: '管理员', role: 'admin', plan: 'enterprise', password: null },
       'user@claw.com': { id: 'user-demo-001', email: 'user@claw.com', name: '演示用户', role: 'user', plan: 'premium', password: null },
       'test@claw.com': { id: 'user-test-001', email: 'test@claw.com', name: '测试用户', role: 'user', plan: 'basic', password: null },
     };
-    // 根据 token 中的 userId 找到内置用户（通过id匹配）
-    const builtinUser = Object.values(BUILTIN_USERS).find(u => u.id === decoded.userId);
+    // 根据 token 中的 email 找到内置用户（UUID与BUILTIN的id不同，只能靠email匹配）
+    const builtinUser = decoded.email ? BUILTIN_USERS[decoded.email] : null;
     if (builtinUser) {
       user = builtinUser;
     } else {
