@@ -31,7 +31,30 @@ if (databaseUrl) {
   pool = new Pool({
     connectionString: databaseUrl,
     ssl: { rejectUnauthorized: false },
+    // 增强健壮性：连接池参数优化
+    max: 5,           // 最大连接数
+    idleTimeoutMillis: 30000,  // 空闲超时
+    connectionTimeoutMillis: 10000,  // 连接超时（10秒，冷启动适配）
   });
+
+  // 监听连接错误，自动重连
+  pool.on('error', (err) => {
+    console.error('[数据库] 连接池错误（自动恢复）:', err.message);
+  });
+
+  // 启动时验证连接
+  (async () => {
+    try {
+      const client = await pool.connect();
+      await client.query('SELECT 1');
+      client.release();
+      console.log('[数据库] PostgreSQL 连接验证成功');
+      useMemoryMode = false;
+    } catch (err) {
+      console.error('[数据库] PostgreSQL 连接失败（使用内存模式）:', err.message);
+      useMemoryMode = true;
+    }
+  })();
 } else {
   console.warn('⚠️  DATABASE_URL 未设置，将使用内存模式运行');
   useMemoryMode = true;

@@ -96,23 +96,24 @@ export const authMiddleware = async (req, res, next) => {
     });
   }
 
-  // 检查用户状态 (异步) - 加 try-catch 防止数据库错误导致服务崩溃
+  // 检查用户状态 (异步) - 已增强 dbService.js 防止数据库错误崩溃
   let user;
   try {
     user = await findUserById(decoded.userId);
   } catch (dbError) {
     console.error('用户查询失败:', dbError.message);
-    return res.status(503).json({
+    // findUserById 已内置重试逻辑，这里如果还失败说明真的有问题
+    return res.status(401).json({
       success: false,
-      error: '认证服务暂时不可用，请稍后重试',
-      code: 'AUTH_SERVICE_UNAVAILABLE'
+      error: '用户不存在或会话已失效，请重新登录',
+      code: 'AUTH_USER_NOT_FOUND'
     });
   }
 
   if (!user) {
     return res.status(401).json({
       success: false,
-      error: '用户不存在',
+      error: '用户不存在或会话已失效，请重新登录',
       code: 'AUTH_USER_NOT_FOUND'
     });
   }

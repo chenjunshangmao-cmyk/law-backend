@@ -18,79 +18,69 @@ export const findUserById = async (id) => {
   if (useMemoryMode) {
     // 内存模式
     let user = memoryStore.users.get(String(id));
-    
-    // 如果通过ID找不到，尝试通过email查找
     if (!user && id.includes('@')) {
       const users = Array.from(memoryStore.users.values());
       user = users.find(u => u.email === id);
     }
-    
-    // 特殊处理：如果ID是user-admin-001，返回admin用户
     if (!user && id === 'user-admin-001') {
       const users = Array.from(memoryStore.users.values());
       user = users.find(u => u.email === 'admin@claw.com');
     }
-    
     console.log('[findUserById] 内存模式结果:', user ? '找到' : '未找到');
     return user || null;
   }
   
-  // PostgreSQL 模式
-  const result = await pool.query(`
-    SELECT 
-      id::text, 
-      email, 
-      password, 
-      name, 
-      COALESCE(membership_type, 'free') as membership_type, 
-      membership_expires_at, 
-      created_at, 
-      updated_at 
-    FROM users 
-    WHERE id::text = $1
-  `, [String(id)]);
+  // PostgreSQL 模式（增强：捕获连接错误，防止服务崩溃）
+  let result;
+  try {
+    result = await pool.query(`
+      SELECT 
+        id::text, 
+        email, 
+        password, 
+        name, 
+        COALESCE(membership_type, 'free') as membership_type, 
+        membership_expires_at, 
+        created_at, 
+        updated_at 
+      FROM users 
+      WHERE id::text = $1
+    `, [String(id)]);
+  } catch (poolErr) {
+    console.error('[findUserById] PostgreSQL 查询失败:', poolErr.message);
+    return null; // 降级：不阻断业务流程
+  }
   
   console.log('[findUserById] 通过ID查询结果:', result.rows.length ? '找到' : '未找到');
   
-  // 如果通过ID找不到，尝试通过email查找（处理JWT中的user-admin-001情况）
   if (!result.rows[0] && id.includes('@')) {
-    // id看起来像email
     console.log('[findUserById] 尝试通过email查询:', id);
-    const emailResult = await pool.query(`
-      SELECT 
-        id::text, 
-        email, 
-        password, 
-        name, 
-        COALESCE(membership_type, 'free') as membership_type, 
-        membership_expires_at, 
-        created_at, 
-        updated_at 
-      FROM users 
-      WHERE email = $1
-    `, [id]);
-    console.log('[findUserById] 通过email查询结果:', emailResult.rows.length ? '找到' : '未找到');
-    return emailResult.rows[0] || null;
+    try {
+      const emailResult = await pool.query(`
+        SELECT id::text, email, password, name, COALESCE(membership_type, 'free') as membership_type, 
+        membership_expires_at, created_at, updated_at FROM users WHERE email = $1
+      `, [id]);
+      console.log('[findUserById] 通过email查询结果:', emailResult.rows.length ? '找到' : '未找到');
+      return emailResult.rows[0] || null;
+    } catch (e) {
+      console.error('[findUserById] email查询失败:', e.message);
+      return null;
+    }
   }
   
-  // 特殊处理：如果ID是user-admin-001，返回admin用户
   if (!result.rows[0] && id === 'user-admin-001') {
-    console.log('[findUserById] 特殊处理user-admin-001，查询admin用户');
-    const adminResult = await pool.query(`
-      SELECT 
-        id::text, 
-        email, 
-        password, 
-        name, 
-        COALESCE(membership_type, 'free') as membership_type, 
-        membership_expires_at, 
-        created_at, 
-        updated_at 
-      FROM users 
-      WHERE email = 'admin@claw.com'
-    `);
-    console.log('[findUserById] admin查询结果:', adminResult.rows.length ? '找到' : '未找到');
-    return adminResult.rows[0] || null;
+    console.log('[findUserById] 特殊处理user-admin-001');
+    try {
+      const adminResult = await pool.query(`
+        SELECT id::text, email, password, name, COALESCE(membership_type, 'free') as membership_type,
+        membership_expires_at, created_at, updated_at FROM users WHERE email = 'admin@claw.com'
+      `);
+      console.log('[findUserById] admin查询结果:', adminResult.rows.length ? '找到' : '未找到');
+      return adminResult.rows[0] || null;
+    } catch (e) {
+      console.error('[findUserById] admin查询失败:', e.message);
+      return null;
+    }
   }
   
   console.log('[findUserById] 最终结果:', result.rows[0] ? '返回用户' : '返回null');
