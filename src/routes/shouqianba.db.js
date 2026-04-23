@@ -314,7 +314,7 @@ router.post('/create-order', async (req, res) => {
     const requestParams = {
       terminal_sn: terminal.terminalSn,
       client_sn: clientSn,
-      total_amount: String(Math.round(Number(totalAmount))), // 金额（分，已在前端×100）
+      total_amount: String(Math.round(Number(totalAmount) * 100)), // 金额（元→分，乘100）
       subject,
       return_url: baseUrl + '/api/shouqianba/return?clientSn=' + clientSn, // 支付完成后跳转（带sn）
       notify_url: baseUrl + '/api/shouqianba/notify', // 服务器异步回调（收钱吧主动通知）
