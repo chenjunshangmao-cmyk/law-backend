@@ -1,5 +1,26 @@
-// 数据库服务 - 完整版（使用纯 pg + 内存模式降级）
+// 数据库服务 - 完整版（使用纯 pg + JSON文件兜底降级）
 import pool, { useMemoryMode, memoryStore } from '../config/database.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// JSON文件兜底（auth.min.js 注册用户先写 JSON，异步同步 PG）
+// authMiddleware 通过这里找用户，必须支持 JSON 文件兜底
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, '../..');
+const DATA_DIR = path.join(PROJECT_ROOT, 'data');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+
+function findUserInJsonFile(id) {
+  try {
+    if (!fs.existsSync(USERS_FILE)) return null;
+    const users = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+    // 按ID或email匹配
+    return users.find(u => u.id === id || u.email === id) || null;
+  } catch {
+    return null;
+  }
+}
 
 // ==================== 用户相关操作 ====================
 
@@ -8,8 +29,19 @@ export const findUserByEmail = async (email) => {
     const users = Array.from(memoryStore.users.values());
     return users.find(u => u.email === email) || null;
   }
-  const result = await pool.query('SELECT id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at FROM users WHERE email = $1', [email]);
-  return result.rows[0] || null;
+  try {
+    const result = await pool.query('SELECT id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at FROM users WHERE email = $1', [email]);
+    if (result.rows[0]) return result.rows[0];
+  } catch (e) {
+    console.warn('[findUserByEmail] PG查询失败:', e.message);
+  }
+  // PostgreSQL 没有 → JSON 文件兜底
+  const jsonUser = findUserInJsonFile(email);
+  if (jsonUser) {
+    console.log('[findUserByEmail] ✅ 从JSON文件找到用户:', email);
+    return jsonUser;
+  }
+  return null;
 };
 
 export const findUserById = async (id) => {
@@ -83,6 +115,55 @@ export const findUserById = async (id) => {
     }
   }
   
+  console.log('[findUserById] 通过ID查询结果:', result.rows.length ? '找到' : '未找到');
+
+  // PostgreSQL 没找到 → 降级到 JSON 文件兜底（auth.min.js 注册先写 JSON）
+  if (!result.rows[0]) {
+    const jsonUser = findUserInJsonFile(String(id));
+    if (jsonUser) {
+      console.log('[findUserById] ✅ 从JSON文件找到用户:', jsonUser.email);
+      return jsonUser;
+    }
+  }
+
+  if (!result.rows[0] && id.includes('@')) {
+    console.log('[findUserById] 尝试通过email查询:', id);
+    try {
+      const emailResult = await pool.query(`
+        SELECT id::text, email, password, name, COALESCE(membership_type, 'free') as membership_type, 
+        membership_expires_at, created_at, updated_at FROM users WHERE email = $1
+      `, [id]);
+      console.log('[findUserById] 通过email查询结果:', emailResult.rows.length ? '找到' : '未找到');
+      if (!emailResult.rows[0]) {
+        // email 也查不到 → 最后尝试 JSON 文件
+        const jsonUser = findUserInJsonFile(String(id));
+        if (jsonUser) {
+          console.log('[findUserById] ✅ email从JSON文件找到用户:', jsonUser.email);
+          return jsonUser;
+        }
+      }
+      return emailResult.rows[0] || null;
+    } catch (e) {
+      console.error('[findUserById] email查询失败:', e.message);
+      return null;
+    }
+  }
+
+  if (!result.rows[0] && id === 'user-admin-001') {
+    console.log('[findUserById] 特殊处理user-admin-001');
+    try {
+      const adminResult = await pool.query(`
+        SELECT id::text, email, password, name, COALESCE(membership_type, 'free') as membership_type,
+        membership_expires_at, created_at, updated_at FROM users WHERE email = 'admin@claw.com'
+      `);
+      console.log('[findUserById] admin查询结果:', adminResult.rows.length ? '找到' : '未找到');
+      return adminResult.rows[0] || null;
+    } catch (e) {
+      console.error('[findUserById] admin查询失败:', e.message);
+      return null;
+    }
+  }
+
   console.log('[findUserById] 最终结果:', result.rows[0] ? '返回用户' : '返回null');
   return result.rows[0] || null;
 };
