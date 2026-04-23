@@ -275,12 +275,11 @@ app.post('/api/competitor/search', async (req, res) => {
 // 调试端点：对比 dbService vs auth.min 路径
 // ==========================================
 app.get('/api/debug/paths', (req, res) => {
-  // 使用统一的路径计算方式
-  const unifiedDataDir = path.join(process.cwd(), 'src', 'data');
+  const unifiedDataDir = path.join(process.cwd(), 'data');
   const unifiedUsersFile = path.join(unifiedDataDir, 'users.json');
   let users = [];
   try { users = JSON.parse(fs.readFileSync(unifiedUsersFile, 'utf8')).map(u => ({id: u.id, email: u.email, passwordLen: u.password ? u.password.length : 0})); } catch(e) { users = []; }
-  res.json({ dataDir: unifiedDataDir, usersFile: unifiedUsersFile, count: users.length, users });
+  res.json({ cwd: process.cwd(), dataDir: unifiedDataDir, usersFile: unifiedUsersFile, count: users.length, users });
 });
 
 // ==========================================
@@ -304,7 +303,7 @@ app.get('/api/debug/find-user', async (req, res) => {
 // ==========================================
 app.get('/api/debug/users', (req, res) => {
   try {
-    const DATA_DIR = path.join(process.cwd(), 'src', 'data');
+    const DATA_DIR = path.join(process.cwd(), 'data');
     const USERS_FILE = path.join(DATA_DIR, 'users.json');
     const content = fs.readFileSync(USERS_FILE, 'utf8');
     const users = JSON.parse(content);

@@ -6,8 +6,9 @@ import { fileURLToPath } from 'url';
 
 // JSON文件兜底（auth.min.js 注册用户先写 JSON，异步同步 PG）
 // authMiddleware 通过这里找用户，必须支持 JSON 文件兜底
-// 路径必须与 auth.min.js 完全一致，使用 cwd + 'src/data' 方式确保一致性
-const DATA_DIR = path.join(process.cwd(), 'src', 'data');
+// 路径必须与 auth.min.js 完全一致，使用 cwd + 'data' 方式确保一致性
+// Render 的 process.cwd() = /opt/render/project/src/（backend 目录）
+const DATA_DIR = path.join(process.cwd(), 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 
 function findUserInJsonFile(id) {
