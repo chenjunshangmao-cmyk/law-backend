@@ -480,7 +480,7 @@ router.post('/notify', async (req, res) => {
       return res.status(403).send('fail');
     }
     const data = req.body;
-    console.log('[收钱吧] 回调收到:', data);
+    console.log('[收钱吧] 回调收到:', JSON.stringify(data));
 
     // 保存本地订单状态（供前端轮询）并持久化到文件
     if (data.client_sn) {
@@ -499,8 +499,51 @@ router.post('/notify', async (req, res) => {
       console.log('[收钱吧] 订单状态已缓存+持久化:', data.client_sn, '→', data.order_status);
     }
 
-    if (data.order_status === 'PAID') {
-      console.log('[收钱吧] ✅ 订单 ' + data.client_sn + ' 支付成功，金额:' + (data.total_amount / 100) + '元');
+    // 支付成功：更新数据库订单 + 升级会员
+    // 兼容两种订单号格式：CLAWxxx (payment.createOrder) 和 claw-plantype-xxx (shouqianba.createOrder)
+    if (data.order_status === 'PAID' && data.client_sn) {
+      const clientSn = data.client_sn;
+      console.log('[收钱吧] ✅ 订单 ' + clientSn + ' 支付成功，金额:' + (data.total_amount / 100) + '元');
+
+      try {
+        // 1. 先尝试更新 payment_orders 表（payment.createOrder 创建的订单）
+        const orderResult = await pool.query(
+          'SELECT * FROM payment_orders WHERE order_no = $1',
+          [clientSn]
+        );
+
+        if (orderResult.rows.length > 0) {
+          const order = orderResult.rows[0];
+          // 防止重复处理
+          if (order.status !== 'paid') {
+            // 更新订单状态
+            await pool.query(
+              `UPDATE payment_orders SET status = 'paid', payway = $1, paid_at = NOW(), updated_at = NOW() WHERE order_no = $2`,
+              [data.payway || null, clientSn]
+            );
+
+            // 升级会员
+            await upgradeMembershipDirect(order.user_id, order.plan_type);
+            console.log('[收钱吧] 会员已升级: user=' + order.user_id + ', plan=' + order.plan_type);
+          } else {
+            console.log('[收钱吧] 订单 ' + clientSn + ' 已处理过（paid），跳过');
+          }
+        } else {
+          // 2. 如果是 shouqianba.createOrder 创建的（clientSn=claw-plantype-timestamp 格式）
+          // 尝试从 clientSn 解析 planType
+          const planMatch = clientSn.match(/^claw-(\w+)-/);
+          if (planMatch) {
+            const planType = planMatch[1];
+            console.log('[收钱吧] shouqianba.createOrder 订单，解析plan=' + planType + '，但缺少userId，无法升级会员');
+            // 这种格式缺少 userId，需要在 create-order 时也写入 payment_orders
+            // 此处仅记录日志，后续增强 create-order 路由
+          } else {
+            console.log('[收钱吧] 未知订单格式: ' + clientSn);
+          }
+        }
+      } catch (dbErr) {
+        console.error('[收钱吧] 更新数据库失败:', dbErr.message);
+      }
     }
     res.send('success');
   } catch (err) {
@@ -508,6 +551,45 @@ router.post('/notify', async (req, res) => {
     res.status(500).send('fail');
   }
 });
+
+/**
+ * 直接升级会员（与 payment.db.js 的 upgradeUserMembership 保持一致）
+ * 在回调中直接调用，不需要跨模块导入
+ */
+async function upgradeMembershipDirect(userId, planType) {
+  if (!userId || !planType) {
+    console.log('[收钱吧] 升级会员跳过: 缺少 userId 或 planType');
+    return;
+  }
+  try {
+    // 套餐定义
+    const PLANS = {
+      basic: { name: '基础版', duration: 30 },
+      premium: { name: '高级版', duration: 30 },
+      enterprise: { name: '企业版', duration: 30 },
+      vip: { name: 'VIP版', duration: 30 }
+    };
+
+    const planInfo = PLANS[planType];
+    if (!planInfo) {
+      console.log('[收钱吧] 未找到套餐 ' + planType + ' 的配置，跳过');
+      return;
+    }
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + planInfo.duration);
+
+    // 更新用户 membership
+    await pool.query(
+      'UPDATE users SET membership_type = $1, membership_expires_at = $2, updated_at = NOW() WHERE id::text = $3',
+      [planType, expiresAt, userId]
+    );
+
+    console.log('[收钱吧] ✅ 用户 ' + userId + ' 升级到 ' + planType + '，有效期至 ' + expiresAt.toISOString());
+  } catch (error) {
+    console.error('[收钱吧] 升级会员失败:', error.message);
+  }
+}
 
 // return_url 跳转页（收钱吧支付完成后跳转到这里）
 // 跳转到不需要登录的公开页面 /payment-result，避免被路由守卫踢到登录页
