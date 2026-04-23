@@ -109,7 +109,7 @@ app.get('/api/health', healthCheck);
 app.get('/api/version', (req, res) => {
   res.json({
     success: true,
-    version: '1.1.0423',
+    version: '1.1.0423b',
     buildTime: '2026-04-23',
     mode: process.env.DATABASE_URL ? 'database' : 'memory'
   });
