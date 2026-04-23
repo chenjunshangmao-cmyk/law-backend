@@ -106,10 +106,17 @@ export const errorHandler = (err, req, res, next) => {
     path
   };
 
-  // 始终附加原始错误信息（便于调试），生产环境下 error 字段用通用消息，detail 字段放原始信息
-  if (err.message && message !== err.message) {
-    errorResponse.detail = err.message;
-    errorResponse.error = message;
+  // 调试用：附加原始错误详情（detail），区分字符串错误和对象错误
+  const rawMsg = typeof err === 'string' ? err : (err.message || '');
+  if (rawMsg && rawMsg !== message) {
+    errorResponse.detail = rawMsg;
+    errorResponse.error = message; // 保持 sanitized 消息在前端显示
+  }
+  // 原始 error 对象（用于调试）
+  if (process.env.NODE_ENV !== 'production' || rawMsg) {
+    if (typeof err !== 'string' && err.stack) {
+      errorResponse.debugStack = err.stack;
+    }
   }
 
   // 如果有详细错误信息
