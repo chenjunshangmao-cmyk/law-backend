@@ -298,14 +298,27 @@ app.get('/api/debug/pg-test', async (req, res) => {
 // ==========================================
 // 调试端点：直接测试 findUserById
 // ==========================================
+// 直接在 index.db.js 里读取 JSON，绕过 dbService
+app.get('/api/debug/json-find', async (req, res) => {
+  const { userId } = req.query;
+  const DATA_DIR = path.join(process.cwd(), 'data');
+  const USERS_FILE = path.join(DATA_DIR, 'users.json');
+  try {
+    const raw = fs.readFileSync(USERS_FILE, 'utf8');
+    const users = JSON.parse(raw);
+    const found = users.find(u => u.id === userId || u.email === userId);
+    res.json({ userId, cwd: process.cwd(), path: USERS_FILE, count: users.length, ids: users.map(u=>u.id), directFind: found ? {id:found.id, email:found.email} : null });
+  } catch(e) {
+    res.json({ userId, cwd: process.cwd(), path: USERS_FILE, error: e.message });
+  }
+});
+
 app.get('/api/debug/find-user', async (req, res) => {
   const { userId } = req.query;
   if (!userId) {
     return res.json({ error: '需要 userId 参数', example: '/api/debug/find-user?userId=xxx' });
   }
   try {
-    // 打印详细日志
-    const fs = await import('fs');
     const DATA_DIR = path.join(process.cwd(), 'data');
     const USERS_FILE = path.join(DATA_DIR, 'users.json');
     let fileContent = null;
