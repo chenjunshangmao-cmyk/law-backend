@@ -125,14 +125,14 @@ const PLANS = {
   vip: { name: 'VIP版', price: 588800, duration: 30 }
 };
 
-// 业务服务配置
+// 业务服务配置（价格：元，后端内部×100转分）
 const SERVICES = {
-  'domestic-op': { name: '国内代运营', price: 500000 },      // ¥5000/月
-  'overseas-op': { name: '海外代运营', price: 500000 },      // ¥5000/月
-  'website-build': { name: '独立站搭建', price: 380000 },    // ¥3800/站
-  'youtube-live': { name: 'YouTube 直播号', price: 100000 }, // ¥1000/个
-  'facebook-live': { name: 'Facebook 直播推广号', price: 280000 }, // ¥2800/个
-  'ads-account': { name: '广告户开户', price: 50000 }        // ¥500/户
+  'domestic-op': { name: '国内代运营', price: 5000 },      // ¥5000/月
+  'overseas-op': { name: '海外代运营', price: 5000 },      // ¥5000/月
+  'website-build': { name: '独立站搭建', price: 3800 },    // ¥3800/站
+  'youtube-live': { name: 'YouTube 直播号', price: 1000 }, // ¥1000/个
+  'facebook-live': { name: 'Facebook 直播推广号', price: 2800 }, // ¥2800/个
+  'ads-account': { name: '广告户开户', price: 500 }        // ¥500/户
 };
 
 // 收钱吧终端配置（从共享终端缓存文件读取，与 shouqianba.db.js 同步）
@@ -200,7 +200,7 @@ router.post('/create', authenticateToken, async (req, res) => {
       const serviceInfo = SERVICES[serviceId];
       orderType = serviceId;
       orderName = serviceName || serviceInfo.name;
-      orderAmount = serviceInfo.price;
+      orderAmount = serviceInfo.price * 100; // 元→分，乘100
       subject = `Claw 业务服务 - ${orderName}`;
     } else if (serviceId && amount) {
       orderType = serviceId;
