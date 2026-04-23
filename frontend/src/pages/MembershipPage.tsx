@@ -27,11 +27,20 @@ const PLANS = [
   {
     id: 'enterprise',
     name: '企业版',
-    price: 1999,
+    price: 1599,
     priceUnit: '/月',
     icon: Building2,
     color: 'amber',
     features: ['无限 AI 文案生成', '无限图片生成', '无限产品管理', '全平台账号管理', '浏览器自动化', '专属客服经理', '私有部署方案'],
+  },
+  {
+    id: 'vip',
+    name: 'VIP版',
+    price: 5888,
+    priceUnit: '/月',
+    icon: Crown,
+    color: 'red',
+    features: ['企业版全部功能', '一对一专属顾问', '优先资源保障', '定制化培训', '独立服务器部署'],
   },
 ];
 
