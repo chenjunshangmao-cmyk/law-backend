@@ -283,6 +283,19 @@ app.get('/api/debug/paths', (req, res) => {
 });
 
 // ==========================================
+// 调试端点：测试 PostgreSQL 直接查询
+// ==========================================
+app.get('/api/debug/pg-test', async (req, res) => {
+  const { userId } = req.query;
+  try {
+    const r = await pool.query('SELECT id::text, email FROM users WHERE id::text = $1', [userId || 'none']);
+    res.json({ pgFound: r.rows.length > 0, rows: r.rows, cwd: process.cwd() });
+  } catch (e) {
+    res.json({ pgError: e.message, cwd: process.cwd() });
+  }
+});
+
+// ==========================================
 // 调试端点：直接测试 findUserById
 // ==========================================
 app.get('/api/debug/find-user', async (req, res) => {
@@ -294,7 +307,7 @@ app.get('/api/debug/find-user', async (req, res) => {
     const user = await findUserById(userId);
     res.json({ userId, found: !!user, user: user ? { id: user.id, email: user.email, name: user.name, role: user.role, passwordLen: user.password ? user.password.length : 0 } : null });
   } catch (e) {
-    res.json({ userId, error: e.message });
+    res.json({ userId, caughtError: e.message, stack: e.stack });
   }
 });
 
