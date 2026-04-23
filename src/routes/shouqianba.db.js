@@ -301,7 +301,8 @@ router.post('/checkin', async (req, res) => {
 // 创建支付订单（WAP跳转支付）
 router.post('/create-order', async (req, res) => {
   try {
-    const { deviceId = config.defaultDeviceId, clientSn, totalAmount, subject } = req.body;
+    const { deviceId = config.defaultDeviceId, clientSn, totalAmount, subject } = req.body || {};
+    console.log('[收钱吧] create-order 请求体:', JSON.stringify(req.body));
     if (!clientSn || !totalAmount || !subject) {
       return res.status(400).json({ success: false, error: '缺少必要参数' });
     }
