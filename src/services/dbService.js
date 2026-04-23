@@ -13,11 +13,24 @@ const USERS_FILE = path.join(DATA_DIR, 'users.json');
 
 function findUserInJsonFile(id) {
   try {
-    if (!fs.existsSync(USERS_FILE)) return null;
+    console.log('[JSON兜底] 尝试读取:', USERS_FILE);
+    console.log('[JSON兜底] 文件存在:', fs.existsSync(USERS_FILE));
+    if (!fs.existsSync(USERS_FILE)) {
+      console.log('[JSON兜底] 文件不存在，尝试创建目录...');
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        console.log('[JSON兜底] 目录已创建:', DATA_DIR);
+      }
+      return null;
+    }
     const users = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+    console.log('[JSON兜底] 文件读取成功，用户数:', users.length);
     // 按ID或email匹配
-    return users.find(u => u.id === id || u.email === id) || null;
-  } catch {
+    const found = users.find(u => u.id === id || u.email === id);
+    console.log('[JSON兜底] 查找', id, '结果:', found ? found.email : '未找到');
+    return found || null;
+  } catch (e) {
+    console.error('[JSON兜底] 读取失败:', e.message);
     return null;
   }
 }
