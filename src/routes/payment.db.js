@@ -4,10 +4,9 @@
 
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
+import { fileURLToPath } from 'url';
 import {
-  createWapPayment,
-  queryOrder,
-  handleNotify,
   generateQrCodeUrl
 } from '../services/shouqianba.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -15,8 +14,11 @@ import pool from '../config/database.js';
 import fs from 'fs';
 import path from 'path';
 
-// 从 shouqianba.db.js 共享的终端缓存文件读取（与 payment.db.js 共享同一终端数据源）
-const TERMINAL_FILE = path.join(process.cwd(), 'data', 'shouqianba-terminal.json');
+// 终端缓存文件路径：与 shouqianba.db.js 保持完全一致
+// shouqianba.db.js 写入: path.join(__dirname, '../../data/shouqianba-terminal.json')
+// __dirname = /app/src/routes，故 '../../data/' = /app/data/shouqianba-terminal.json
+const _paymentDir = path.dirname(fileURLToPath(import.meta.url));
+const TERMINAL_FILE = path.join(_paymentDir, '../../data', 'shouqianba-terminal.json');
 function loadTerminalCache() {
   try {
     if (fs.existsSync(TERMINAL_FILE)) {
@@ -208,28 +210,32 @@ router.post('/create', authenticateToken, async (req, res) => {
     let paymentResult;
 
     if (hasShouqianbaConfig) {
-      try {
-        paymentResult = await createWapPayment({
-          terminalSn: sn,
-          terminalKey: key,
-          clientSn: orderNo,
-          totalAmount: orderAmount,
-          subject: subject,
-          returnUrl: returnUrlFull,
-          notifyUrl: notifyUrl,
-          clientIp: clientIp
-        });
-      } catch (payErr) {
-        // 收钱吧 API 失败，降级为测试模式（5秒超时，不让用户等）
-        console.warn('[支付] 收钱吧API调用失败，降级为测试模式:', payErr.message);
-        paymentResult = {
-          sn: `TEST-${orderNo}`,
-          payUrl: null,
-          qrCode: null,
-          testMode: true,
-          message: '支付功能测试模式'
-        };
-      }
+      // 直接生成 WAP 支付 URL（与 shouqianba.db.js /create-order 保持完全一致）
+      // 使用正确的 GET 网关：https://m.wosai.cn/qr/gateway（实测可用）
+      const gatewayUrl = 'https://m.wosai.cn/qr/gateway';
+      const wapParams = {
+        terminal_sn: sn,
+        client_sn: orderNo,
+        total_amount: String(orderAmount),
+        subject,
+        return_url: returnUrlFull,
+        notify_url: notifyUrl,
+        operator: 'claw_admin'
+      };
+      // WAP 签名：参数排序 → key1=val1&key2=val2&... → MD5(内容 + & + terminalKey) → 大写
+      const sortedKeys = Object.keys(wapParams).sort();
+      const pairs = sortedKeys.map(k => `${k}=${wapParams[k]}`);
+      const signStr = pairs.join('&') + '&key=' + key;
+      const sign = crypto.createHash('md5').update(signStr).digest('hex').toUpperCase();
+      const payUrl = gatewayUrl + '?' + pairs.join('&') + '&sign=' + sign + '&sign_type=MD5';
+
+      console.log('[支付] WAP支付URL已生成:', payUrl.substring(0, 100) + '...');
+      paymentResult = {
+        sn: orderNo,
+        payUrl,
+        testMode: false,
+        message: '请在支付页面完成付款'
+      };
     } else {
       // 无有效终端配置，降级为测试模式（立即返回，不挂起）
       console.log('[支付] 无收钱吧配置，进入测试模式，订单号:', orderNo);
