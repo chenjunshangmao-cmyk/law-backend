@@ -359,6 +359,49 @@ app.get('/api/debug/users', (req, res) => {
   }
 });
 
+// 调试端点：直接测试 useMemoryMode 和 pool 状态
+app.get('/api/debug/db-state', async (req, res) => {
+  const { userId } = req.query;
+  try {
+    // 从 config/database.js 读取当前状态
+    const db = await import('./config/database.js');
+    const memMode = db.useMemoryMode;
+    const dbPool = db.pool;
+    // 直接查询 PG
+    let pgResult = null;
+    let pgError = null;
+    try {
+      if (dbPool) {
+        pgResult = await dbPool.query('SELECT id::text, email FROM users WHERE id::text = $1', [userId || 'none']);
+      } else {
+        pgError = 'pool is null';
+      }
+    } catch(e) {
+      pgError = e.message;
+    }
+    // 测试 dbService.findUserById
+    let svcResult = null;
+    let svcError = null;
+    try {
+      svcResult = await findUserById(userId || 'none');
+    } catch(e) {
+      svcError = e.message;
+    }
+    res.json({
+      userId: userId || '(none)',
+      useMemoryMode: memMode,
+      poolExists: !!dbPool,
+      poolIsNull: dbPool === null,
+      pgDirectResult: pgResult ? pgResult.rows : [],
+      pgDirectError: pgError,
+      dbServiceResult: svcResult,
+      dbServiceError: svcError
+    });
+  } catch (e) {
+    res.json({ error: e.message, stack: e.stack });
+  }
+});
+
 // 404处理
 app.use(notFoundHandler);
 
