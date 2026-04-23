@@ -6,6 +6,7 @@
  */
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'https://claw-backend-2026.onrender.com';
+export const API_BASE_URL = BASE_URL;
 const DEFAULT_TIMEOUT = 60000; // 60秒，处理 Render 冷启动
 
 function getToken(): string | null {
@@ -58,7 +59,9 @@ export async function authFetch(path: string, options: RequestInit = {}): Promis
     throw new Error(data?.error || data?.message || `请求失败 (${response.status})`);
   }
 
-  return data;
+  // 后端统一返回格式 { success: true, data: {...} }
+  // 直接返回 data 字段，保持与其他 API 一致
+  return data.data || data;
 }
 
 export async function publicFetch(path: string, options: RequestInit = {}): Promise<any> {
@@ -80,13 +83,16 @@ export async function publicFetch(path: string, options: RequestInit = {}): Prom
     throw new Error(`网络错误：${err.message}`);
   }
 
+  // 不再自动 logout，让调用方处理 401
   const data = await response.json().catch(() => ({}));
   
   if (!response.ok) {
     throw new Error(data?.error || data?.message || `请求失败 (${response.status})`);
   }
 
-  return data;
+  // 后端统一返回格式 { success: true, data: {...} }
+  // 直接返回 data 字段，保持与其他 API 一致
+  return data.data || data;
 }
 
 // ============================================================
@@ -211,8 +217,14 @@ export const api = {
     },
     
     status: (orderNo: string) => authFetch(`/api/payment/status/${orderNo}`),
-    
+
     orders: (page = 1, limit = 10) => authFetch(`/api/payment/orders?page=${page}&limit=${limit}`),
+
+    // 测试模式确认支付
+    confirmTest: (orderNo: string) => authFetch('/api/payment/confirm-test', {
+      method: 'POST',
+      body: JSON.stringify({ orderNo })
+    }),
   },
 
   // ============================================================
@@ -222,26 +234,16 @@ export const api = {
     activate: () => authFetch('/api/shouqianba/activate', { method: 'POST' }),
     checkin: () => authFetch('/api/shouqianba/checkin', { method: 'POST' }),
     status: () => authFetch('/api/shouqianba/status'),
-    // 使用原生 fetch 而非 authFetch，因为 authFetch 会剥离外层 {success, data} 结构
-    createOrder: async (planId: string, price: number, subject?: string) => {
-      const token = getToken();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const response = await fetchWithTimeout(`${BASE_URL}/api/shouqianba/create-order`, {
+    createOrder: (planId: string, price: number, subject?: string) =>
+      authFetch('/api/shouqianba/create-order', {
         method: 'POST',
-        headers,
         body: JSON.stringify({
           clientSn: `claw-${planId}-${Date.now()}`,
-          totalAmount: price,
-<<<<<<< HEAD
+          totalAmount: price,   // 金额（元，后端×100转分）
           subject: subject || `Claw会员-${planId}`,
           deviceId: 'claw-web-new3'
         })
-      }, 90000);
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result?.error || '创建收钱吧订单失败');
-      return result;
-    },
+      }),
     query: (sn: string) => authFetch(`/api/shouqianba/query?sn=${sn}`),
   },
 

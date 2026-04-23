@@ -12,8 +12,6 @@ import {
   Calculator,
   Crown,
   Settings,
-  Music,
-  Video,
   Bot,
   Menu,
   X,
@@ -22,7 +20,8 @@ import {
   ChevronRight,
   Globe,
   Zap,
-  DollarSign
+  DollarSign,
+  Receipt
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -35,8 +34,7 @@ const NAV_ITEMS = [
   { path: '/services',    icon: Briefcase,       label: '业务服务', color: 'text-cyan-500' },
   { path: '/calculator',  icon: Calculator,      label: '利润计算', color: 'text-green-500' },
   { path: '/membership',  icon: Crown,           label: '会员中心', color: 'text-yellow-500' },
-  { path: '/tiktok',      icon: Music,           label: 'TikTok', color: 'text-pink-500' },
-  { path: '/youtube',     icon: Video,           label: 'YouTube', color: 'text-red-600' },
+  { path: '/orders',     icon: Receipt,         label: '订单', color: 'text-orange-500' },
   { path: '/avatar',      icon: Bot,             label: 'AI数字人', color: 'text-violet-500' },
   { path: '/settings',    icon: Settings,        label: '设置', color: 'text-gray-500' },
 ];

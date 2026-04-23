@@ -10,8 +10,8 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../deploy-package',
-    emptyOutDir: false,
+    outDir: '../complete-deploy',
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         entryFileNames: 'assets/app.js',

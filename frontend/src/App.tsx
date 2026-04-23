@@ -19,6 +19,7 @@ const SettingsPage       = lazy(() => import('./pages/SettingsPage'));
 const TikTokPage          = lazy(() => import('./pages/TikTokPage'));
 const YouTubePage          = lazy(() => import('./pages/YouTubePage'));
 const AvatarPage           = lazy(() => import('./pages/AvatarPage'));
+const OrdersPage           = lazy(() => import('./pages/OrdersPage'));
 
 // Google OAuth 回调处理组件（处理 google_token + google_user URL参数）
 function GoogleCallbackHandler({ children }: { children: React.ReactNode }) {
@@ -116,6 +117,7 @@ function AppRoutes() {
         <Route path="tiktok"         element={<Suspense fallback={<PageLoading />}><TikTokPage /></Suspense>} />
         <Route path="youtube"        element={<Suspense fallback={<PageLoading />}><YouTubePage /></Suspense>} />
         <Route path="avatar"         element={<Suspense fallback={<PageLoading />}><AvatarPage /></Suspense>} />
+        <Route path="orders"        element={<Suspense fallback={<PageLoading />}><OrdersPage /></Suspense>} />
       </Route>
 
       {/* 兜底 */}

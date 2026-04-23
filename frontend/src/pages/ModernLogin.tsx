@@ -35,7 +35,7 @@ export default function ModernLogin() {
         google_callback_failed: '登录失败，请重试',
         callback_failed: '登录处理失败，请重试',
       };
-      setError(errorMessages[authError] || '登录失败，请重试');
+      setError((errorMessages as Record<string, string>)[authError] || '登录失败，请重试');
     }
   }, [searchParams]);
 
@@ -45,16 +45,10 @@ export default function ModernLogin() {
     setError('');
 
     try {
-      const response = await api.auth.login(email, password);
-      
-      if (response.success) {
-        await login(response.data.token, response.data.user);
-        navigate('/dashboard');
-      } else {
-        setError(response.error || '登录失败');
-      }
+      await login(email, password);
+      navigate('/dashboard');
     } catch (err: any) {
-      setError(err.message || '网络错误，请稍后重试');
+      setError(err.message || '登录失败，请重试');
     } finally {
       setLoading(false);
     }

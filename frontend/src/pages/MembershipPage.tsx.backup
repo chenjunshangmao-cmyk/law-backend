@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, Crown, Zap, Building2, ExternalLink, QrCode, RefreshCw } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -87,7 +87,7 @@ export default function MembershipPage() {
   };
 
   // 收钱吧支付（微信/支付宝）
-  const [sqOrder, setSqOrder] = useState<{ sn: string; clientSn: string; qrCode: string; totalAmount: string; payway?: string } | null>(null);
+  const [sqOrder, setSqOrder] = useState<{ sn: string; clientSn: string; payUrl: string; totalAmount: string } | null>(null);
   const [sqPolling, setSqPolling] = useState(false);
 
   const handleShouqianbaPay = async (planId: string, price: number) => {
@@ -208,7 +208,7 @@ export default function MembershipPage() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900">
-                {PLANS.find(p => p.id === selectedPlan)?.name} - ¥{Number(sqOrder.totalAmount)}
+                {PLANS.find(p => p.id === selectedPlan)?.name} - ¥{Number(sqOrder.totalAmount) / 100}
               </h2>
               <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">收钱吧</span>
             </div>
@@ -217,15 +217,15 @@ export default function MembershipPage() {
               请用 <b>微信</b> 或 <b>支付宝</b> 扫码支付
             </div>
 
-            {sqOrder.qrCode && (
+            {sqOrder.payUrl && (
               <div className="text-center mb-4">
                 <img
-                  src={sqOrder.qrCode}
+                  src={sqOrder.payUrl ? 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(sqOrder.payUrl) : ''}
                   alt="支付二维码"
                   className="mx-auto rounded-lg border border-gray-200"
                   style={{ width: 200, height: 200 }}
                 />
-                <p className="text-xs text-gray-500 mt-2">请用{sqOrder.payway === 'ALIPAY' ? '支付宝' : '微信'}扫码支付</p>
+                <p className="text-xs text-gray-500 mt-2">扫码 → 打开微信/支付宝支付</p>
               </div>
             )}
 
@@ -349,7 +349,19 @@ export default function MembershipPage() {
                 ))}
               </ul>
               
-              
+              <button
+                onClick={() => handlePay(plan.id)}
+                disabled={loading || isCurrentPlan}
+                className={`w-full py-2.5 rounded-xl font-medium transition-colors text-sm mb-2 ${
+                  isCurrentPlan
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : plan.popular
+                    ? 'bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50'
+                    : `bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50`
+                }`}
+              >
+                {isCurrentPlan ? '当前套餐' : loading && selectedPlan === plan.id ? '处理中...' : '💳 银行卡支付'}
+              </button>
               {!isCurrentPlan && (
                 <button
                   onClick={() => handleShouqianbaPay(plan.id, plan.price)}

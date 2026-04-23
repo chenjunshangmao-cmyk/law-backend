@@ -238,7 +238,7 @@ export default function HomePage() {
       {/* 页脚 */}
       <footer className="bg-gray-900 text-gray-400 py-8 px-6 text-center text-sm">
         <p>© 2026 Claw · 智能外贸一站式平台 · 让全球贸易更简单</p>
-        <p className="mt-2 text-xs text-gray-500">前端 v1.1.0422 · 后端 v{backendVersion}</p>
+        <p className="mt-2 text-xs text-gray-500">前端 v1.1.0423 · 后端 v{backendVersion}</p>
       </footer>
     </div>
   );

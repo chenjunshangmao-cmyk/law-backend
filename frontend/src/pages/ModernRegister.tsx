@@ -10,9 +10,11 @@ import {
   CheckCircle
 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function ModernRegister() {
   const navigate = useNavigate();
+  const { register } = useAuth();
   const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -34,14 +36,10 @@ export default function ModernRegister() {
 
     setLoading(true);
     try {
-      const res = await api.auth.register(form.email, form.password, form.name);
-      if (res.success) {
-        setSuccess(true);
-      } else {
-        setError(res.error || '注册失败，请重试');
-      }
+      await register(form.email, form.password, form.name);
+      setSuccess(true);
     } catch (err: any) {
-      setError(err?.response?.data?.error || '注册失败，请重试');
+      setError(err.message || '注册失败，请重试');
     } finally {
       setLoading(false);
     }

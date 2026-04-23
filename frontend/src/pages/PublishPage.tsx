@@ -176,17 +176,17 @@ function PlatformCard({
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         gap: 6, padding: '12px 20px',
         background: active ? cfg.gradient : 'transparent',
-        border: `2px solid ${active ? 'transparent' : '#2A2D3A'}`,
+        border: `2px solid ${active ? 'transparent' : '#e2e8f0'}`,
         borderRadius: 12,
         cursor: 'pointer', minWidth: 110,
         transition: 'all 0.2s ease',
         boxShadow: active ? `0 4px 20px ${cfg.color}40` : 'none',
       }}
     >
-      <Icon size={22} color={active ? '#fff' : '#8B90A0'} />
+      <Icon size={22} color={active ? '#fff' : '#64748b'} />
       <span style={{
         fontSize: 13, fontWeight: 700,
-        color: active ? '#fff' : '#8B90A0',
+        color: active ? '#fff' : '#64748b',
       }}>{cfg.label}</span>
       <span style={{ fontSize: 10, color: active ? 'rgba(255,255,255,0.7)' : '#555' }}>
         {cfg.sublabel}
@@ -216,15 +216,15 @@ function AccountCard({
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '10px 12px',
         background: active ? `${cfg.color}18` : '#1A1D27',
-        border: `2px solid ${active ? cfg.color : '#2A2D3A'}`,
+        border: `2px solid ${active ? cfg.color : '#e2e8f0'}`,
         borderRadius: 10,
         cursor: 'pointer',
         transition: 'all 0.15s ease',
       }}
     >
-      <Icon size={18} color={active ? cfg.color : '#8B90A0'} />
+      <Icon size={18} color={active ? cfg.color : '#64748b'} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: active ? '#F1F3F5' : '#8B90A0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: active ? '#1e293b' : '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {account.name}
         </div>
         <div style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -265,9 +265,9 @@ function ModeTab({ mode, active, onClick }: { mode: PublishMode; active: boolean
         display: 'flex', alignItems: 'center', gap: 6,
         padding: '8px 16px',
         background: active ? cfg.color : 'transparent',
-        border: `1.5px solid ${active ? cfg.color : '#2A2D3A'}`,
+        border: `1.5px solid ${active ? cfg.color : '#e2e8f0'}`,
         borderRadius: 8,
-        cursor: 'pointer', color: active ? '#fff' : '#8B90A0',
+        cursor: 'pointer', color: active ? '#fff' : '#64748b',
         fontSize: 13, fontWeight: 600,
         transition: 'all 0.15s ease',
         whiteSpace: 'nowrap',
@@ -285,7 +285,7 @@ function ModeTab({ mode, active, onClick }: { mode: PublishMode; active: boolean
 function FormField({ label, children, required, style }: { label: string; children: React.ReactNode; required?: boolean; style?: React.CSSProperties }) {
   return (
     <div style={style}>
-      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#8B90A0', marginBottom: 6 }}>
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6 }}>
         {label} {required && <span style={{ color: '#EF4444' }}>*</span>}
       </label>
       {children}
@@ -305,14 +305,14 @@ function Input({ value, onChange, placeholder, type = 'text', style = {} }: {
       type={type}
       style={{
         width: '100%', padding: '10px 12px',
-        background: '#0F1117', border: '1.5px solid #2A2D3A',
-        borderRadius: 8, color: '#F1F3F5', fontSize: 13,
+        background: '#f8fafc', border: '1.5px solid #e2e8f0',
+        borderRadius: 8, color: '#1e293b', fontSize: 13,
         outline: 'none', boxSizing: 'border-box',
         transition: 'border-color 0.15s',
         ...style,
       }}
       onFocus={e => e.target.style.borderColor = '#6366F1'}
-      onBlur={e => e.target.style.borderColor = '#2A2D3A'}
+      onBlur={e => e.target.style.borderColor = '#e2e8f0'}
     />
   );
 }
@@ -329,13 +329,13 @@ function Textarea({ value, onChange, placeholder, rows = 4 }: {
       rows={rows}
       style={{
         width: '100%', padding: '10px 12px',
-        background: '#0F1117', border: '1.5px solid #2A2D3A',
-        borderRadius: 8, color: '#F1F3F5', fontSize: 13,
+        background: '#f8fafc', border: '1.5px solid #e2e8f0',
+        borderRadius: 8, color: '#1e293b', fontSize: 13,
         outline: 'none', resize: 'vertical', boxSizing: 'border-box',
         fontFamily: 'inherit',
       }}
       onFocus={e => e.target.style.borderColor = '#6366F1'}
-      onBlur={e => e.target.style.borderColor = '#2A2D3A'}
+      onBlur={e => e.target.style.borderColor = '#e2e8f0'}
     />
   );
 }
@@ -350,8 +350,8 @@ function Select({ value, onChange, options }: {
       onChange={onChange}
       style={{
         width: '100%', padding: '10px 12px',
-        background: '#0F1117', border: '1.5px solid #2A2D3A',
-        borderRadius: 8, color: '#F1F3F5', fontSize: 13,
+        background: '#f8fafc', border: '1.5px solid #e2e8f0',
+        borderRadius: 8, color: '#1e293b', fontSize: 13,
         outline: 'none', boxSizing: 'border-box',
         cursor: 'pointer',
       }}
@@ -626,7 +626,7 @@ export default function PublishPage() {
   const cfg = PLATFORM_CONFIG[platform];
 
   return (
-    <div style={{ padding: '24px', minHeight: '100vh', background: '#0F1117', color: '#F1F3F5' }}>
+    <div style={{ padding: '24px', minHeight: '100vh', background: '#f8fafc', color: '#1e293b' }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         .spin { animation: spin 1s linear infinite; }
@@ -636,10 +636,10 @@ export default function PublishPage() {
       {/* 页面标题 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#F1F3F5' }}>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e293b' }}>
             🚀 社媒发布中心
           </h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#8B90A0' }}>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>
             多平台 · 多账号 · 多模式 · 一站式发布
           </p>
         </div>
@@ -665,7 +665,7 @@ export default function PublishPage() {
       <div style={{
         display: 'flex', gap: 12, marginBottom: 24,
         padding: '16px 20px',
-        background: '#1A1D27', borderRadius: 14, border: '1px solid #2A2D3A'
+        background: '#1A1D27', borderRadius: 14, border: '1px solid #e2e8f0'
       }}>
         {(['tiktok_shop', 'tiktok_web', 'youtube'] as Platform[]).map(p => (
           <PlatformCard
@@ -694,7 +694,7 @@ export default function PublishPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20 }}>
         {/* 左侧：账号管理 */}
         <div style={{
-          background: '#1A1D27', borderRadius: 14, border: '1px solid #2A2D3A',
+          background: '#1A1D27', borderRadius: 14, border: '1px solid #e2e8f0',
           padding: 16, display: 'flex', flexDirection: 'column', gap: 12,
           height: 'fit-content', position: 'sticky', top: 16,
         }}>
@@ -703,7 +703,7 @@ export default function PublishPage() {
               <Users size={16} color={cfg.color} />
               <span style={{ fontSize: 14, fontWeight: 700 }}>账号管理</span>
             </div>
-            <span style={{ fontSize: 11, color: '#555', background: '#2A2D3A', padding: '2px 8px', borderRadius: 6 }}>
+            <span style={{ fontSize: 11, color: '#555', background: '#e2e8f0', padding: '2px 8px', borderRadius: 6 }}>
               {platformAccounts.length} 个账号
             </span>
           </div>
@@ -711,7 +711,7 @@ export default function PublishPage() {
           {platformAccounts.length === 0 ? (
             <div style={{
               textAlign: 'center', padding: '32px 16px', color: '#555', fontSize: 13,
-              border: '1.5px dashed #2A2D3A', borderRadius: 10,
+              border: '1.5px dashed #e2e8f0', borderRadius: 10,
             }}>
               <Users size={28} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.4 }} />
               暂无{cfg.label}账号<br />
@@ -734,7 +734,7 @@ export default function PublishPage() {
 
           {/* 快速登录提示 */}
           <div style={{
-            padding: 10, borderRadius: 8, background: '#0F1117',
+            padding: 10, borderRadius: 8, background: '#f8fafc',
             fontSize: 11, color: '#555', lineHeight: 1.6,
           }}>
             💡 提示：添加账号后，请前往账号设置页面完成浏览器登录授权
@@ -747,7 +747,7 @@ export default function PublishPage() {
           <div style={{
             display: 'flex', gap: 8, flexWrap: 'wrap',
             padding: '12px 16px',
-            background: '#1A1D27', borderRadius: 12, border: '1px solid #2A2D3A',
+            background: '#1A1D27', borderRadius: 12, border: '1px solid #e2e8f0',
           }}>
             {PLATFORM_CONFIG[platform].modes.map(m => (
               <ModeTab
@@ -766,8 +766,8 @@ export default function PublishPage() {
               border: '1px solid #4285F4', textAlign: 'center',
             }}>
               <Shield size={48} color="#4285F4" style={{ margin: '0 auto 16px', display: 'block' }} />
-              <h3 style={{ margin: '0 0 8px', fontSize: 18, color: '#F1F3F5' }}>Google Cloud OAuth 授权</h3>
-              <p style={{ margin: '0 0 24px', fontSize: 13, color: '#8B90A0', lineHeight: 1.7 }}>
+              <h3 style={{ margin: '0 0 8px', fontSize: 18, color: '#1e293b' }}>Google Cloud OAuth 授权</h3>
+              <p style={{ margin: '0 0 24px', fontSize: 13, color: '#64748b', lineHeight: 1.7 }}>
                 点击下方按钮，跳转到 Google 授权页面<br />
                 授权 Claw 操作您的 YouTube 频道（上传视频、管理内容）
               </p>
@@ -789,8 +789,8 @@ export default function PublishPage() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8,
                     padding: '12px 20px',
-                    background: 'transparent', border: '1.5px solid #2A2D3A', borderRadius: 10,
-                    color: '#8B90A0', fontSize: 14, fontWeight: 600,
+                    background: 'transparent', border: '1.5px solid #e2e8f0', borderRadius: 10,
+                    color: '#64748b', fontSize: 14, fontWeight: 600,
                     cursor: 'pointer',
                   }}
                 >
@@ -807,7 +807,7 @@ export default function PublishPage() {
           {mode !== 'oauth' && (
             <div style={{
               padding: 24, background: '#1A1D27', borderRadius: 14,
-              border: '1px solid #2A2D3A',
+              border: '1px solid #e2e8f0',
             }}>
               {/* 当前账号信息 */}
               {activeAccount ? (
@@ -819,10 +819,10 @@ export default function PublishPage() {
                 }}>
                   <Icon1 platform={activeAccount.platform} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#F1F3F5' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
                       {activeAccount.name}
                     </div>
-                    <div style={{ fontSize: 11, color: '#8B90A0' }}>{activeAccount.email}</div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>{activeAccount.email}</div>
                   </div>
                   <StatusBadge status={activeAccount.status} />
                 </div>
@@ -858,8 +858,8 @@ export default function PublishPage() {
                         type="number"
                         style={{
                           width: '100%', padding: '10px 12px 10px 28px',
-                          background: '#0F1117', border: '1.5px solid #2A2D3A',
-                          borderRadius: 8, color: '#F1F3F5', fontSize: 13,
+                          background: '#f8fafc', border: '1.5px solid #e2e8f0',
+                          borderRadius: 8, color: '#1e293b', fontSize: 13,
                           outline: 'none', boxSizing: 'border-box',
                         }}
                       />
@@ -893,8 +893,8 @@ export default function PublishPage() {
                               flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                               padding: '8px 6px',
                               background: form.privacy === opt.value ? '#EF444420' : 'transparent',
-                              border: `1.5px solid ${form.privacy === opt.value ? '#EF4444' : '#2A2D3A'}`,
-                              borderRadius: 8, color: form.privacy === opt.value ? '#EF4444' : '#8B90A0',
+                              border: `1.5px solid ${form.privacy === opt.value ? '#EF4444' : '#e2e8f0'}`,
+                              borderRadius: 8, color: form.privacy === opt.value ? '#EF4444' : '#64748b',
                               fontSize: 12, fontWeight: 600, cursor: 'pointer',
                             }}
                           >
@@ -980,7 +980,7 @@ export default function PublishPage() {
                       onClick={() => document.getElementById('img-upload')?.click()}
                       style={{
                         padding: '24px', textAlign: 'center',
-                        background: '#0F1117', border: '2px dashed #2A2D3A',
+                        background: '#f8fafc', border: '2px dashed #e2e8f0',
                         borderRadius: 10, cursor: 'pointer', color: '#555',
                         fontSize: 13,
                       }}
@@ -1048,7 +1048,7 @@ export default function PublishPage() {
                   style={{
                     flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                     padding: '12px',
-                    background: activeAccount ? cfg.gradient : '#2A2D3A',
+                    background: activeAccount ? cfg.gradient : '#e2e8f0',
                     border: 'none', borderRadius: 10,
                     color: '#fff', fontSize: 14, fontWeight: 800,
                     cursor: (publishing || !activeAccount) ? 'not-allowed' : 'pointer',
@@ -1086,9 +1086,9 @@ export default function PublishPage() {
           {tasks.length > 0 && (
             <div style={{
               padding: 16, background: '#1A1D27', borderRadius: 14,
-              border: '1px solid #2A2D3A',
+              border: '1px solid #e2e8f0',
             }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: '#F1F3F5' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: '#1e293b' }}>
                 📋 发布历史
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1096,11 +1096,11 @@ export default function PublishPage() {
                   <div key={task.id} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '10px 12px',
-                    background: '#0F1117', borderRadius: 8,
+                    background: '#f8fafc', borderRadius: 8,
                   }}>
                     <PlatformIcon platform={task.platform} size={14} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#F1F3F5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {task.title}
                       </div>
                       <div style={{ fontSize: 10, color: '#555' }}>
@@ -1129,11 +1129,11 @@ export default function PublishPage() {
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              background: '#1A1D27', border: '1px solid #2A2D3A',
+              background: '#1A1D27', border: '1px solid #e2e8f0',
               borderRadius: 16, padding: 28, width: 400,
             }}
           >
-            <h3 style={{ margin: '0 0 20px', fontSize: 18, color: '#F1F3F5' }}>
+            <h3 style={{ margin: '0 0 20px', fontSize: 18, color: '#1e293b' }}>
               添加 {PLATFORM_CONFIG[platform].label} 账号
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1157,8 +1157,8 @@ export default function PublishPage() {
                 onClick={() => setShowAddAccount(false)}
                 style={{
                   flex: 1, padding: '10px', background: 'transparent',
-                  border: '1.5px solid #2A2D3A', borderRadius: 10,
-                  color: '#8B90A0', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  border: '1.5px solid #e2e8f0', borderRadius: 10,
+                  color: '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer',
                 }}
               >取消</button>
               <button
@@ -1167,7 +1167,7 @@ export default function PublishPage() {
                 style={{
                   flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   padding: '10px',
-                  background: addingAccount ? '#2A2D3A' : cfg.gradient,
+                  background: addingAccount ? '#e2e8f0' : cfg.gradient,
                   border: 'none', borderRadius: 10,
                   color: '#fff', fontSize: 13, fontWeight: 700,
                   cursor: (addingAccount || !addForm.name || !addForm.email) ? 'not-allowed' : 'pointer',

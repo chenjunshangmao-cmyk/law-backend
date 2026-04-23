@@ -83,6 +83,13 @@ API端点：
 - GitHub（law-backend，触发Render部署）: git@github.com:chenjunshangmao-cmyk/law-backend.git
 - SSH key: id_ed25519（公钥 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOh4gc6ogBRCl4Q0DZXiyyGavaf3MvbvEwsvHl5RlELT）
 
+## 收钱吧核心配置（2026-04-23 正式可用）
+- 终端 SN：100111220054389553
+- terminalKey：96bfaf401367d934cb10a1cbe9773647（WAP签名+回调验签均用此密钥）
+- vendorKey：677da351628d3fe7664321669c3439b2（已废弃）
+- 金额单位：永远是分（199元=19900）
+- 完整文档：C:\Users\Administrator\WorkBuddy\Claw\收钱吧完整技术文档.md
+
 ## 部署状态（2026-04-20 20:30 修复）
 - **前端**: Cloudflare Pages ✅ 修复后重新部署：https://df98523c.claw-app-2026.pages.dev
   - 问题：complete-deploy缺少deploy-package的4个关键文件（chat-widget/platform-nav/app-styles/index-DmCeXBoo）

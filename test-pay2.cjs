@@ -1,4 +1,4 @@
-// 测试支付接口（CommonJS）
+// 完整支付流程测试（.cjs = CommonJS）
 const https = require('https');
 
 function post(url, body, token) {
@@ -30,42 +30,44 @@ function post(url, body, token) {
     });
 
     req.on('error', reject);
-    req.setTimeout(15000, () => { req.destroy(); reject(new Error('Timeout')); });
+    req.setTimeout(20000, () => { req.destroy(); reject(new Error('Timeout')); });
     req.write(data);
     req.end();
   });
 }
 
 async function main() {
-  const email = 'testpay' + Date.now() + '@t.com';
-  console.log('1. 注册测试用户:', email);
+  // 1. 注册
+  const email = 'clawtest_' + Date.now() + '@test.com';
+  console.log('1. 注册用户:', email);
   const reg = await post('https://claw-backend-2026.onrender.com/api/auth/register', {
-    email, password: 'Test123456', name: '测试'
+    email, password: 'Test123456', name: '测试用户'
   });
-  console.log('   注册结果:', JSON.stringify(reg));
-
-  if (!reg.data?.success || !reg.data?.data?.token) {
-    console.log('❌ 注册失败，无法继续测试');
+  console.log('   状态:', reg.status, '| success:', reg.data?.success);
+  if (!reg.data?.success) {
+    console.log('❌ 注册失败:', JSON.stringify(reg.data));
     return;
   }
-
   const token = reg.data.data.token;
-  console.log('✅ 注册成功，token:', token.substring(0, 30) + '...');
+  console.log('   ✅ token:', token.substring(0, 30) + '...');
 
+  // 2. 创建支付订单
   console.log('\n2. 创建订单 (plan=basic)...');
   const order = await post('https://claw-backend-2026.onrender.com/api/payment/create',
     { plan: 'basic' },
     token
   );
-  console.log('   状态码:', order.status);
+  console.log('   状态:', order.status);
   console.log('   响应:', JSON.stringify(order.data, null, 2));
 
   if (order.status === 200 && order.data?.success) {
-    console.log('\n✅ 订单创建成功');
-    console.log('   orderNo:', order.data.data.orderNo);
-    console.log('   testMode:', order.data.data.testMode);
-    console.log('   payUrl:', order.data.data.payUrl ? '已生成' : '未生成');
-    console.log('   qrCode:', order.data.data.qrCode ? '已生成' : '未生成');
+    const d = order.data.data;
+    console.log('\n✅ 订单创建成功！');
+    console.log('   订单号:', d.orderNo);
+    console.log('   金额:', (d.amount / 100).toFixed(2), '元');
+    console.log('   测试模式:', d.testMode);
+    console.log('   支付链接:', d.payUrl ? d.payUrl.substring(0, 80) + '...' : '无');
+    console.log('   二维码:', d.qrCode ? '已生成 ✅' : '未生成 ❌');
   } else {
     console.log('\n❌ 订单创建失败:', order.data?.error || JSON.stringify(order.data));
   }
