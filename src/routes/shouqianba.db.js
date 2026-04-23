@@ -326,14 +326,23 @@ router.post('/create-order', async (req, res) => {
     let paywayResult = 'WEIXIN';
     try {
       const payResult = await sqbRequest('/upay/v2/pay', payBody, terminal.terminalSn, terminal.terminalKey);
-      qrCode = payResult.qr_code || payResult.code_url || null;
+      // 收钱吧API返回格式: { result_code, biz_response: { qr_code, ... }, error_message? }
+      if (payResult.result_code !== '200') {
+        throw new Error(payResult.error_message || '微信扫码支付失败(' + payResult.result_code + ')');
+      }
+      const biz = payResult.biz_response || payResult;
+      qrCode = biz.qr_code || biz.code_url || null;
       console.log('[收钱吧] 微信扫码支付二维码已生成');
     } catch (payErr) {
       console.warn('[收钱吧] 微信扫码支付失败，切换支付宝:', payErr.message);
       payBody.payway = 'ALIPAY';
       paywayResult = 'ALIPAY';
       const payResult = await sqbRequest('/upay/v2/pay', payBody, terminal.terminalSn, terminal.terminalKey);
-      qrCode = payResult.qr_code || payResult.code_url || null;
+      if (payResult.result_code !== '200') {
+        throw new Error(payResult.error_message || '支付宝扫码支付失败(' + payResult.result_code + ')');
+      }
+      const biz = payResult.biz_response || payResult;
+      qrCode = biz.qr_code || biz.code_url || null;
       console.log('[收钱吧] 支付宝扫码支付二维码已生成');
     }
 
