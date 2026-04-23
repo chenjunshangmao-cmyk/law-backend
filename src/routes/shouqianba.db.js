@@ -302,10 +302,17 @@ router.post('/checkin', async (req, res) => {
 // 参考：收钱吧C扫B最佳实践文档，用户扫码 → H5页面 → 点击支付按钮 → 唤起支付
 router.post('/create-order', async (req, res) => {
   try {
-    const { deviceId = config.defaultDeviceId, clientSn, totalAmount, subject } = req.body || {};
+    const { deviceId = config.defaultDeviceId, clientSn, totalAmount, subject, userId } = req.body || {};
     console.log('[收钱吧] create-order 请求体:', JSON.stringify(req.body));
     if (!clientSn || !totalAmount || !subject) {
       return res.status(400).json({ success: false, error: '缺少必要参数' });
+    }
+
+    // 解析 planType：clientSn 格式为 claw-{planType}-{timestamp}
+    let planType = null;
+    const planMatch = clientSn.match(/^claw-(\w+)-/);
+    if (planMatch) {
+      planType = planMatch[1];
     }
     const terminal = getTerminal(deviceId || config.defaultDeviceId);
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活，请先调用 /activate' });
@@ -335,7 +342,7 @@ router.post('/create-order', async (req, res) => {
       .join('&');
     const payUrl = gatewayUrl + '?' + queryString;
 
-    // 持久化订单
+    // 持久化订单（本地文件）
     saveOrder({
       clientSn, sn: clientSn,
       orderStatus: 'CREATED', status: 'CREATED',
@@ -343,6 +350,23 @@ router.post('/create-order', async (req, res) => {
       subject, payUrl,
       createdAt: Date.now()
     });
+
+    // 如果有 userId，同时写入 payment_orders 表，使回调能自动升级会员
+    if (userId && planType) {
+      try {
+        await pool.query(`
+          INSERT INTO payment_orders (order_no, user_id, amount, plan_type, status, created_at)
+          VALUES ($1, $2, $3, $4, 'pending', NOW())
+          ON CONFLICT (order_no) DO UPDATE SET
+            user_id = EXCLUDED.user_id,
+            plan_type = EXCLUDED.plan_type,
+            status = 'pending'
+        `, [clientSn, userId, Number(totalAmount), planType]);
+        console.log('[收钱吧] 已写入 payment_orders 表: order_no=' + clientSn + ', user=' + userId);
+      } catch (dbErr) {
+        console.error('[收钱吧] 写入 payment_orders 表失败:', dbErr.message);
+      }
+    }
 
     console.log('[收钱吧] WAP支付URL已生成');
     res.json({
