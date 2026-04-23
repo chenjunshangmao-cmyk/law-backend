@@ -59,8 +59,11 @@ export const findUserByEmail = async (email) => {
 
 export const findUserById = async (id) => {
   console.log('[findUserById] 查询用户，ID:', id);
-  
-  if (useMemoryMode) {
+
+  // ★ 关键修复：在运行时动态检查 useMemoryMode（而不是导入时的静态值）
+  const isMemoryMode = useMemoryMode;
+
+  if (isMemoryMode) {
     // 内存模式
     let user = memoryStore.users.get(String(id));
     if (!user && id.includes('@')) {
@@ -74,8 +77,17 @@ export const findUserById = async (id) => {
     console.log('[findUserById] 内存模式结果:', user ? '找到' : '未找到');
     return user || null;
   }
+
+  // pool 为 null 时的防御性降级（如果数据库还没准备好）
+  if (!pool) {
+    console.warn('[findUserById] pool 未就绪，降级到 JSON');
+    const jsonUser = findUserInJsonFile(String(id));
+    return jsonUser || null;
+  }
   
   // PostgreSQL 模式（增强：捕获连接错误，防止服务崩溃）
+  // ★ 调试日志
+  console.log('[findUserById] PG路径: pool存在=' + !!pool + ' isMemoryMode=' + isMemoryMode);
   let result;
   try {
     result = await pool.query(`
@@ -91,6 +103,7 @@ export const findUserById = async (id) => {
       FROM users
       WHERE id::text = $1
     `, [String(id)]);
+    console.log('[findUserById] PG查询结果行数:', result.rows.length, ' 首行:', result.rows[0]?.email || 'null');
   } catch (poolErr) {
     console.error('[findUserById] PostgreSQL 查询失败:', poolErr.message);
     return null;
