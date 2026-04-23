@@ -60,6 +60,11 @@ app.use(cors({
       return callback(null, true);
     }
     
+    // 允许 claw-app-2026.pages.dev 的所有子域名（Preview/Production）
+    if (origin.includes('claw-app-2026.pages.dev') || origin.includes('chenjuntrading.cn')) {
+      return callback(null, true);
+    }
+    
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
