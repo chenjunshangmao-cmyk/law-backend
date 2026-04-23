@@ -304,10 +304,26 @@ app.get('/api/debug/find-user', async (req, res) => {
     return res.json({ error: '需要 userId 参数', example: '/api/debug/find-user?userId=xxx' });
   }
   try {
+    // 打印详细日志
+    const fs = await import('fs');
+    const DATA_DIR = path.join(process.cwd(), 'data');
+    const USERS_FILE = path.join(DATA_DIR, 'users.json');
+    let fileContent = null;
+    try {
+      fileContent = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+    } catch(e) {}
     const user = await findUserById(userId);
-    res.json({ userId, found: !!user, user: user ? { id: user.id, email: user.email, name: user.name, role: user.role, passwordLen: user.password ? user.password.length : 0 } : null });
+    res.json({
+      userId,
+      cwd: process.cwd(),
+      usersFile: USERS_FILE,
+      jsonUserCount: fileContent ? fileContent.length : 0,
+      jsonUserIds: fileContent ? fileContent.map(u => u.id) : [],
+      userFound: !!user,
+      user: user ? { id: user.id, email: user.email, name: user.name, role: user.role, hasHashedPassword: !!user.hashedPassword } : null
+    });
   } catch (e) {
-    res.json({ userId, caughtError: e.message, stack: e.stack });
+    res.json({ userId, caughtError: e.message });
   }
 });
 
