@@ -56,7 +56,13 @@ export async function authFetch(path: string, options: RequestInit = {}): Promis
   const data = await response.json().catch(() => ({}));
   
   if (!response.ok) {
-    throw new Error(data?.error || data?.message || `请求失败 (${response.status})`);
+    // ★ 抛出包含 status/code/data 的增强错误对象
+    // 这样调用方可以区分 401(认证失败) vs 503(服务器不可用) vs 500(内部错误)
+    const enhancedError: any = new Error(data?.error || data?.message || `请求失败 (${response.status})`);
+    enhancedError.status = response.status;
+    enhancedError.code = data?.code || '';
+    enhancedError.data = data;
+    throw enhancedError;
   }
 
   return data;

@@ -36,20 +36,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(res.data || res.user || res);
       setTokenInvalidated(false);
     } catch (err: any) {
+      const status = err?.response?.status;
       const msg = err?.message || '';
-      // 只有明确的 401/认证失败才清除 token
-      // 网络超时、服务器错误、Render冷启动等不踢出用户
-      if (msg.includes('401') || msg.includes('Unauthorized') || msg.includes('认证') || msg.includes('无效') || msg.includes('expired')) {
+      const code = err?.response?.data?.code || '';
+      
+      // ★ 只有明确的认证失败才清除 token（401 + 认证相关 code）
+      // 其他所有情况（网络超时/500/503/冷启动）都保留登录状态
+      const isAuthError = (
+        status === 401 ||
+        (code && (code.startsWith('AUTH_') || code === 'INVALID_CREDENTIALS' || code === 'REFRESH_TOKEN_REQUIRED'))
+      ) || (
+        !status && !code && (
+          msg.includes('401') ||
+          msg.includes('Unauthorized') ||
+          msg.includes('token.*invalid') ||
+          msg.includes('expired')
+        )
+      );
+      
+      if (isAuthError) {
         console.warn('[AuthContext] Token 已失效，清除登录状态');
         localStorage.removeItem('token');
         setToken(null);
         setUser(null);
         setTokenInvalidated(true);
       } else {
-        // 网络/超时/服务器错误 → 保留 token，保持登录状态
-        console.warn('[AuthContext] 获取用户信息失败（非认证问题），保持登录:', msg);
-        // 不清除 token，不清除 user（如果之前有 user 信息的话保留）
-        // 如果完全没有 user 信息，至少不踢出去
+        // 网络/超时/服务器错误(500/503)/Render冷启动 → 保留 token
+        console.warn('[AuthContext] 获取用户信息失败（非认证问题），保持登录:', msg, 'status:', status, 'code:', code);
         setTokenInvalidated(false);
       }
     } finally {

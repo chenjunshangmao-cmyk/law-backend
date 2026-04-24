@@ -105,10 +105,12 @@ export const authMiddleware = async (req, res, next) => {
   } catch (dbError) {
     console.error('用户查询失败:', dbError.message);
     // findUserById 已内置重试逻辑，这里如果还失败说明真的有问题
-    return res.status(401).json({
+    // ★ 关键修复：DB异常不应返回401（会导致前端误判为认证失败并清除token）
+    // 应该返回503让前端知道是服务器问题
+    return res.status(503).json({
       success: false,
-      error: '用户不存在或会话已失效，请重新登录',
-      code: 'AUTH_USER_NOT_FOUND'
+      error: '服务暂时不可用，请稍后重试',
+      code: 'AUTH_DB_UNAVAILABLE'
     });
   }
 
@@ -122,8 +124,23 @@ export const authMiddleware = async (req, res, next) => {
     };
     // 根据 token 中的 email 找到内置用户（UUID与BUILTIN的id不同，只能靠email匹配）
     const builtinUser = decoded.email ? BUILTIN_USERS[decoded.email] : null;
-    if (builtinUser) {
-      user = builtinUser;
+    
+    // ★ 增强：如果 token payload 中没有 email 字段，尝试从 userId 推断
+    let fallbackUser = builtinUser;
+    if (!fallbackUser && decoded.userId) {
+      // 检查是否是已知内置用户ID
+      const idToEmailMap = {
+        'user-admin-001': 'admin@claw.com',
+        'user-demo-001': 'user@claw.com',
+        'user-test-001': 'test@claw.com',
+      };
+      const fallbackEmail = idToEmailMap[decoded.userId];
+      fallbackUser = fallbackEmail ? BUILTIN_USERS[fallbackEmail] : null;
+    }
+    
+    if (fallbackUser) {
+      user = fallbackUser;
+      console.log(`[authMiddleware] 降级到内置用户: ${user.email}`);
     } else {
       return res.status(401).json({
         success: false,
