@@ -299,25 +299,7 @@ router.post('/ozon-authorize', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: '缺少必要参数: name, clientId, apiKey' });
     }
 
-    // 先测试 OZON API 连通性
-    const testResponse = await fetch('https://api-seller.ozon.ru/v1/ping', {
-      method: 'GET',
-      headers: {
-        'Client-Id': clientId,
-        'Api-Key': apiKey
-      }
-    });
-
-    if (testResponse.status !== 200) {
-      const text = await testResponse.text();
-      if (testResponse.status === 403) {
-        return res.status(400).json({ success: false, error: 'OZON API 认证失败 (403)：Client ID 或 API Key 不正确。请检查 OZON Seller 后台 → 设置 → API 密钥 中的凭证' });
-      } else {
-        return res.status(400).json({ success: false, error: 'OZON API 请求失败 (' + testResponse.status + ')：可能是网络不可达或被墙', detail: text?.substring(0, 200) });
-      }
-    }
-
-    // 加密存储
+    // 加密存储（不验证 API 连通性，由用户手动测试）
     const accounts = readData('accounts') || [];
     const newAccount = {
       id: 'ozon-' + Date.now(),
