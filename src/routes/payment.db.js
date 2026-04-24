@@ -721,4 +721,89 @@ async function upgradeUserMembership(userId, planType) {
   }
 }
 
+/**
+ * GET /api/debug/terminal
+ * 诊断终端配置读取
+ */
+router.get('/debug/terminal', async (req, res) => {
+  try {
+    // 模拟 getActiveTerminal 的所有路径
+    const result = {
+      step1_shouqianba_js: null,
+      step1b_hardcoded: null,
+      step2_cache: null,
+      step3_env: null,
+      step4_db: null,
+      final_hasConfig: false
+    };
+
+    // Step 1: 读 shouqianba.js
+    try {
+      const { default: shouqianbaConfig } = await import('../config/shouqianba.js');
+      const storeDevices = shouqianbaConfig && shouqianbaConfig.storeDevices;
+      const deviceConfig = storeDevices && storeDevices['claw-web-new3'];
+      result.step1_shouqianba_js = {
+        hasConfig: !!shouqianbaConfig,
+        hasStoreDevices: !!storeDevices,
+        keys: storeDevices ? Object.keys(storeDevices) : null,
+        deviceConfig: deviceConfig ? {
+          terminalSn: deviceConfig.terminalSn,
+          hasKey: !!deviceConfig.terminalKey
+        } : null
+      };
+      if (deviceConfig && deviceConfig.terminalSn && deviceConfig.terminalKey) {
+        return res.json({ source: 'shouqianba.js', data: deviceConfig, ...result });
+      }
+    } catch (e) {
+      result.step1_shouqianba_js = { error: e.message };
+    }
+
+    // Step 1b: 硬编码兜底
+    const HARDCODED = {
+      terminalSn: '100111220054389553',
+      terminalKey: '96bfaf401367d934cb10a1cbe9773647'
+    };
+    result.step1b_hardcoded = HARDCODED;
+
+    // Step 2: 缓存文件
+    const cache = loadTerminalCache();
+    result.step2_cache = { hasKeys: Object.keys(cache).length > 0, cache };
+
+    // Step 3: 环境变量
+    result.step3_env = {
+      sn: process.env.SHOUQIANBA_TERMINAL_SN || null,
+      hasKey: !!process.env.SHOUQIANBA_TERMINAL_KEY
+    };
+
+    // Step 4: 数据库
+    try {
+      const dbResult = await pool.query(
+        'SELECT terminal_sn, terminal_key FROM shouqianba_terminals WHERE status = $1 LIMIT 1',
+        ['active']
+      );
+      result.step4_db = { rows: dbResult.rows.length, data: dbResult.rows[0] || null };
+    } catch (e) {
+      result.step4_db = { error: e.message };
+    }
+
+    // 最终判定
+    const terminal = await getActiveTerminal();
+    const sn = terminal?.terminalSn || terminal?.terminal_sn;
+    const key = terminal?.terminalKey || terminal?.terminal_key;
+    result.final_hasConfig = !!(terminal && sn && key && sn !== '100111220054328800');
+    result.final_terminal = terminal ? {
+      terminalSn: terminal.terminalSn,
+      terminalSn_undefined: terminal.terminalSn === undefined,
+      terminal_sn: terminal.terminal_sn,
+      hasKey: !!terminal.terminalKey,
+      sn_type: typeof sn,
+      sn_value: sn
+    } : 'null_or_undefined';
+
+    res.json({ terminal, ...result });
+  } catch (e) {
+    res.status(500).json({ error: e.message, stack: e.stack });
+  }
+});
+
 export default router;
