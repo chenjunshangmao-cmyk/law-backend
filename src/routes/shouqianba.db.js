@@ -354,6 +354,8 @@ router.post('/create-order', async (req, res) => {
     // 如果有 userId，同时写入 payment_orders 表，使回调能自动升级会员
     if (userId && planType) {
       try {
+        // amount 存分（totalAmount 是元，乘100转分）
+        const amountFen = Math.round(Number(totalAmount) * 100);
         await pool.query(`
           INSERT INTO payment_orders (order_no, user_id, amount, plan_type, status, created_at)
           VALUES ($1, $2, $3, $4, 'pending', NOW())
@@ -361,8 +363,8 @@ router.post('/create-order', async (req, res) => {
             user_id = EXCLUDED.user_id,
             plan_type = EXCLUDED.plan_type,
             status = 'pending'
-        `, [clientSn, userId, Number(totalAmount), planType]);
-        console.log('[收钱吧] 已写入 payment_orders 表: order_no=' + clientSn + ', user=' + userId);
+        `, [clientSn, userId, amountFen, planType]);
+        console.log('[收钱吧] 已写入 payment_orders 表: order_no=' + clientSn + ', user=' + userId + ', amount=' + amountFen + '分');
       } catch (dbErr) {
         console.error('[收钱吧] 写入 payment_orders 表失败:', dbErr.message);
       }
@@ -586,12 +588,12 @@ async function upgradeMembershipDirect(userId, planType) {
     return;
   }
   try {
-    // 套餐定义
+    // 套餐定义（与 payment.db.js PLANS 保持一致，2026-04-25）
     const PLANS = {
       basic: { name: '基础版', duration: 30 },
-      premium: { name: '高级版', duration: 30 },
+      premium: { name: '专业版', duration: 30 },
       enterprise: { name: '企业版', duration: 30 },
-      vip: { name: 'VIP版', duration: 30 }
+      flagship: { name: '旗舰版', duration: 30 }
     };
 
     const planInfo = PLANS[planType];
