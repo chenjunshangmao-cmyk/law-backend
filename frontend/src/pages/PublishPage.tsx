@@ -9,14 +9,14 @@ import {
   AlertCircle, Upload, Video, Zap, Sparkles, ChevronDown,
   Globe, Eye, EyeOff, Lock, Image, DollarSign, Package,
   Tag, Layers, Settings, Users, ExternalLink, Copy, Loader2,
-  Youtube, ShoppingBag, Monitor, Shield
+  Youtube, ShoppingBag, Monitor, Shield, Store, Link
 } from 'lucide-react';
 import { api } from '../services/api';
 
 // ============================================================
 // 类型定义
 // ============================================================
-type Platform = 'tiktok_shop' | 'tiktok_web' | 'youtube';
+type Platform = 'tiktok_shop' | 'tiktok_web' | 'youtube' | 'ozon';
 type PublishMode = 'manual' | 'semiauto' | 'fullauto' | 'oauth';
 type AccountStatus = 'logged_in' | 'not_logged_in' | 'checking' | 'expired';
 
@@ -52,6 +52,9 @@ interface PublishForm {
   // YouTube 专属
   privacy: 'public' | 'unlisted' | 'private';
   autoCaptions: boolean;
+  // OZON 专属
+  shopLink: string;
+  ozonCategory: string;
 }
 
 interface PublishTask {
@@ -97,6 +100,14 @@ const PLATFORM_CONFIG = {
     color: '#FF0000',
     gradient: 'linear-gradient(135deg, #FF0000 0%, #CC0000 100%)',
     modes: ['manual', 'oauth'] as PublishMode[],
+  },
+  ozon: {
+    label: 'OZON',
+    sublabel: '俄罗斯电商平台',
+    icon: Store,
+    color: '#005BFF',
+    gradient: 'linear-gradient(135deg, #005BFF 0%, #0094FF 100%)',
+    modes: ['manual', 'semiauto'] as PublishMode[],
   },
 };
 
@@ -387,6 +398,7 @@ export default function PublishPage() {
     images: [], stock: '100', category: '服装', weight: '', shipping: '',
     videoPath: '', topics: '', duration: '', thumbnail: null,
     privacy: 'public', autoCaptions: false,
+    shopLink: '', ozonCategory: '服装',
   });
   const [previews, setPreviews] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -412,7 +424,7 @@ export default function PublishPage() {
       const res = await api.accounts.list();
       const data = Array.isArray(res) ? res : (res?.data || []);
       const mapped: Account[] = data
-        .filter((a: any) => ['tiktok_shop', 'tiktok_web', 'youtube'].includes(a.platform))
+        .filter((a: any) => ['tiktok_shop', 'tiktok_web', 'youtube', 'ozon'].includes(a.platform))
         .map((a: any) => ({
           id: a.id,
           platform: a.platform,
@@ -437,12 +449,20 @@ export default function PublishPage() {
   const checkAccount = useCallback(async (account: Account) => {
     setAccounts(prev => prev.map(a => a.id === account.id ? { ...a, status: 'checking' as AccountStatus } : a));
     try {
-      const res = await api.browser?.tiktok?.status?.(account.email, account.id);
-      const loggedIn = res?.data?.loggedIn;
+      let loggedIn = false;
+      if (account.platform === 'youtube') {
+        const res = await api.browser?.youtube?.status?.(account.email, account.id);
+        loggedIn = res?.data?.loggedIn;
+      } else if (account.platform === 'ozon') {
+        const res = await api.browser?.ozon?.status?.(account.email, account.id);
+        loggedIn = res?.data?.loggedIn;
+      } else {
+        const res = await api.browser?.tiktok?.status?.(account.email, account.id);
+        loggedIn = res?.data?.loggedIn;
+      }
       setAccounts(prev => prev.map(a => a.id === account.id ? {
         ...a,
         status: loggedIn ? 'logged_in' : 'not_logged_in' as AccountStatus,
-        sessionValid: res?.data?.sessionValid,
       } : a));
     } catch {
       setAccounts(prev => prev.map(a => a.id === account.id ? { ...a, status: 'not_logged_in' as AccountStatus } : a));
@@ -575,6 +595,21 @@ export default function PublishPage() {
           ...t, status: 'success', result: res?.data?.url || '上传成功'
         } : t));
         setPublishMsg({ type: 'success', text: '🎉 YouTube 视频上传成功！' });
+      } else if (platform === 'ozon') {
+        const res = await api.browser.ozon.publish({
+          email: activeAccount.email,
+          title: form.title,
+          description: form.description,
+          price: form.price ? parseFloat(form.price) : undefined,
+          stock: form.stock ? parseInt(form.stock) : 100,
+          category: form.ozonCategory,
+          shopLink: form.shopLink,
+          accountId: activeAccount.id,
+        });
+        setTasks(prev => prev.map(t => t.id === task.id ? {
+          ...t, status: 'success', result: res?.data?.url || '发布成功'
+        } : t));
+        setPublishMsg({ type: 'success', text: '🎉 OZON 商品发布成功！' });
       } else {
         // TikTok Shop / Web
         const res = await api.browser.tiktok.publish({
@@ -667,7 +702,7 @@ export default function PublishPage() {
         padding: '16px 20px',
         background: '#1A1D27', borderRadius: 14, border: '1px solid #e2e8f0'
       }}>
-        {(['tiktok_shop', 'tiktok_web', 'youtube'] as Platform[]).map(p => (
+        {(['tiktok_shop', 'tiktok_web', 'youtube', 'ozon'] as Platform[]).map(p => (
           <PlatformCard
             key={p}
             platform={p}
@@ -926,6 +961,38 @@ export default function PublishPage() {
                       placeholder="100"
                       type="number"
                     />
+                  </FormField>
+                )}
+
+                {/* OZON 库存 */}
+                {platform === 'ozon' && (
+                  <FormField label="库存数量">
+                    <Input
+                      value={form.stock}
+                      onChange={e => setForm(f => ({ ...f, stock: e.target.value }))}
+                      placeholder="100"
+                      type="number"
+                    />
+                  </FormField>
+                )}
+
+                {/* OZON 上传链接 */}
+                {platform === 'ozon' && (
+                  <FormField label="1688/供应商商品链接">
+                    <div style={{ position: 'relative' }}>
+                      <Link size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
+                      <input
+                        value={form.shopLink}
+                        onChange={e => setForm(f => ({ ...f, shopLink: e.target.value }))}
+                        placeholder="https://detail.1688.com/..."
+                        style={{
+                          width: '100%', padding: '10px 12px 10px 30px',
+                          background: '#f8fafc', border: '1.5px solid #e2e8f0',
+                          borderRadius: 8, color: '#1e293b', fontSize: 13,
+                          outline: 'none', boxSizing: 'border-box' as const,
+                        }}
+                      />
+                    </div>
                   </FormField>
                 )}
 

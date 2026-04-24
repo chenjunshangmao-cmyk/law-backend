@@ -414,6 +414,78 @@ router.get('/ozon/status', parseAccountId, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/browser/ozon/publish
+ * 上传商品到 OZON（需先登录）
+ */
+router.post('/ozon/publish', parseAccountId, async (req, res) => {
+  try {
+    const { email, title, description, price, stock, category, shopLink, accountId } = req.body;
+
+    if (!email || !title) {
+      return res.json({
+        success: false,
+        error: '缺少必要参数：email, title',
+        example: {
+          email: 'seller@example.com',
+          title: 'Kids Summer Dress 2026',
+          description: 'Beautiful summer dress for kids',
+          price: 29.99,
+          stock: 100,
+          category: '服装',
+          shopLink: 'https://detail.1688.com/...',
+        },
+      });
+    }
+
+    // 读取账号绑定的代理配置
+    let proxyConfig = null;
+    if (accountId) {
+      const account = await getAccountById(accountId);
+      if (account && account.proxy_id) {
+        const proxy = await getProxyById(account.proxy_id);
+        if (proxy && proxy.is_active) {
+          proxyConfig = { protocol: proxy.protocol, host: proxy.host, port: proxy.port, username: proxy.username, password: proxy.password };
+        }
+      }
+    }
+
+    // 先检查登录状态
+    const loginStatus = await ozon.checkLogin(email, accountId);
+    if (!loginStatus.loggedIn) {
+      return res.json({
+        success: false,
+        needLogin: true,
+        error: 'OZON 账号未登录，请先前往\"发布中心\"点击 OZON 平台执行登录',
+        instructions: { login: 'POST /api/browser/ozon/login', params: { email, accountId } },
+      });
+    }
+
+    // 调用自动化上传
+    const result = await ozon.publishProduct({
+      email,
+      accountId,
+      proxyConfig,
+      title,
+      description: description || '',
+      price: price || 0,
+      stock: stock || 100,
+      category: category || '服装',
+      shopLink: shopLink || '',
+    });
+
+    res.json({
+      ...result,
+      instructions: result.needLogin
+        ? { login: 'POST /api/browser/ozon/login', params: { email, accountId } }
+        : null,
+    });
+
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // ============================================================
 // 通用接口
 // ============================================================
@@ -466,7 +538,8 @@ router.get('/system-status', async (req, res) => {
           },
           ozon: {
             login: 'POST /api/browser/ozon/login { email, accountId? }',
-            status: 'GET /api/browser/ozon/status?email=',
+            status: 'GET /api/browser/ozon/status?email=&accountId=',
+            publish: 'POST /api/browser/ozon/publish { email, title, description?, price?, stock?, category?, shopLink? }',
           },
         },
       },

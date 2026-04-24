@@ -7,12 +7,13 @@ interface Stats {
   products: number;
   accounts: number;
   tasks: number;
+  ozonAccounts: number;
 }
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [stats, setStats] = useState<Stats>({ products: 0, accounts: 0, tasks: 0 });
+  const [stats, setStats] = useState<Stats>({ products: 0, accounts: 0, tasks: 0, ozonAccounts: 0 });
 
   useEffect(() => {
     // 并发获取统计数据，失败不报错
@@ -21,10 +22,12 @@ export default function DashboardPage() {
       api.accounts.list(),
       api.tasks.list(),
     ]).then(([products, accounts, tasks]) => {
+      const allAccounts = accounts.status === 'fulfilled' ? (accounts.value?.data || []) : [];
       setStats({
         products: products.status === 'fulfilled' ? (products.value?.total ?? products.value?.data?.length ?? 0) : 0,
-        accounts: accounts.status === 'fulfilled' ? (accounts.value?.data?.length ?? 0) : 0,
+        accounts: allAccounts.length,
         tasks:    tasks.status === 'fulfilled'    ? (tasks.value?.data?.length ?? 0) : 0,
+        ozonAccounts: allAccounts.filter((a: any) => a.platform === 'ozon').length,
       });
     });
   }, []);
@@ -39,6 +42,7 @@ export default function DashboardPage() {
   const STAT_CARDS = [
     { icon: '📦', label: '产品库', value: stats.products, unit: '件', color: '#6366f1', path: '/products' },
     { icon: '🏪', label: '店铺账号', value: stats.accounts, unit: '个', color: '#10b981', path: '/accounts' },
+    { icon: '🛒', label: 'OZON账号', value: stats.ozonAccounts, unit: '个', color: '#005BFF', path: '/accounts' },
     { icon: '⭐', label: '会员等级', value: user?.membershipType === 'free' ? '免费版' : user?.membershipType || '免费版', unit: '', color: '#f59e0b', path: '/membership' },
     { icon: '📋', label: '进行任务', value: stats.tasks, unit: '条', color: '#ec4899', path: '/products' },
   ];

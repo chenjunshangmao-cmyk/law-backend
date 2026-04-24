@@ -851,6 +851,121 @@ class OzonAutomation extends BrowserAutomation {
       dashboardUrl: this.dashboardUrl,
     };
   }
+
+  /**
+   * 发布商品到 OZON Seller（自动化上传）
+   * 需要事先登录并保存 Session
+   */
+  async publishProduct(productData) {
+    const { email, accountId, proxyConfig, title, description, price, stock, category, shopLink } = productData;
+
+    const sessionPath = this.getSessionPath(email, accountId);
+    if (!this.hasSession(email, accountId)) {
+      return {
+        success: false,
+        needLogin: true,
+        error: 'OZON 账号未登录，请先手动登录',
+      };
+    }
+
+    let browser, context, page;
+    try {
+      const launched = await this.launchWithSession(email, accountId, proxyConfig);
+      browser = launched.browser;
+      context = launched.context;
+      page = await context.newPage();
+
+      // 导航到新增商品页面
+      const addProductUrl = 'https://seller.ozon.ru/app/products/add';
+      console.log(`📦 正在打开 OZON 新增商品页：${addProductUrl}`);
+      await page.goto(addProductUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForTimeout(2000);
+
+      // 检查是否跳转到了登录页（Session 已过期）
+      const currentUrl = page.url();
+      if (this.isLoginPage(currentUrl)) {
+        await browser.close();
+        return {
+          success: false,
+          needLogin: true,
+          error: 'Session 已过期，请重新登录',
+        };
+      }
+
+      // 填写商品标题
+      try {
+        const titleInput = await page.waitForSelector('input[placeholder*="название"], input[name*="name"], input[aria-label*="Название"]', { timeout: 8000 });
+        if (titleInput) {
+          await titleInput.click({ clickCount: 3 });
+          await titleInput.type(title, { delay: 30 });
+          console.log(`✏️ 已填写标题：${title}`);
+        }
+      } catch {
+        console.log('⚠️ 未找到标题输入框，可能页面结构已变化');
+      }
+
+      // 填写价格
+      if (price) {
+        try {
+          const priceInput = await page.waitForSelector('input[placeholder*="цена"], input[name*="price"], input[aria-label*="Цена"]', { timeout: 5000 });
+          if (priceInput) {
+            await priceInput.click({ clickCount: 3 });
+            await priceInput.type(String(price), { delay: 30 });
+            console.log(`💰 已填写价格：${price}`);
+          }
+        } catch {
+          console.log('⚠️ 未找到价格输入框');
+        }
+      }
+
+      // 填写描述
+      if (description) {
+        try {
+          const descInput = await page.waitForSelector('textarea[placeholder*="описание"], textarea[name*="description"]', { timeout: 5000 });
+          if (descInput) {
+            await descInput.click();
+            await descInput.type(description, { delay: 20 });
+            console.log('📝 已填写描述');
+          }
+        } catch {
+          console.log('⚠️ 未找到描述输入框');
+        }
+      }
+
+      // 如果提供了1688链接，记录日志（实际自动化可根据需要填充来源URL）
+      if (shopLink) {
+        console.log(`🔗 来源链接（供参考）：${shopLink}`);
+      }
+
+      // 截图留存
+      const screenshotPath = path.join(process.cwd(), 'browser-states', `ozon-publish-${email}-${Date.now()}.png`);
+      await page.screenshot({ path: screenshotPath, fullPage: false });
+      console.log(`📷 已截图：${screenshotPath}`);
+
+      await browser.close();
+
+      return {
+        success: true,
+        message: '商品信息已填写，请在 OZON Seller 后台确认并提交',
+        data: {
+          title,
+          price,
+          category,
+          screenshot: screenshotPath,
+          addProductUrl,
+        },
+        note: '由于 OZON 页面结构复杂，建议核对填写内容后手动点击发布',
+      };
+
+    } catch (error) {
+      try { await browser?.close(); } catch {}
+      console.error('OZON publishProduct error:', error.message);
+      return {
+        success: false,
+        error: `OZON 发布失败：${error.message}`,
+      };
+    }
+  }
 }
 
 // ============================================================

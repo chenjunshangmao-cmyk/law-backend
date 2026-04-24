@@ -337,10 +337,22 @@ export const api = {
       },
     },
     ozon: {
-      login: (email: string) =>
-        authFetch('/api/browser/ozon/login', { method: 'POST', body: JSON.stringify({ email }) }),
-      status: (email: string) =>
-        authFetch(`/api/browser/ozon/status?email=${encodeURIComponent(email)}`),
+      login: (email: string, accountId?: string) =>
+        authFetch('/api/browser/ozon/login', { method: 'POST', body: JSON.stringify({ email, accountId }) }),
+      status: (email: string, accountId?: string) =>
+        authFetch(`/api/browser/ozon/status?email=${encodeURIComponent(email)}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}`),
+      publish: (data: {
+        email: string;
+        title: string;
+        description?: string;
+        price?: number;
+        stock?: number;
+        category?: string;
+        images?: string[];
+        shopLink?: string;
+        accountId?: string;
+      }) =>
+        authFetch('/api/browser/ozon/publish', { method: 'POST', body: JSON.stringify(data) }),
     },
     systemStatus: () => authFetch('/api/browser/system-status'),
   },
