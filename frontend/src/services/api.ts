@@ -6,6 +6,7 @@
  */
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'https://claw-backend-2026.onrender.com';
+export const API_BASE_URL = BASE_URL;
 const DEFAULT_TIMEOUT = 60000; // 60秒，处理 Render 冷启动
 
 function getToken(): string | null {
@@ -233,7 +234,6 @@ export const api = {
         body: JSON.stringify({
           clientSn: `claw-${planId}-${Date.now()}`,
           totalAmount: price,
-<<<<<<< HEAD
           subject: subject || `Claw会员-${planId}`,
           deviceId: 'claw-web-new3'
         })
