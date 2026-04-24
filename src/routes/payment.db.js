@@ -143,81 +143,63 @@ const SERVICES = {
   'ads-account': { name: '广告户开户', points: 500 }        // 500积分=¥5
 };
 
+// 硬编码终端配置（claw-web-new3，已激活）
+// terminalSn: 100111220054389553
+// terminalKey: 96bfaf401367d934cb10a1cbe9773647
+const HARDCODE = {
+  terminalSn: '100111220054389553',
+  terminalKey: '96bfaf401367d934cb10a1cbe9773647',
+  merchantId: '18956397746',
+  storeSn: '00010101001200200046406',
+  deviceId: 'claw-web-new3'
+};
+
 /**
  * 获取激活终端（支持多种配置来源）
- * 优先级：1. shouqianba.js 配置（已激活硬编码）> 2. 环境变量 > 3. 共享缓存文件 > 4. 数据库
+ * 优先级：1. 硬编码 > 2. shouqianba.js > 3. 环境变量 > 4. 缓存 > 5. 数据库
  */
 async function getActiveTerminal() {
-  // 1. 优先从 shouqianba.js 配置读取（本地已激活的硬编码配置）
-  // shouqianba.js storeDevices.claw-web-new3 已包含完整 terminalSn + terminalKey
+  // 1. 直接返回硬编码配置（最可靠，不依赖 import）
+  if (HARDCODE.terminalSn && HARDCODE.terminalKey) {
+    return HARDCODE;
+  }
+
+  // 2. 尝试 shouqianba.js
   try {
     const { default: shouqianbaConfig } = await import('../config/shouqianba.js');
-    // shouqianba.js 的 storeDevices 是在 config.default 中（不是独立导出）
     const storeDevices = shouqianbaConfig && shouqianbaConfig.storeDevices;
     const deviceConfig = storeDevices && storeDevices['claw-web-new3'];
-    console.log('[支付] shouqianba.js 读取结果:', JSON.stringify({
-      hasConfig: !!shouqianbaConfig,
-      hasStoreDevices: !!storeDevices,
-      deviceConfigKeys: deviceConfig ? Object.keys(deviceConfig) : null,
-      terminalSn: deviceConfig?.terminalSn,
-      hasKey: !!deviceConfig?.terminalKey
-    }));
     if (deviceConfig && deviceConfig.terminalSn && deviceConfig.terminalKey) {
-      console.log('[支付] ✅ 从 shouqianba.js 读取终端:', deviceConfig.terminalSn);
-      return {
-        terminalSn: deviceConfig.terminalSn,
-        terminalKey: deviceConfig.terminalKey,
-        merchantId: deviceConfig.merchantId || '',
-        storeSn: deviceConfig.storeSn || '',
-        deviceId: 'claw-web-new3'
-      };
+      console.log('[支付] 从 shouqianba.js 读取终端:', deviceConfig.terminalSn);
+      return deviceConfig;
     }
-    console.log('[支付] ⚠️ shouqianba.js deviceConfig 无效，尝试硬编码配置');
   } catch (e) {
-    console.warn('[支付] shouqianba.js 配置读取失败:', e.message);
+    console.warn('[支付] shouqianba.js 读取失败:', e.message);
   }
 
-  // 1b. 硬编码备用（确保能拿到 terminalSn + terminalKey）
-  const HARDCODED_TERMINAL = {
-    terminalSn: '100111220054389553',
-    terminalKey: '96bfaf401367d934cb10a1cbe9773647',
-    merchantId: '18956397746',
-    storeSn: '00010101001200200046406',
-    deviceId: 'claw-web-new3'
-  };
-  if (HARDCODED_TERMINAL.terminalSn && HARDCODED_TERMINAL.terminalKey) {
-    console.log('[支付] ✅ 使用硬编码终端配置:', HARDCODED_TERMINAL.terminalSn);
-    return HARDCODED_TERMINAL;
+  // 3. 环境变量
+  const envSn = process.env.SHOUQIANBA_TERMINAL_SN;
+  const envKey = process.env.SHOUQIANBA_TERMINAL_KEY;
+  if (envSn && envKey) {
+    return { terminalSn: envSn, terminalKey: envKey };
   }
 
-  // 2. 优先从共享终端缓存文件读取（shouqianba.db.js 激活时写入）
+  // 4. 缓存文件
   const cache = loadTerminalCache();
   const deviceIds = Object.keys(cache);
   if (deviceIds.length > 0) {
     const t = cache[deviceIds[0]];
-    if (t.terminalSn && t.terminalKey) {
-      console.log('[支付] 从共享缓存读取终端:', t.terminalSn);
-      return t;
-    }
+    if (t.terminalSn && t.terminalKey) return t;
   }
 
-  // 3. 从环境变量读取（Render 生产环境）
-  const envSn = process.env.SHOUQIANBA_TERMINAL_SN;
-  const envKey = process.env.SHOUQIANBA_TERMINAL_KEY;
-  if (envSn && envKey) {
-    console.log('[支付] 从环境变量读取终端:', envSn);
-    return { terminalSn: envSn, terminalKey: envKey };
-  }
-
-  // 4. 降级：从数据库读取
+  // 5. 数据库
   try {
     const result = await pool.query(
-      'SELECT terminal_sn, terminal_key, merchant_id, store_sn, device_id FROM shouqianba_terminals WHERE status = $1 ORDER BY last_checkin_at DESC LIMIT 1',
+      'SELECT terminal_sn, terminal_key FROM shouqianba_terminals WHERE status = $1 LIMIT 1',
       ['active']
     );
-    return result.rows[0];
+    return result.rows[0] || null;
   } catch (e) {
-    console.error('[支付] 数据库读取终端失败:', e.message);
     return null;
   }
 }
@@ -231,20 +213,9 @@ router.post('/create', authenticateToken, async (req, res) => {
     // 确保表已初始化
     await ensurePaymentTables();
 
-    // 获取终端，如果没有则自动触发激活
+    // 获取终端（getActiveTerminal 已内置硬编码兜底）
     let terminal = await getActiveTerminal();
-    if (!terminal || !(terminal.terminalSn || terminal.terminal_sn)) {
-      console.log('[支付] 终端未就绪，尝试激活...');
-      try {
-        // 动态 import shouqianba 激活逻辑
-        const { default: shouqianbaRoutes } = await import('./shouqianba.db.js');
-        // shouqianba.db.js 会触发 activate，终端写入共享缓存文件
-        // 重新读取
-        terminal = await getActiveTerminal();
-      } catch (e) {
-        console.error('[支付] 自动激活失败:', e.message);
-      }
-    }
+    console.log('[支付] 终端配置:', terminal ? `${terminal.terminalSn}(hasKey=${!!terminal.terminalKey})` : 'null');
 
     const { plan, serviceId, serviceName, amount, returnUrl } = req.body;
     const userId = req.userId;
@@ -290,31 +261,56 @@ router.post('/create', authenticateToken, async (req, res) => {
     let paymentResult;
 
     if (hasShouqianbaConfig) {
-      // ★ 使用 shouqianba.js 官方 createWapPayment API 生成真实支付链接
+      // ★ 使用收钱吧原生扫码支付 API（/upay/v2/create）生成真实支付链接
+      // 与 shouqianba.js 中 sqbRequest() 使用相同的签名方式
       try {
-        const { createWapPayment } = await import('../services/shouqianba.js');
-        const wapResult = await createWapPayment({
-          terminalSn: sn,
-          terminalKey: key,
-          clientSn: orderNo,
-          totalAmount: orderAmount,
-          subject,
-          returnUrl: returnUrlFull,
-          notifyUrl,
-          clientIp
-        });
-
-        // shouqianba API 返回真实可支付的 pay_url
-        const payUrl = wapResult.payUrl;
-        console.log('[支付] ✅ 收钱吧WAP支付链接:', payUrl ? payUrl.substring(0, 80) + '...' : 'null');
-        paymentResult = {
-          sn: wapResult.sn || orderNo,
-          payUrl,
-          testMode: false,
-          message: '请使用微信/支付宝扫码支付'
+        const { default: axios } = await import('axios');
+        const wapParams = {
+          terminal_sn: sn,
+          client_sn: orderNo,
+          total_amount: String(orderAmount),
+          subject: subject,
+          return_url: returnUrlFull,
+          notify_url: notifyUrl
         };
+        // 签名：参数排序 → key1=val1&key2=val2&... → MD5(内容 + key) → 大写
+        const sortedKeys = Object.keys(wapParams).sort();
+        const pairs = sortedKeys.map(k => `${k}=${wapParams[k]}`);
+        const signStr = pairs.join('&') + '&key=' + key;
+        const sign = crypto.createHash('md5').update(signStr).digest('hex').toUpperCase();
+        const reqBody = { ...wapParams, sign, sign_type: 'MD5' };
+
+        console.log('[支付] 收钱吧扫码API请求:', JSON.stringify(reqBody).substring(0, 200));
+
+        const apiResp = await axios.post('https://vsi-api.shouqianba.com/upay/v2/create',
+          JSON.stringify(reqBody),
+          { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
+        );
+        const result = apiResp.data;
+        console.log('[支付] 收钱吧扫码API响应:', JSON.stringify(result).substring(0, 300));
+
+        // 收钱吧原生扫码接口返回格式
+        const payUrl = result.pay_url || result.payUrl || null;
+        if (result.result_code === '200' && payUrl) {
+          console.log('[支付] ✅ 扫码支付链接获取成功:', payUrl.substring(0, 80) + '...');
+          paymentResult = {
+            sn: result.sn || orderNo,
+            payUrl,
+            testMode: false,
+            message: '请使用微信/支付宝扫码支付'
+          };
+        } else {
+          console.error('[支付] ❌ 收钱吧返回失败:', result.result_code, result.error_message);
+          paymentResult = {
+            sn: `TEST-${orderNo}`,
+            payUrl: null,
+            qrCode: null,
+            testMode: true,
+            message: '收钱吧:' + (result.error_message || result.result_code)
+          };
+        }
       } catch (wapErr) {
-        console.error('[支付] WAP支付创建失败:', wapErr.message, '进入测试模式');
+        console.error('[支付] ❌ 扫码API异常:', wapErr.message, wapErr.response?.data);
         paymentResult = {
           sn: `TEST-${orderNo}`,
           payUrl: null,
