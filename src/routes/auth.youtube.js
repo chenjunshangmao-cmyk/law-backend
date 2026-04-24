@@ -292,7 +292,10 @@ router.delete('/accounts/:channelId', async (req, res) => {
 // ============================================================
 function getCallbackBase(req) {
   const host = req.get('host') || '';
-  const protocol = req.protocol === 'http' ? 'http' : 'https';
+  // Render/生产环境使用 HTTPS，即使内部转发是 HTTP
+  const isSecure = req.secure || req.get('x-forwarded-proto') === 'https'
+    || host.includes('.onrender.com') || host.includes('chenjuntrading.cn');
+  const protocol = isSecure ? 'https' : 'http';
 
   // 生产环境
   if (host.includes('chenjuntrading.cn')) {
@@ -304,9 +307,9 @@ function getCallbackBase(req) {
     return 'http://localhost:8089';
   }
   
-  // Render环境
+  // Render环境 - 强制 HTTPS
   if (host.includes('.onrender.com')) {
-    return `${protocol}://${host}`;
+    return `https://${host}`;
   }
   
   // 环境变量
