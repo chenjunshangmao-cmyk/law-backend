@@ -10,27 +10,68 @@ interface Stats {
   ozonAccounts: number;
 }
 
+interface OzonAccount {
+  id: string;
+  platform: string;
+  name: string;
+  username: string | null;
+  status: string;
+  createdAt: string;
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState<Stats>({ products: 0, accounts: 0, tasks: 0, ozonAccounts: 0 });
+  const [ozonAccounts, setOzonAccounts] = useState<OzonAccount[]>([]);
+  const [syncing, setSyncing] = useState<Record<string, boolean>>({});
+  const [syncResults, setSyncResults] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    // 并发获取统计数据，失败不报错
-    Promise.allSettled([
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    const [products, accounts, tasks] = await Promise.allSettled([
       api.products.list({ limit: 1 }),
       api.accounts.list(),
       api.tasks.list(),
-    ]).then(([products, accounts, tasks]) => {
-      const allAccounts = accounts.status === 'fulfilled' ? (accounts.value?.data || []) : [];
-      setStats({
-        products: products.status === 'fulfilled' ? (products.value?.total ?? products.value?.data?.length ?? 0) : 0,
-        accounts: allAccounts.length,
-        tasks:    tasks.status === 'fulfilled'    ? (tasks.value?.data?.length ?? 0) : 0,
-        ozonAccounts: allAccounts.filter((a: any) => a.platform === 'ozon').length,
-      });
+    ]);
+
+    const allAccounts = accounts.status === 'fulfilled' ? (accounts.value?.data || []) : [];
+    setStats({
+      products: products.status === 'fulfilled' ? (products.value?.total ?? products.value?.data?.length ?? 0) : 0,
+      accounts: allAccounts.length,
+      tasks: tasks.status === 'fulfilled' ? (tasks.value?.data?.length ?? 0) : 0,
+      ozonAccounts: allAccounts.filter((a: any) => a.platform === 'ozon').length,
     });
-  }, []);
+
+    // 保存 OZON 账号列表
+    const ozonList = allAccounts.filter((a: any) => a.platform === 'ozon');
+    setOzonAccounts(ozonList);
+  };
+
+  const handleSync = async (accountId: string) => {
+    setSyncing(prev => ({ ...prev, [accountId]: true }));
+    try {
+      const result = await api.accounts.sync(accountId);
+      setSyncResults(prev => ({ ...prev, [accountId]: result?.data || result }));
+    } catch (err: any) {
+      setSyncResults(prev => ({ ...prev, [accountId]: { error: err?.message || '同步失败' } }));
+    } finally {
+      setSyncing(prev => ({ ...prev, [accountId]: false }));
+    }
+  };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 6) return '夜深了';
+    if (hour < 9) return '早上好';
+    if (hour < 12) return '上午好';
+    if (hour < 14) return '中午好';
+    if (hour < 18) return '下午好';
+    return '晚上好';
+  };
 
   const QUICK_ACTIONS = [
     { icon: '🔥', title: '爆款选品', desc: '一键抓取热销商品', path: '/trending', color: '#ff6b35' },
@@ -43,7 +84,7 @@ export default function DashboardPage() {
     { icon: '📦', label: '产品库', value: stats.products, unit: '件', color: '#6366f1', path: '/products' },
     { icon: '🏪', label: '店铺账号', value: stats.accounts, unit: '个', color: '#10b981', path: '/accounts' },
     { icon: '🛒', label: 'OZON账号', value: stats.ozonAccounts, unit: '个', color: '#005BFF', path: '/accounts' },
-    { icon: '⭐', label: '会员等级', value: user?.membershipType === 'free' ? '免费版' : user?.membershipType || '免费版', unit: '', color: '#f59e0b', path: '/membership' },
+    { icon: '⭐', label: '会员等级', value: user?.membershipType === 'enterprise' ? '企业版' : user?.membershipType || '免费版', unit: '', color: '#f59e0b', path: '/membership' },
     { icon: '📋', label: '进行任务', value: stats.tasks, unit: '条', color: '#ec4899', path: '/products' },
   ];
 
@@ -59,10 +100,10 @@ export default function DashboardPage() {
       }}>
         <div>
           <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, marginBottom: 6 }}>
-            早上好，{user?.name || user?.email?.split('@')[0]} 👋
+            {getGreeting()}，{user?.name || user?.email?.split('@')[0]} 👋
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>
-            今天也要高效选品，赚取更多利润！
+            OZON 店铺已绑定：{stats.ozonAccounts} 个 | 企业版会员
           </p>
         </div>
         <button
@@ -79,7 +120,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 统计卡片 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
         {STAT_CARDS.map(card => (
           <div key={card.label}
             onClick={() => navigate(card.path)}
@@ -100,6 +141,92 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* OZON 店铺数据 */}
+      {ozonAccounts.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a2e' }}>🛒 OZON 店铺数据</h2>
+            <button
+              onClick={loadStats}
+              style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 13, color: '#666' }}
+            >🔄 刷新</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+            {ozonAccounts.map(acc => {
+              const isSyncing = syncing[acc.id];
+              const syncRes = syncResults[acc.id];
+              return (
+                <div key={acc.id} style={{
+                  background: '#fff', borderRadius: 12, padding: 20,
+                  border: '1px solid #e8f0fe', boxShadow: '0 2px 8px rgba(0,91,255,0.06)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: '#1a1a2e' }}>{acc.name || acc.id}</div>
+                      <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                        {acc.createdAt ? new Date(acc.createdAt).toLocaleDateString('zh-CN') + ' 绑定' : ''}
+                      </div>
+                    </div>
+                    <div style={{
+                      background: acc.status === 'active' ? '#ecfdf5' : '#fef3c7',
+                      color: acc.status === 'active' ? '#059669' : '#d97706',
+                      padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600
+                    }}>
+                      {acc.status === 'active' ? '已连接' : '未同步'}
+                    </div>
+                  </div>
+
+                  {/* 同步数据 */}
+                  {syncRes && !syncRes.error && (
+                    <div style={{ marginBottom: 12, padding: '10px 12px', background: '#f8faff', borderRadius: 8 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: '#888' }}>产品数</div>
+                          <div style={{ fontSize: 18, fontWeight: 800, color: '#6366f1' }}>
+                            {syncRes.products_count ?? '-'}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: '#888' }}>订单数</div>
+                          <div style={{ fontSize: 18, fontWeight: 800, color: '#059669' }}>
+                            {syncRes.orders_count ?? '-'}
+                          </div>
+                        </div>
+                      </div>
+                      {syncRes.sync_time && (
+                        <div style={{ fontSize: 11, color: '#aaa', marginTop: 6 }}>
+                          上次同步：{new Date(syncRes.sync_time).toLocaleString('zh-CN')}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {syncRes?.error && (
+                    <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fef2f2', borderRadius: 8, color: '#dc2626', fontSize: 13 }}>
+                      ⚠️ {syncRes.error}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => handleSync(acc.id)}
+                    disabled={isSyncing}
+                    style={{
+                      width: '100%', padding: '8px 0', borderRadius: 8,
+                      background: isSyncing ? '#e0e7ff' : '#6366f1',
+                      color: isSyncing ? '#6366f1' : '#fff',
+                      border: 'none', fontSize: 14, fontWeight: 600, cursor: isSyncing ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {isSyncing ? '⏳ 同步中...' : '📥 同步 OZON 数据'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 快速操作 */}
       <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a2e', marginBottom: 16 }}>快速操作</h2>

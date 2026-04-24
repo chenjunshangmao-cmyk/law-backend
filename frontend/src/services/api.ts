@@ -186,6 +186,13 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+    // YouTube OAuth 授权
+    youtubeAuthorize: (data: { name: string }) =>
+      authFetch('/api/accounts/youtube-authorize', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 
   // ============================================================
@@ -282,6 +289,24 @@ export const api = {
       description?: string; productName?: string;
       productDescription?: string; style?: string
     }) => authFetch('/api/generate/image', { method: 'POST', body: JSON.stringify(data) }),
+
+    // 多语言翻译
+    translate: (data: {
+      text: string | object;
+      sourceLang?: string;
+      targetLang: string;
+      platform?: string;
+    }) => authFetch('/api/generate/translate', { method: 'POST', body: JSON.stringify(data) }),
+
+    // 批量翻译
+    batchTranslate: (data: {
+      items: Array<{ title: string; description?: string; features?: string[]; keywords?: string[] }>;
+      targetLanguages: string[];
+      platform?: string;
+    }) => authFetch('/api/generate/batch-translate', { method: 'POST', body: JSON.stringify(data) }),
+
+    // 获取支持的语言
+    languages: () => authFetch('/api/generate/languages'),
   },
 
   // ============================================================

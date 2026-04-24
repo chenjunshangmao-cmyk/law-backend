@@ -1,4 +1,4 @@
-import{c as v,r,j as e,a as C,C as S}from"./app.js";import{S as p}from"./shopping-bag-qJtKXq5V.js";import{R as h}from"./refresh-cw-NS5xkf2q.js";import{C as y}from"./circle-x-DCLHBbC9.js";import{C as _}from"./clock-CS2w0mRu.js";/**
+import{c as v,r,j as e,b as C,C as S}from"./app.js";import{S as p}from"./shopping-bag-qJtKXq5V.js";import{R as h}from"./refresh-cw-NS5xkf2q.js";import{C as y}from"./circle-x-DCLHBbC9.js";import{C as _}from"./clock-CS2w0mRu.js";/**
  * @license lucide-react v0.441.0 - ISC
  *
  * This source code is licensed under the ISC license.

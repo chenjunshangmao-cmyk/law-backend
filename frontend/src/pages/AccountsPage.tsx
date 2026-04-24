@@ -29,6 +29,10 @@ export default function AccountsPage() {
   const [testingId, setTestingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
 
+  // OZON 同步数据缓存
+  const [syncData, setSyncData] = useState<Record<string, any>>({});
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   useEffect(() => {
     loadAccounts();
   }, []);
@@ -46,11 +50,61 @@ export default function AccountsPage() {
     }
   };
 
-  // 判断当前选择平台是否为 OZON（需要 API 授权）
+  // 判断当前选择平台类型
   const isOzonPlatform = form.platform === 'ozon';
+  const isYouTubePlatform = form.platform === 'youtube';
+
+  // YouTube OAuth 授权（弹窗方式）
+  const handleYouTubeAuth = async () => {
+    const name = form.name || 'YouTube 账号';
+    if (!name) { setAddError('请输入账号名称'); return; }
+    setAddLoading(true);
+    setAddError('');
+    try {
+      const res = await api.accounts.youtubeAuthorize({ name });
+      const authUrl = res?.data?.authUrl;
+      if (!authUrl) { throw new Error('获取授权链接失败'); }
+
+      // 打开 OAuth 弹窗
+      const popup = window.open(authUrl, 'youtube-auth',
+        'width=600,height=700,menubar=no,toolbar=no,location=yes,status=yes');
+
+      if (!popup) {
+        setAddError('弹窗被浏览器拦截，请允许弹窗后重试');
+        return;
+      }
+
+      // 监听 postMessage 回调
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'youtube_auth_success') {
+          window.removeEventListener('message', handleMessage);
+          setShowAdd(false);
+          setForm({ platform: 'tiktok', name: '', username: '', email: '', password: '', clientId: '', apiKey: '' });
+          loadAccounts();
+          alert(`YouTube 账号「${event.data?.data?.channelTitle || ''}」绑定成功！`);
+        }
+      };
+      window.addEventListener('message', handleMessage);
+
+      // 超时清理
+      setTimeout(() => {
+        window.removeEventListener('message', handleMessage);
+        setAddLoading(false);
+      }, 120000);
+
+    } catch (e: any) {
+      setAddError(e.message || 'YouTube 授权失败');
+      setAddLoading(false);
+    }
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // YouTube 走 OAuth 弹窗
+    if (isYouTubePlatform) {
+      return handleYouTubeAuth();
+    }
 
     // OZON 平台走 API 授权流程
     if (isOzonPlatform) {
@@ -139,7 +193,9 @@ export default function AccountsPage() {
     setSyncingId(id);
     try {
       const res = await api.accounts.sync(id);
-      alert(res.message || '同步完成');
+      if (res.data) {
+        setSyncData(prev => ({ ...prev, [id]: res.data }));
+      }
       await loadAccounts();
     } catch (e: any) {
       alert(e.message);
@@ -188,6 +244,67 @@ export default function AccountsPage() {
     };
     return map[status] || status;
   };
+
+  // OZON 数据面板渲染
+  const renderOzonStats = (accountId: string) => {
+    const data = syncData[accountId];
+    if (!data) return null;
+
+    const { stats, ordersSummary } = data;
+
+    return (
+      <div
+        style={{
+          marginTop: 12, padding: 12, background: '#f8fafc', borderRadius: 8,
+          border: '1px solid #e2e8f0', fontSize: 13
+        }}
+      >
+        {/* 商品统计 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+          <StatBox label="全部商品" value={stats?.total || 0} color="#6366f1" />
+          <StatBox label="在售" value={stats?.active || 0} color="#059669" />
+          <StatBox label="审核中" value={stats?.awaiting_approval || 0} color="#d97706" />
+          <StatBox label="已归档" value={stats?.archived || stats?.rejected || 0} color="#6b7280" />
+        </div>
+
+        {/* 订单统计 */}
+        {ordersSummary && (
+          <>
+            <div style={{ height: 1, background: '#e5e7eb', margin: '8px 0' }} />
+            <div style={{ fontWeight: 600, color: '#374151', marginBottom: 8, fontSize: 12 }}>📦 近7天订单</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              <StatBox label="待发货" value={ordersSummary.awaiting_delivery || 0} color="#d97706" />
+              <StatBox label="已送达" value={ordersSummary.delivered || 0} color="#059669" />
+              <StatBox label="已取消" value={ordersSummary.cancelled || 0} color="#ef4444" />
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // 统计框小组件
+  function StatBox({ label, value, color }: { label: string; value: number; color: string }) {
+    return (
+      <div style={{ textAlign: 'center', padding: '6px 4px', background: '#fff', borderRadius: 6, border: '1px solid #e5e7eb' }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color }}>{value}</div>
+        <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{label}</div>
+      </div>
+    );
+  }
+
+  // 最后一个同步时间格式化
+  function formatSyncTime(isoStr: string | undefined | null) {
+    if (!isoStr) return null;
+    try {
+      const d = new Date(isoStr);
+      const now = new Date();
+      const diffMs = now.getTime() - d.getTime();
+      if (diffMs < 60000) return '刚刚';
+      if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}分钟前`;
+      return d.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch { return isoStr; }
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -300,6 +417,19 @@ export default function AccountsPage() {
                       {syncingId === account.id ? '同步中...' : '同步'}
                     </button>
                   )}
+
+                  {/* OZON 数据面板展开按钮 */}
+                  {account.platform === 'ozon' && syncData[account.id] && (
+                    <button
+                      onClick={() => setExpandedId(expandedId === account.id ? null : account.id)}
+                      style={{
+                        fontSize: 11, padding: '4px 8px', color: '#6366f1',
+                        background: '#eef2ff', border: 'none', borderRadius: 4, cursor: 'pointer'
+                      }}
+                    >
+                      {expandedId === account.id ? '收起数据' : '📊 数据'} 
+                    </button>
+                  )}
                   
                   <button
                     onClick={() => handleDelete(account.id)}
@@ -309,6 +439,33 @@ export default function AccountsPage() {
                     删除
                   </button>
                 </div>
+
+                {/* 同步时间 */}
+                {account.last_sync && account.platform === 'ozon' && (
+                  <div style={{ marginTop: 8, fontSize: 11, color: '#9ca3af' }}>
+                    上次同步：{formatSyncTime(account.last_sync)}
+                  </div>
+                )}
+
+                {/* YouTube 频道信息 */}
+                {account.platform === 'youtube' && account.account_data?.channelTitle && (
+                  <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 6, fontSize: 12, border: '1px solid #e2e8f0' }}>
+                    <div style={{ color: '#374151', fontWeight: 600 }}>
+                      📺 {account.account_data.channelTitle}
+                    </div>
+                    {account.account_data.email && (
+                      <div style={{ color: '#6b7280', marginTop: 2 }}>{account.account_data.email}</div>
+                    )}
+                    {account.account_data.expiresAt && (
+                      <div style={{ color: new Date(account.account_data.expiresAt) > new Date() ? '#059669' : '#ef4444', marginTop: 2 }}>
+                        Token {new Date(account.account_data.expiresAt) > new Date() ? '有效' : '已过期'}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* OZON 数据面板 */}
+                {account.platform === 'ozon' && expandedId === account.id && renderOzonStats(account.id)}
               </div>
             );
           })}
@@ -400,6 +557,33 @@ export default function AccountsPage() {
                     </p>
                   </div>
                 </>
+              ) : isYouTubePlatform ? (
+                <>
+              {/* ===== YouTube 平台：OAuth 授权 ===== */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">账号名称 *</label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  placeholder="例：主频道、测试号"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="text-sm font-medium text-blue-800 mb-2">🔵 YouTube OAuth 授权</div>
+                <p className="text-xs text-blue-600 mb-3">
+                  点击下方按钮将跳转到 Google 授权页面，授权后 Claw 可管理您的 YouTube 频道。
+                </p>
+                <div className="flex items-center gap-3 text-xs text-blue-500">
+                  <span>✅ 上传视频</span>
+                  <span>✅ 管理频道</span>
+                  <span>✅ 查看数据</span>
+                </div>
+              </div>
+                </>
               ) : (
                 <>
               {/* ===== 其他平台：普通表单 ===== */}
@@ -453,8 +637,8 @@ export default function AccountsPage() {
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {addLoading
-                    ? (isOzonPlatform ? '验证中...' : '添加中...')
-                    : (isOzonPlatform ? '🔗 授权并添加' : '确认添加')
+                    ? (isOzonPlatform ? '验证中...' : isYouTubePlatform ? '跳转中...' : '添加中...')
+                    : (isOzonPlatform ? '🔗 授权并添加' : isYouTubePlatform ? '🔵 Google 授权' : '确认添加')
                   }
                 </button>
               </div>

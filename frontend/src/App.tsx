@@ -6,7 +6,7 @@ import LoginPage from './pages/ModernLogin';
 import RegisterPage from './pages/ModernRegister';
 
 // 懒加载页面（减少首屏体积）
-const DashboardPage      = lazy(() => import('./pages/ModernDashboard'));
+const DashboardPage      = lazy(() => import('./pages/DashboardPage'));
 const TrendingPage       = lazy(() => import('./pages/TrendingPage'));
 const SmartPublishPage   = lazy(() => import('./pages/PublishPage'));
 const AdCollectionPage   = lazy(() => import('./pages/AdCollectionPage'));

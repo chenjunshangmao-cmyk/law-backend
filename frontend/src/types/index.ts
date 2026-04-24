@@ -37,6 +37,15 @@ export interface Account {
   status: 'active' | 'inactive' | 'expired' | 'error';
   createdAt?: string;
   updatedAt?: string;
+  last_sync?: string;
+  account_data?: {
+    username?: string;
+    status?: string;
+    channelTitle?: string;
+    email?: string;
+    expiresAt?: string;
+    [key: string]: any;
+  };
 }
 
 // 支付订单类型
