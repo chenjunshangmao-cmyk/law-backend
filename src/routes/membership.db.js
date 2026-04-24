@@ -539,6 +539,106 @@ router.post('/upgrade', authenticateToken, async (req, res) => {
 });
 
 /**
+ * POST /api/membership/check-and-activate
+ * AI客服调用：根据付款记录自动激活会员
+ * 
+ * 工作原理：
+ * 1. 查询该用户所有 paid 订单
+ * 2. 找到最新有效订单，计算到期时间 paidUntil
+ * 3. 更新用户 paidUntil 字段（会员截止日期）
+ * 4. 根据4个开关决定当前会员等级
+ */
+router.post('/check-and-activate', async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, error: '缺少 userId' });
+    }
+
+    // 先确保 users 表有 paid_until 字段（兼容未迁移的数据库）
+    try {
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS paid_until TIMESTAMP`);
+    } catch (_) {}
+
+    // 查询该用户所有已支付订单，按时间倒序
+    const paidOrders = await pool.query(
+      `SELECT order_no, plan_type, plan_name, amount, paid_at
+       FROM payment_orders
+       WHERE user_id = $1 AND status = 'paid'
+       ORDER BY paid_at DESC`,
+      [String(userId)]
+    );
+
+    if (paidOrders.rows.length === 0) {
+      // 无付款记录，降级到 free
+      await pool.query(
+        `UPDATE users SET membership_type = 'free', updated_at = NOW() WHERE id::text = $1`,
+        [String(userId)]
+      );
+      return res.json({
+        success: true,
+        activated: false,
+        plan: 'free',
+        reason: '无付款记录'
+      });
+    }
+
+    // 取最新有效订单，计算到期时间
+    const latestOrder = paidOrders.rows[0];
+    const planDuration = { basic: 30, premium: 30, enterprise: 30, flagship: 30 };
+    const duration = planDuration[latestOrder.plan_type] || 30;
+
+    const paidAt = new Date(latestOrder.paid_at);
+    const paidUntil = new Date(paidAt.getTime() + duration * 24 * 60 * 60 * 1000);
+
+    // ★ 4个会员开关：只有开关开启的套餐才能激活
+    const MEMBERSHIP_ENABLED = {
+      basic: true,      // 基础版开关
+      premium: true,    // 高级版开关
+      enterprise: true, // 企业版开关
+      flagship: true    // 旗舰版开关
+    };
+
+    const plan = MEMBERSHIP_ENABLED[latestOrder.plan_type]
+      ? latestOrder.plan_type
+      : 'free';
+
+    // 更新用户会员信息
+    await pool.query(
+      `UPDATE users SET
+        membership_type = $1,
+        membership_expires_at = $2,
+        paid_until = $2,
+        updated_at = NOW()
+       WHERE id::text = $3`,
+      [plan, paidUntil, String(userId)]
+    );
+
+    console.log(`[AI客服] ✅ 用户 ${userId} 会员已激活: ${plan}，到期: ${paidUntil.toISOString()}`);
+
+    res.json({
+      success: true,
+      activated: true,
+      plan,
+      paidUntil: paidUntil.toISOString(),
+      lastOrder: {
+        orderNo: latestOrder.order_no,
+        planType: latestOrder.plan_type,
+        planName: latestOrder.plan_name,
+        amount: latestOrder.amount,
+        paidAt: latestOrder.paid_at
+      },
+      switches: MEMBERSHIP_ENABLED
+    });
+
+  } catch (error) {
+    console.error('[AI客服] 会员激活失败:', error);
+    res.status(500).json({ success: false, error: '会员激活失败: ' + error.message });
+  }
+});
+
+/**
  * POST /api/membership/create
  * 创建支付订单（兼容前端调用）
  * 内部转发到 /api/payment/create

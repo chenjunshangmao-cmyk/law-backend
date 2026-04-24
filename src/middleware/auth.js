@@ -1,6 +1,7 @@
 // JWT认证和安全中间件
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import pool from '../config/database.js';
 import { findUserById, findUserByEmail, updateUser } from '../services/dbService.js';
 
 // 安全配置 - 从环境变量读取，使用默认密钥作为后备
@@ -98,20 +99,35 @@ export const authMiddleware = async (req, res, next) => {
     });
   }
 
-  // 检查用户状态 (异步) - 已增强 dbService.js 防止数据库错误崩溃
-  let user;
+  // ★ 修复401：直接用 pool.query 查用户，绕过 dbService.findUserById
+  // dbService 的 useMemoryMode 导入绑定在 ESM 下可能有延迟问题
+  let user = null;
   try {
-    user = await findUserById(decoded.userId);
+    if (pool) {
+      const result = await pool.query(
+        `SELECT id::text, email, password, name,
+         COALESCE(membership_type, 'free') as membership_type,
+         membership_expires_at, created_at, updated_at
+         FROM users WHERE id::text = $1`,
+        [String(decoded.userId)]
+      );
+      if (result.rows[0]) {
+        user = result.rows[0];
+        console.log('[auth] ✅ 直接PG查询找到用户:', user.email);
+      }
+    }
   } catch (dbError) {
-    console.error('用户查询失败:', dbError.message);
-    // findUserById 已内置重试逻辑，这里如果还失败说明真的有问题
-    // ★ 关键修复：DB异常不应返回401（会导致前端误判为认证失败并清除token）
-    // 应该返回503让前端知道是服务器问题
-    return res.status(503).json({
-      success: false,
-      error: '服务暂时不可用，请稍后重试',
-      code: 'AUTH_DB_UNAVAILABLE'
-    });
+    console.error('[auth] PG查询用户失败:', dbError.message);
+  }
+
+  // 如果直接PG查不到，降级尝试 dbService（包含 JSON 兜底）
+  if (!user) {
+    try {
+      user = await findUserById(decoded.userId);
+    } catch (dbError) {
+      console.error('[auth] dbService fallback失败:', dbError.message);
+    }
+  })
   }
 
   if (!user) {

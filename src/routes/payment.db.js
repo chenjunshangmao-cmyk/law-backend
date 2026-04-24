@@ -363,9 +363,7 @@ router.get('/status/:orderNo', authenticateToken, async (req, res) => {
               ['paid', shouqianbaStatus.payway, new Date(), orderNo]
             );
 
-            // 更新用户会员
-            await upgradeUserMembership(order.user_id, order.plan_type);
-
+            // ★ 简化：只记录付款，会员激活由 AI客服 处理
             order.status = 'paid';
             order.payway = shouqianbaStatus.payway;
             order.paid_at = new Date();
@@ -497,10 +495,9 @@ router.post('/shouqianba', async (req, res) => {
         ['paid', params.payway || null, new Date(), params.client_sn]
       );
 
-      // 更新用户会员
-      await upgradeUserMembership(order.user_id, order.plan_type);
-
-      console.log(`【收钱吧回调】✅ 订单 ${params.client_sn} 支付成功，金额:¥${(params.total_amount / 100).toFixed(2)}`);
+      // ★ 简化：只记录付款，不自动激活会员
+      // 会员激活由 AI客服 通过 /api/membership/check-and-activate 检查并处理
+      console.log(`【收钱吧回调】✅ 订单 ${params.client_sn} 付款记录已保存，金额:¥${(params.total_amount / 100).toFixed(2)}，待AI客服激活会员`);
     } else if (orderStatus === 'CLOSED' || orderStatus === 'REFUND') {
       await pool.query(
         `UPDATE payment_orders SET status = $1, updated_at = NOW() WHERE order_no = $2`,
@@ -601,10 +598,8 @@ router.post('/confirm-test', authenticateToken, async (req, res) => {
       [orderNo]
     );
 
-    // 升级用户会员
-    await upgradeUserMembership(userId, order.plan_type);
-
-    console.log(`[支付] 测试模式订单已标记为已支付: ${orderNo}`);
+    // ★ 简化：只记录付款，会员激活由 AI客服 处理
+    console.log(`[支付] 测试模式订单已标记为已支付: ${orderNo}，待AI客服激活会员`);
 
     res.json({ success: true, message: '测试支付确认成功' });
 
