@@ -299,6 +299,24 @@ router.post('/ozon-authorize', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: '缺少必要参数: name, clientId, apiKey' });
     }
 
+    // 先测试 OZON API 连通性
+    const testResponse = await fetch('https://api-seller.ozon.ru/v1/ping', {
+      method: 'GET',
+      headers: {
+        'Client-Id': clientId,
+        'Api-Key': apiKey
+      }
+    });
+
+    if (testResponse.status !== 200) {
+      const text = await testResponse.text();
+      if (testResponse.status === 403) {
+        return res.status(400).json({ success: false, error: 'OZON API 认证失败 (403)：Client ID 或 API Key 不正确。请检查 OZON Seller 后台 → 设置 → API 密钥 中的凭证' });
+      } else {
+        return res.status(400).json({ success: false, error: 'OZON API 请求失败 (' + testResponse.status + ')：可能是网络不可达或被墙', detail: text?.substring(0, 200) });
+      }
+    }
+
     // 加密存储
     const accounts = readData('accounts') || [];
     const newAccount = {
@@ -337,22 +355,22 @@ router.post('/ozon-test', authenticateToken, async (req, res) => {
     const clientId = decrypt(account.clientId);
     const apiKey = decrypt(account.apiKey);
 
-    // 测试 OZON API /v1/description/category/tree
-    const response = await fetch('https://api-seller.ozon.ru/v1/description/category/tree', {
-      method: 'POST',
+    // 测试 OZON API — 用 /v1/ping 检查连通性
+    const response = await fetch('https://api-seller.ozon.ru/v1/ping', {
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
         'Client-Id': clientId,
         'Api-Key': apiKey
-      },
-      body: JSON.stringify({})
+      }
     });
 
-    const data = await response.json();
-    if (response.ok) {
-      res.json({ success: true, message: 'OZON API连接成功', data: { categories: data.result?.length || 0 } });
+    const text = await response.text();
+    if (response.status === 200) {
+      res.json({ success: true, message: 'OZON API连接成功' });
+    } else if (response.status === 403) {
+      res.status(400).json({ success: false, error: 'OZON API 认证失败 (403)：Client ID 或 API Key 不正确。请检查 OZON Seller 后台 → 设置 → API 密钥 中的凭证' });
     } else {
-      res.json({ success: false, error: data.message || data.error || 'OZON API连接失败', code: data.code });
+      res.status(400).json({ success: false, error: 'OZON API 请求失败 (' + response.status + ')：可能是网络不可达或被墙，请确认服务器可以访问 api-seller.ozon.ru', detail: text?.substring(0, 200) });
     }
   } catch (error) {
     res.status(500).json({ success: false, error: 'OZON API测试失败: ' + error.message });
