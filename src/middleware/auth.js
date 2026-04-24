@@ -127,7 +127,6 @@ export const authMiddleware = async (req, res, next) => {
     } catch (dbError) {
       console.error('[auth] dbService fallback失败:', dbError.message);
     }
-  })
   }
 
   if (!user) {
