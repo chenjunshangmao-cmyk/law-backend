@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import AIChatWidget from './AIChatWidget';
 
 const NAV_ITEMS = [
   { path: '/dashboard',   icon: '📊', label: '工作台' },
@@ -125,6 +126,8 @@ export default function MainLayout() {
       <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
         <Outlet />
       </main>
+      {/* AI客服悬浮窗 */}
+      <AIChatWidget />
     </div>
   );
 }
