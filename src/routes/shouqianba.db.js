@@ -374,7 +374,7 @@ router.post('/create-order', async (req, res) => {
       data: {
         sn: clientSn,
         clientSn,
-        totalAmount: Number(totalAmount),
+        totalAmount: Math.round(Number(totalAmount) * 100), // 转成分（与收钱吧一致），前端 /100 显示
         payUrl,              // 支付链接（前端生成二维码供用户扫码）
       }
     });
