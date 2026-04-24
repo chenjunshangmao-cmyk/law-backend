@@ -19,11 +19,11 @@ import { authenticateToken, rateLimitMiddleware, requireRole } from '../middlewa
 
 const router = express.Router();
 
-// 会员套餐定义（2026-04-23 最终版）
+// 会员套餐定义（2026-04-25 更新：价格单位统一为分/fen）
 const PLANS = {
   free: {
     name: '免费会员',
-    price: 0,
+    price: 0,           // ¥0
     color: 'gray',
     storeLimit: 2,         // 绑定店铺上限（仅国内平台）
     storePlatforms: ['taobao', 'pinduoduo', 'douyin'],
@@ -43,7 +43,7 @@ const PLANS = {
   },
   basic: {
     name: '基础版',
-    price: 199,
+    price: 190,         // ¥1.9（测试）/ ¥199（正式收款时改为 19900）
     color: 'blue',
     storeLimit: 5,
     storePlatforms: ['taobao', 'pinduoduo', 'douyin'],
@@ -62,9 +62,9 @@ const PLANS = {
       '适合：国内卖家（淘宝/拼多多/抖音）'
     ]
   },
-  pro: {
-    name: '专业版',
-    price: 499,
+  premium: {
+    name: '高级版',
+    price: 49900,        // ¥499
     color: 'purple',
     popular: true,
     storeLimit: 10,
@@ -86,7 +86,7 @@ const PLANS = {
   },
   enterprise: {
     name: '企业版',
-    price: 1599,
+    price: 159900,       // ¥1599
     color: 'amber',
     storeLimit: -1,         // 无限
     storePlatforms: ['taobao', 'pinduoduo', 'douyin', 'tiktok', 'youtube'],
@@ -107,7 +107,7 @@ const PLANS = {
   },
   flagship: {
     name: '旗舰版',
-    price: 5888,
+    price: 588800,       // ¥5888
     color: 'red',
     storeLimit: -1,
     storePlatforms: ['taobao', 'pinduoduo', 'douyin', 'tiktok', 'youtube'],
@@ -586,28 +586,23 @@ router.post('/check-and-activate', async (req, res) => {
 
     // 取最新有效订单，计算到期时间
     const latestOrder = paidOrders.rows[0];
-    // ★ 兼容旧数据（pro→premium, vip→flagship）
-    const planTypeMap = { pro: 'premium', vip: 'flagship' };
-    const resolvedPlanType = planTypeMap[latestOrder.plan_type] || latestOrder.plan_type;
-    const planDuration = { basic: 30, premium: 30, enterprise: 30, flagship: 30 };
-    const duration = planDuration[resolvedPlanType] || 30;
-
+    // payment.db.js 使用 basic/premium/enterprise/flagship（无需映射）
+    const planType = latestOrder.plan_type;
+    const DURATION_DAYS = 30;
     const paidAt = new Date(latestOrder.paid_at);
-    const paidUntil = new Date(paidAt.getTime() + duration * 24 * 60 * 60 * 1000);
+    const paidUntil = new Date(paidAt.getTime() + DURATION_DAYS * 24 * 60 * 60 * 1000);
 
-    // ★ 4个会员开关：只有开关开启的套餐才能激活
+    // 4个会员开关：只有开关开启的套餐才能激活
     const MEMBERSHIP_ENABLED = {
-      basic: true,      // 基础版开关
-      premium: true,    // 高级版开关
-      enterprise: true, // 企业版开关
-      flagship: true    // 旗舰版开关
+      basic: true,
+      premium: true,
+      enterprise: true,
+      flagship: true
     };
 
-    const plan = MEMBERSHIP_ENABLED[resolvedPlanType]
-      ? resolvedPlanType
-      : 'free';
+    const plan = MEMBERSHIP_ENABLED[planType] ? planType : 'free';
 
-    // 更新用户会员信息（membership_type 用 resolvedPlanType）
+    // 更新用户会员信息
     await pool.query(
       `UPDATE users SET
         membership_type = $1,
@@ -618,7 +613,7 @@ router.post('/check-and-activate', async (req, res) => {
       [plan, paidUntil, String(userId)]
     );
 
-    console.log(`[AI客服] ✅ 用户 ${userId} 会员已激活: ${plan}(原始:{${latestOrder.plan_type}})，到期: ${paidUntil.toISOString()}`);
+    console.log(`[AI客服] ✅ 用户 ${userId} 会员已激活: ${plan}，到期: ${paidUntil.toISOString()}`);
 
     res.json({
       success: true,
@@ -627,7 +622,7 @@ router.post('/check-and-activate', async (req, res) => {
       paidUntil: paidUntil.toISOString(),
       lastOrder: {
         orderNo: latestOrder.order_no,
-        planType: latestOrder.plan_type,
+        planType: planType,
         planName: latestOrder.plan_name,
         amount: latestOrder.amount,
         paidAt: latestOrder.paid_at
