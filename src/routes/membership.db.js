@@ -586,8 +586,11 @@ router.post('/check-and-activate', async (req, res) => {
 
     // 取最新有效订单，计算到期时间
     const latestOrder = paidOrders.rows[0];
+    // ★ 兼容旧数据（pro→premium, vip→flagship）
+    const planTypeMap = { pro: 'premium', vip: 'flagship' };
+    const resolvedPlanType = planTypeMap[latestOrder.plan_type] || latestOrder.plan_type;
     const planDuration = { basic: 30, premium: 30, enterprise: 30, flagship: 30 };
-    const duration = planDuration[latestOrder.plan_type] || 30;
+    const duration = planDuration[resolvedPlanType] || 30;
 
     const paidAt = new Date(latestOrder.paid_at);
     const paidUntil = new Date(paidAt.getTime() + duration * 24 * 60 * 60 * 1000);
@@ -600,11 +603,11 @@ router.post('/check-and-activate', async (req, res) => {
       flagship: true    // 旗舰版开关
     };
 
-    const plan = MEMBERSHIP_ENABLED[latestOrder.plan_type]
-      ? latestOrder.plan_type
+    const plan = MEMBERSHIP_ENABLED[resolvedPlanType]
+      ? resolvedPlanType
       : 'free';
 
-    // 更新用户会员信息
+    // 更新用户会员信息（membership_type 用 resolvedPlanType）
     await pool.query(
       `UPDATE users SET
         membership_type = $1,
@@ -615,7 +618,7 @@ router.post('/check-and-activate', async (req, res) => {
       [plan, paidUntil, String(userId)]
     );
 
-    console.log(`[AI客服] ✅ 用户 ${userId} 会员已激活: ${plan}，到期: ${paidUntil.toISOString()}`);
+    console.log(`[AI客服] ✅ 用户 ${userId} 会员已激活: ${plan}(原始:{${latestOrder.plan_type}})，到期: ${paidUntil.toISOString()}`);
 
     res.json({
       success: true,

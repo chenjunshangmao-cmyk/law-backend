@@ -34,6 +34,7 @@ function verifyWapSign(params, terminalKey) {
   const expected = crypto.createHash('md5').update(signStr).digest('hex').toUpperCase();
   return expected === (params.sign || '').toUpperCase();
 }
+
 const TERMINAL_FILE = path.join(_paymentDir, '../../data', 'shouqianba-terminal.json');
 function loadTerminalCache() {
   try {
@@ -118,26 +119,55 @@ async function ensurePaymentTables() {
 
 // ============================================================
 // 套餐配置（与 membership.db.js 保持一致）
+// 价格单位：分（fen），1元 = 100分
+// ⚠️ basic ¥1.9 = 190fen（测试价格，正式收款时改为 19900）
 const PLANS = {
-  basic: { name: '基础版', price: 19900, duration: 30 },
-  premium: { name: '高级版', price: 49900, duration: 30 },
-  enterprise: { name: '企业版', price: 159900, duration: 30 },
-  vip: { name: 'VIP版', price: 588800, duration: 30 }
+  basic: { name: '基础版', price: 190, duration: 30 },       // ¥1.9（测试）/ ¥199（正式）
+  premium: { name: '高级版', price: 49900, duration: 30 },   // ¥499
+  enterprise: { name: '企业版', price: 159900, duration: 30 }, // ¥1599
+  flagship: { name: '旗舰版', price: 588800, duration: 30 }  // ¥5888
 };
 
-// 业务服务配置（价格：元，后端内部×100转分）
+// 积分换算比例（1元 = 100分 = 100fen，5000积分 = ¥50 = 5000fen）
+const POINTS_RATIO = 100; // 1元 = 100积分
+const POINTS_PRICE_FEN = 1; // 1积分 = 1fen（直接1:1）
+
+// 业务服务配置（前端传 points，后端按 POINTS_PRICE_FEN 转 fen）
+// 5000 points × 1 = 5000fen = ¥50 ✅
 const SERVICES = {
-  'domestic-op': { name: '国内代运营', price: 5000 },      // ¥5000/月
-  'overseas-op': { name: '海外代运营', price: 5000 },      // ¥5000/月
-  'website-build': { name: '独立站搭建', price: 3800 },    // ¥3800/站
-  'youtube-live': { name: 'YouTube 直播号', price: 1000 }, // ¥1000/个
-  'facebook-live': { name: 'Facebook 直播推广号', price: 2800 }, // ¥2800/个
-  'ads-account': { name: '广告户开户', price: 500 }        // ¥500/户
+  'domestic-op': { name: '国内代运营', points: 5000 },      // 5000积分=¥50
+  'overseas-op': { name: '海外代运营', points: 5000 },      // 5000积分=¥50
+  'website-build': { name: '独立站搭建', points: 3800 },    // 3800积分=¥38
+  'youtube-live': { name: 'YouTube 直播号', points: 1000 }, // 1000积分=¥10
+  'facebook-live': { name: 'Facebook 直播推广号', points: 2800 }, // 2800积分=¥28
+  'ads-account': { name: '广告户开户', points: 500 }        // 500积分=¥5
 };
 
-// 收钱吧终端配置（从共享终端缓存文件读取，与 shouqianba.db.js 同步）
+/**
+ * 获取激活终端（支持多种配置来源）
+ * 优先级：1. shouqianba.js 配置（已激活硬编码）> 2. 环境变量 > 3. 共享缓存文件 > 4. 数据库
+ */
 async function getActiveTerminal() {
-  // 优先从共享终端缓存文件读取（shouqianba.db.js 激活时写入）
+  // 1. 优先从 shouqianba.js 配置读取（本地已激活的硬编码配置）
+  // shouqianba.js storeDevices.claw-web-new3 已包含完整 terminalSn + terminalKey
+  try {
+    const { default: shouqianbaConfig } = await import('../config/shouqianba.js');
+    const deviceConfig = shouqianbaConfig.storeDevices['claw-web-new3'];
+    if (deviceConfig && deviceConfig.terminalSn && deviceConfig.terminalKey) {
+      console.log('[支付] 从 shouqianba.js 读取终端配置:', deviceConfig.terminalSn);
+      return {
+        terminalSn: deviceConfig.terminalSn,
+        terminalKey: deviceConfig.terminalKey,
+        merchantId: deviceConfig.merchantId || '',
+        storeSn: deviceConfig.storeSn || '',
+        deviceId: 'claw-web-new3'
+      };
+    }
+  } catch (e) {
+    console.warn('[支付] shouqianba.js 配置读取失败:', e.message);
+  }
+
+  // 2. 优先从共享终端缓存文件读取（shouqianba.db.js 激活时写入）
   const cache = loadTerminalCache();
   const deviceIds = Object.keys(cache);
   if (deviceIds.length > 0) {
@@ -147,7 +177,16 @@ async function getActiveTerminal() {
       return t;
     }
   }
-  // 降级：从数据库读取
+
+  // 3. 从环境变量读取（Render 生产环境）
+  const envSn = process.env.SHOUQIANBA_TERMINAL_SN;
+  const envKey = process.env.SHOUQIANBA_TERMINAL_KEY;
+  if (envSn && envKey) {
+    console.log('[支付] 从环境变量读取终端:', envSn);
+    return { terminalSn: envSn, terminalKey: envKey };
+  }
+
+  // 4. 降级：从数据库读取
   try {
     const result = await pool.query(
       'SELECT terminal_sn, terminal_key, merchant_id, store_sn, device_id FROM shouqianba_terminals WHERE status = $1 ORDER BY last_checkin_at DESC LIMIT 1',
@@ -194,18 +233,19 @@ router.post('/create', authenticateToken, async (req, res) => {
       const planInfo = PLANS[plan];
       orderType = plan;
       orderName = planInfo.name;
-      orderAmount = planInfo.price;
+      orderAmount = planInfo.price; // 已是分
       subject = `Claw ${planInfo.name} - ${planInfo.duration}天`;
     } else if (serviceId && SERVICES[serviceId]) {
       const serviceInfo = SERVICES[serviceId];
       orderType = serviceId;
       orderName = serviceName || serviceInfo.name;
-      orderAmount = serviceInfo.price * 100; // 元→分，乘100
+      // 业务服务：points × POINTS_PRICE_FEN（1积分=1fen）
+      orderAmount = serviceInfo.points * POINTS_PRICE_FEN; // 5000×1=5000fen=¥50 ✅
       subject = `Claw 业务服务 - ${orderName}`;
     } else if (serviceId && amount) {
       orderType = serviceId;
       orderName = serviceName || '业务服务';
-      orderAmount = amount * 100;
+      orderAmount = amount; // 直接是分
       subject = `Claw 业务服务 - ${orderName}`;
     } else {
       return res.status(400).json({ success: false, error: '无效的订单类型' });
@@ -227,32 +267,39 @@ router.post('/create', authenticateToken, async (req, res) => {
     let paymentResult;
 
     if (hasShouqianbaConfig) {
-      // 直接生成 WAP 支付 URL（与 shouqianba.db.js /create-order 保持完全一致）
-      // 使用正确的 GET 网关：https://m.wosai.cn/qr/gateway（实测可用）
-      const gatewayUrl = 'https://m.wosai.cn/qr/gateway';
-      const wapParams = {
-        terminal_sn: sn,
-        client_sn: orderNo,
-        total_amount: String(orderAmount),
-        subject,
-        return_url: returnUrlFull,
-        notify_url: notifyUrl,
-        operator: 'claw_admin'
-      };
-      // WAP 签名：参数排序 → key1=val1&key2=val2&... → MD5(内容 + & + terminalKey) → 大写
-      const sortedKeys = Object.keys(wapParams).sort();
-      const pairs = sortedKeys.map(k => `${k}=${wapParams[k]}`);
-      const signStr = pairs.join('&') + '&key=' + key;
-      const sign = crypto.createHash('md5').update(signStr).digest('hex').toUpperCase();
-      const payUrl = gatewayUrl + '?' + pairs.join('&') + '&sign=' + sign + '&sign_type=MD5';
+      // ★ 使用 shouqianba.js 官方 createWapPayment API 生成真实支付链接
+      try {
+        const { createWapPayment } = await import('../services/shouqianba.js');
+        const wapResult = await createWapPayment({
+          terminalSn: sn,
+          terminalKey: key,
+          clientSn: orderNo,
+          totalAmount: orderAmount,
+          subject,
+          returnUrl: returnUrlFull,
+          notifyUrl,
+          clientIp
+        });
 
-      console.log('[支付] WAP支付URL已生成:', payUrl.substring(0, 100) + '...');
-      paymentResult = {
-        sn: orderNo,
-        payUrl,
-        testMode: false,
-        message: '请在支付页面完成付款'
-      };
+        // shouqianba API 返回真实可支付的 pay_url
+        const payUrl = wapResult.payUrl;
+        console.log('[支付] ✅ 收钱吧WAP支付链接:', payUrl ? payUrl.substring(0, 80) + '...' : 'null');
+        paymentResult = {
+          sn: wapResult.sn || orderNo,
+          payUrl,
+          testMode: false,
+          message: '请使用微信/支付宝扫码支付'
+        };
+      } catch (wapErr) {
+        console.error('[支付] WAP支付创建失败:', wapErr.message, '进入测试模式');
+        paymentResult = {
+          sn: `TEST-${orderNo}`,
+          payUrl: null,
+          qrCode: null,
+          testMode: true,
+          message: '收钱吧API异常：' + wapErr.message
+        };
+      }
     } else {
       // 无有效终端配置，降级为测试模式（立即返回，不挂起）
       console.log('[支付] 无收钱吧配置，进入测试模式，订单号:', orderNo);
