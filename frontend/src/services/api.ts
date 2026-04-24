@@ -318,6 +318,12 @@ export const api = {
     
     quick: (data: any) =>
       authFetch('/api/calculate/quick', { method: 'POST', body: JSON.stringify(data) }),
+
+    logistics: () =>
+      authFetch('/api/calculate/logistics'),
+
+    platforms: () =>
+      authFetch('/api/calculate/platforms'),
   },
 
   // ============================================================

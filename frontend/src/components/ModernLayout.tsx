@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import AIChatWidget from './AIChatWidget';
 import { 
   LayoutDashboard, 
   TrendingUp, 
@@ -341,6 +342,8 @@ export default function ModernLayout() {
           outline-offset: 2px;
         }
       `}</style>
+      {/* AI 客服悬浮窗 */}
+      <AIChatWidget />
     </div>
   );
 }

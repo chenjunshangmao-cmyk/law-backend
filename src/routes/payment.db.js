@@ -120,12 +120,12 @@ async function ensurePaymentTables() {
 // ============================================================
 // 套餐配置（与 membership.db.js 保持一致）
 // 价格单位：分（fen），1元 = 100分
-// ⚠️ basic ¥1.9 = 190fen（测试价格，正式收款时改为 19900）
+// 套餐配置（与 membership.db.js 保持一致，2026-04-25 最终版）
 const PLANS = {
-  basic: { name: '基础版', price: 190, duration: 30 },       // ¥1.9（测试）/ ¥199（正式）
-  premium: { name: '高级版', price: 49900, duration: 30 },   // ¥499
-  enterprise: { name: '企业版', price: 159900, duration: 30 }, // ¥1599
-  flagship: { name: '旗舰版', price: 588800, duration: 30 }  // ¥5888
+  basic: { name: '基础版', price: 19900, duration: 30 },       // ¥199/月
+  premium: { name: '专业版', price: 49900, duration: 30 },    // ¥499/月
+  enterprise: { name: '企业版', price: 159900, duration: 30 }, // ¥1599/月
+  flagship: { name: '旗舰版', price: 588800, duration: 30 }   // ¥5888/月
 };
 
 // 积分换算比例（1元 = 100分 = 100fen，5000积分 = ¥50 = 5000fen）

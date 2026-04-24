@@ -473,6 +473,23 @@ export default function PublishPage() {
   useEffect(() => {
     loadSystemStatus();
     loadAccounts();
+
+    // 从利润计算器读取自动填入的价格
+    try {
+      const stored = sessionStorage.getItem('claw_publish_price');
+      if (stored) {
+        const data = JSON.parse(stored);
+        if (data.price) {
+          setForm(f => ({ ...f, price: String(data.price) }));
+          // 显示提示
+          setPublishMsg({ type: 'info', text: `💰 已从计算器自动填入售价: ${data.currency || 'USD'} ${data.price}（${data.tier || ''}）` });
+          // 用完就删，避免重复提示
+          sessionStorage.removeItem('claw_publish_price');
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
   }, [loadSystemStatus, loadAccounts]);
 
   // 平台切换时重置模式
@@ -881,37 +898,79 @@ export default function PublishPage() {
                   />
                 </FormField>
 
-                {/* 价格 / 收益 */}
+                {/* 价格 + 利润计算（非YouTube平台） */}
                 {platform !== 'youtube' && (
-                  <FormField label="售价 (USD)" required>
-                    <div style={{ position: 'relative' }}>
-                      <DollarSign size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
-                      <input
-                        value={form.price}
-                        onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
-                        placeholder="0.00"
-                        type="number"
-                        style={{
-                          width: '100%', padding: '10px 12px 10px 28px',
-                          background: '#f8fafc', border: '1.5px solid #e2e8f0',
-                          borderRadius: 8, color: '#1e293b', fontSize: 13,
-                          outline: 'none', boxSizing: 'border-box',
-                        }}
-                      />
-                    </div>
-                  </FormField>
-                )}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 8 }}>
+                      <FormField label="售价 (USD)" required>
+                        <div style={{ position: 'relative' }}>
+                          <DollarSign size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
+                          <input
+                            value={form.price}
+                            onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+                            placeholder="0.00"
+                            type="number"
+                            style={{
+                              width: '100%', padding: '10px 12px 10px 28px',
+                              background: '#f8fafc', border: '1.5px solid #e2e8f0',
+                              borderRadius: 8, color: '#1e293b', fontSize: 13,
+                              outline: 'none', boxSizing: 'border-box',
+                            }}
+                          />
+                        </div>
+                      </FormField>
 
-                {/* 成本 */}
-                {platform !== 'youtube' && (
-                  <FormField label="成本 (USD)">
-                    <Input
-                      value={form.cost}
-                      onChange={e => setForm(f => ({ ...f, cost: e.target.value }))}
-                      placeholder="0.00"
-                      type="number"
-                    />
-                  </FormField>
+                      <FormField label="成本 (USD)">
+                        <Input
+                          value={form.cost}
+                          onChange={e => setForm(f => ({ ...f, cost: e.target.value }))}
+                          placeholder="0.00"
+                          type="number"
+                        />
+                      </FormField>
+                    </div>
+
+                    {/* 利润档位自动计算 - 填入成本后自动算出价格 */}
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 6 }}>
+                      📊 选择利润档位自动算价
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {[
+                        { label: '30% 薄利', rate: 30, color: '#059669', tip: '冲量引流' },
+                        { label: '50% 标准', rate: 50, color: '#6366f1', tip: '稳健盈利' },
+                        { label: '70% 高利', rate: 70, color: '#f59e0b', tip: '高利润' },
+                        { label: '90% 暴利', rate: 90, color: '#dc2626', tip: '品牌溢价' },
+                      ].map(tier => {
+                        const c = parseFloat(form.cost);
+                        const price = c > 0 ? (c / (1 - tier.rate / 100)).toFixed(2) : '—';
+                        return (
+                          <button
+                            key={tier.rate}
+                            onClick={() => {
+                              if (c > 0) {
+                                setForm(f => ({ ...f, price }));
+                              }
+                            }}
+                            disabled={!c || c <= 0}
+                            title={c > 0 ? `${tier.tip}: 成本 $${c.toFixed(2)} → 售价 $${price}` : '请先填入成本'}
+                            style={{
+                              flex: '1 1 100px', padding: '10px 8px', borderRadius: 10,
+                              background: form.price === price && c > 0 ? `${tier.color}15` : '#fff',
+                              border: `2px solid ${form.price === price && c > 0 ? tier.color : '#e5e7eb'}`,
+                              cursor: c > 0 ? 'pointer' : 'not-allowed', opacity: c > 0 ? 1 : 0.4,
+                              textAlign: 'center', transition: 'all 0.15s',
+                            }}
+                          >
+                            <div style={{ fontSize: 13, fontWeight: 700, color: tier.color }}>{tier.label}</div>
+                            <div style={{ fontSize: 15, fontWeight: 800, color: '#111', marginTop: 2 }}>
+                              ${price !== '—' ? price : '—'}
+                            </div>
+                            <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>{tier.tip}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
 
                 {/* 隐私设置 (YouTube) */}

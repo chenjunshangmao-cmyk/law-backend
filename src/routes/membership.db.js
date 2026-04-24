@@ -19,7 +19,7 @@ import { authenticateToken, rateLimitMiddleware, requireRole } from '../middlewa
 
 const router = express.Router();
 
-// 会员套餐定义（2026-04-25 更新：价格单位统一为分/fen）
+// 会员套餐定义（2026-04-25 更新：价格单位统一为分/fen，最终版配置）
 const PLANS = {
   free: {
     name: '免费会员',
@@ -38,12 +38,13 @@ const PLANS = {
       '产品上架：无限次（手动）',
       '智能定价：无限次（手动）',
       'AI功能：0次',
+      '代理服务：不可用',
       '适合：国内卖家试用'
     ]
   },
   basic: {
     name: '基础版',
-    price: 190,         // ¥1.9（测试）/ ¥199（正式收款时改为 19900）
+    price: 19900,         // ¥199/月
     color: 'blue',
     storeLimit: 5,
     storePlatforms: ['taobao', 'pinduoduo', 'douyin'],
@@ -63,8 +64,8 @@ const PLANS = {
     ]
   },
   premium: {
-    name: '高级版',
-    price: 49900,        // ¥499
+    name: '专业版',
+    price: 49900,        // ¥499/月
     color: 'purple',
     popular: true,
     storeLimit: 10,
@@ -76,7 +77,7 @@ const PLANS = {
     customDev: false,
     prioritySupport: false,
     features: [
-      '绑定店铺：10个（国内+海外）',
+      '绑定店铺：10个',
       'AI文案：无限次',
       'AI图片：100次/月',
       'AI视频：2次/天',
@@ -86,7 +87,7 @@ const PLANS = {
   },
   enterprise: {
     name: '企业版',
-    price: 159900,       // ¥1599
+    price: 159900,       // ¥1599/月
     color: 'amber',
     storeLimit: -1,         // 无限
     storePlatforms: ['taobao', 'pinduoduo', 'douyin', 'tiktok', 'youtube'],
@@ -107,7 +108,7 @@ const PLANS = {
   },
   flagship: {
     name: '旗舰版',
-    price: 588800,       // ¥5888
+    price: 588800,       // ¥5888/月
     color: 'red',
     storeLimit: -1,
     storePlatforms: ['taobao', 'pinduoduo', 'douyin', 'tiktok', 'youtube'],
@@ -123,8 +124,8 @@ const PLANS = {
       'AI图片：无限次',
       'AI视频：无限次',
       '代理服务：12个国家',
-      '定制开发：支持',
-      '专属客服：7×24小时'
+      '专属客服：7×24小时',
+      '定制开发：支持'
     ]
   }
 };

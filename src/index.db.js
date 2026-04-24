@@ -33,7 +33,7 @@ import paymentRoutes from './routes/payment.db.js';
 import shouqianbaRoutes from './routes/shouqianba.db.js';
 
 const app = express();
-const PORT = process.env.PORT || 9000;
+const PORT = process.env.PORT || 8089;
 
 // 安全中间件
 app.use(helmet({

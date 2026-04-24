@@ -1,75 +1,63 @@
-// 测试支付接口
 const https = require('https');
 
-function post(url, body, token) {
-  return new Promise((resolve, reject) => {
-    const data = JSON.stringify(body);
-    const urlObj = new URL(url);
-    const options = {
-      hostname: urlObj.hostname,
-      port: urlObj.port || 443,
-      path: urlObj.pathname,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(data),
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      }
-    };
+const BASE = 'claw-backend-2026.onrender.com';
+const ts = Date.now();
+const email = `claw_paytest_${ts}@test.com`;
 
-    const req = https.request(options, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        try {
-          resolve({ status: res.statusCode, data: JSON.parse(body) });
-        } catch (e) {
-          resolve({ status: res.statusCode, data: body });
-        }
-      });
+function request(method, path, body, token) {
+    return new Promise((resolve, reject) => {
+        const bodyStr = JSON.stringify(body);
+        const headers = {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(bodyStr)
+        };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const opts = { hostname: BASE, path, method, headers };
+        const req = https.request(opts, res => {
+            let data = '';
+            res.on('data', c => data += c);
+            res.on('end', () => {
+                try { resolve({ status: res.statusCode, data: JSON.parse(data) }); }
+                catch { resolve({ status: res.statusCode, data }); }
+            });
+        });
+        req.on('error', reject);
+        req.write(bodyStr);
+        req.end();
     });
-
-    req.on('error', reject);
-    req.setTimeout(15000, () => { req.destroy(); reject(new Error('Timeout')); });
-    req.write(data);
-    req.end();
-  });
 }
 
 async function main() {
-  console.log('1. 测试登录...');
-  const login = await post('https://claw-backend-2026.onrender.com/api/auth/login', {
-    email: 'clawadmin@test.com',
-    password: 'Test123456'
-  });
-  console.log('登录结果:', JSON.stringify(login));
+    // Step 1: Register
+    console.log('=== 1. 注册 ===');
+    const reg = await request('POST', '/api/auth/register', {
+        email, password: 'Test123456', name: `PayTest${ts}`
+    });
+    console.log('status:', reg.status);
+    console.log('success:', reg.data.success);
 
-  if (login.status !== 200 || !login.data?.data?.token) {
-    console.log('❌ 登录失败');
-    return;
-  }
+    // Token 在 reg.data.data.token（两层包装）
+    const token = reg.data.data && reg.data.data.token ? reg.data.data.token : (reg.data.token || null);
+    if (!token) {
+        console.error('❌ 无Token:', JSON.stringify(reg.data).substring(0, 200));
+        return;
+    }
+    console.log('✅ Token:', token.substring(0, 50) + '...\n');
 
-  const token = login.data.data.token;
-  console.log('✅ 登录成功，token:', token.substring(0, 30) + '...');
+    // Step 2: 创建基础版支付（¥1.9）
+    console.log('=== 2. 基础版支付订单 ===');
+    const pay1 = await request('POST', '/api/payment/create', { plan: 'basic' }, token);
+    console.log('status:', pay1.status);
+    console.log(JSON.stringify(pay1.data, null, 2));
 
-  console.log('\n2. 测试创建订单 (plan=basic)...');
-  const order = await post('https://claw-backend-2026.onrender.com/api/payment/create',
-    { plan: 'basic' },
-    token
-  );
-  console.log('创建订单结果:');
-  console.log('  状态码:', order.status);
-  console.log('  响应:', JSON.stringify(order.data, null, 2));
-
-  if (order.status === 200 && order.data?.success) {
-    console.log('✅ 订单创建成功');
-    console.log('  orderNo:', order.data.data.orderNo);
-    console.log('  payUrl:', order.data.data.payUrl ? '(已生成)' : '(无)');
-    console.log('  qrCode:', order.data.data.qrCode ? '(已生成)' : '(无)');
-    console.log('  testMode:', order.data.data.testMode);
-  } else {
-    console.log('❌ 订单创建失败:', order.data?.error || order.data);
-  }
+    // Step 3: 业务服务支付（5000积分=¥50）
+    console.log('\n=== 3. 业务服务支付订单 ===');
+    const pay2 = await request('POST', '/api/payment/create', {
+        serviceId: 'domestic-op', serviceName: '国内代运营'
+    }, token);
+    console.log('status:', pay2.status);
+    console.log(JSON.stringify(pay2.data, null, 2));
 }
 
 main().catch(console.error);
