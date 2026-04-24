@@ -42,7 +42,7 @@ router.get('/', authenticateToken, async (req, res) => {
  */
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { platform, name, apiKey, apiSecret } = req.body;
+    const { platform, name, username, credentials, clientId, apiKey, apiSecret } = req.body;
     
     // 验证必填字段
     if (!platform || !name) {
@@ -62,17 +62,31 @@ router.post('/', authenticateToken, async (req, res) => {
     
     const accounts = readData('accounts') || [];
     
+    // 支持来自 credentials 的敏感信息
+    const email = credentials?.email || req.body.email || '';
+    const password = credentials?.password || req.body.password || '';
+    const cid = clientId || req.body.clientId || '';
+    const akey = apiKey || credentials?.apiKey || '';
+    const asecret = apiSecret || credentials?.apiSecret || '';
+    
     // 加密敏感信息
-    const encryptedKey = apiKey ? encrypt(apiKey) : '';
-    const encryptedSecret = apiSecret ? encrypt(apiSecret) : '';
+    const encryptedEmail = email ? encrypt(email) : '';
+    const encryptedPassword = password ? encrypt(password) : '';
+    const encryptedClientId = cid ? encrypt(cid) : '';
+    const encryptedApiKey = akey ? encrypt(akey) : '';
+    const encryptedApiSecret = asecret ? encrypt(asecret) : '';
     
     const newAccount = {
       id: generateId(),
       userId: req.user.userId,
       platform: platform.toLowerCase(),
       name,
-      apiKey: encryptedKey,
-      apiSecret: encryptedSecret,
+      username: username || '',
+      email: encryptedEmail,
+      password: encryptedPassword,
+      clientId: encryptedClientId,
+      apiKey: encryptedApiKey,
+      apiSecret: encryptedApiSecret,
       status: 'active',
       lastSync: null,
       createdAt: Date.now(),
@@ -86,8 +100,8 @@ router.post('/', authenticateToken, async (req, res) => {
       success: true, 
       data: {
         ...newAccount,
-        apiKey: apiKey ? '***' + apiKey.slice(-4) : '',
-        apiSecret: apiSecret ? '***' : ''
+        apiKey: akey ? '***' + akey.slice(-4) : '',
+        apiSecret: asecret ? '***' : ''
       }
     });
   } catch (error) {
@@ -238,23 +252,37 @@ router.post('/:id/test', authenticateToken, async (req, res) => {
  * 实际应该调用各平台的API
  */
 async function testPlatformConnection(account) {
-  // 解密获取原始凭证
-  const apiKey = decrypt(account.apiKey);
-  const apiSecret = decrypt(account.apiSecret);
+  // 解密获取原始凭证 - 根据不同平台选择不同凭证
+  const platform = account.platform;
   
-  if (!apiKey || !apiSecret) {
-    return { success: false, message: '缺少API凭证' };
+  if (platform === 'ozon') {
+    const clientId = decrypt(account.clientId || account.apiKey);
+    const apiKey = decrypt(account.apiKey || account.apiSecret);
+    if (!clientId || !apiKey) {
+      return { success: false, message: '缺少 OZON Client ID 或 API Key' };
+    }
+    // OZON API 测试
+    try {
+      const response = await fetch('https://api-seller.ozon.ru/v1/ping', {
+        method: 'GET',
+        headers: { 'Client-Id': clientId, 'Api-Key': apiKey }
+      });
+      return { success: response.status === 200, message: response.status === 200 ? 'OZON API连接成功' : 'OZON API认证失败' };
+    } catch (e) {
+      return { success: false, message: 'OZON API不可达（网络问题或服务器被限）' };
+    }
   }
   
-  // 模拟测试延迟
+  // 其他平台 - 仅检查是否有凭证
+  const email = decrypt(account.email || account.username);
+  const password = decrypt(account.password || account.apiSecret);
+  
   await new Promise(resolve => setTimeout(resolve, 500));
   
-  // 简单的凭证格式验证（实际应该调用平台API）
-  const isValid = apiKey.length >= 10 && apiSecret.length >= 10;
-  
+  const hasCreds = !!(email || account.username);
   return {
-    success: isValid,
-    message: isValid ? '连接成功' : 'API凭证格式不正确'
+    success: hasCreds,
+    message: hasCreds ? '账号已配置' : '请填写平台登录信息'
   };
 }
 
@@ -356,6 +384,78 @@ router.post('/ozon-test', authenticateToken, async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ success: false, error: 'OZON API测试失败: ' + error.message });
+  }
+});
+
+/**
+ * POST /api/accounts/:id/sync
+ * 同步平台数据（如 OZON 产品列表）
+ */
+router.post('/:id/sync', authenticateToken, async (req, res) => {
+  try {
+    const accounts = readData('accounts') || [];
+    const account = accounts.find(a => a.id === req.params.id && a.userId === req.user.userId);
+    if (!account) {
+      return res.status(404).json({ success: false, error: '账号不存在' });
+    }
+
+    const platform = account.platform;
+    
+    if (platform === 'ozon') {
+      const clientId = decrypt(account.clientId || account.apiKey);
+      const apiKey = decrypt(account.apiKey || account.apiSecret);
+      
+      if (!clientId || !apiKey) {
+        return res.json({ success: false, error: 'OZON 凭证缺失，请重新授权' });
+      }
+
+      // 获取 OZON 产品列表
+      const response = await fetch('https://api-seller.ozon.ru/v2/product/list', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Client-Id': clientId,
+          'Api-Key': apiKey
+        },
+        body: JSON.stringify({
+          filter: { visibility: 'ALL' },
+          limit: 100,
+          offset: 0
+        })
+      });
+
+      if (!response.ok) {
+        return res.json({ success: false, error: 'OZON API同步失败 (' + response.status + ')' });
+      }
+
+      const data = await response.json();
+      const products = data.result?.items || [];
+      
+      // 更新同步时间
+      const index = accounts.findIndex(a => a.id === req.params.id);
+      accounts[index].lastSync = Date.now();
+      accounts[index].updatedAt = Date.now();
+      writeData('accounts', accounts);
+
+      res.json({
+        success: true,
+        message: '同步完成',
+        data: {
+          total: data.result?.total || products.length,
+          products: products.map(p => ({
+            id: p.offer_id || p.product_id,
+            name: p.name,
+            price: p.price,
+            stock: p.stocks?.present || 0,
+            status: p.state?.name || p.status
+          }))
+        }
+      });
+    } else {
+      res.json({ success: false, error: `平台 ${platform} 暂不支持数据同步` });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: '同步失败: ' + error.message });
   }
 });
 
