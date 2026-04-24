@@ -170,6 +170,16 @@ export const api = {
     test: (id: string) => authFetch(`/api/accounts/${id}/test`, { method: 'POST' }),
     
     sync: (id: string) => authFetch(`/api/accounts/${id}/sync`, { method: 'POST' }),
+
+    // OZON API 授权（Client ID + API Key → 自动验证+创建账号）
+    ozonAuthorize: (data: {
+      name: string;
+      clientId: string;
+      apiKey: string;
+    }) => authFetch('/api/accounts/ozon-authorize', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   },
 
   // ============================================================

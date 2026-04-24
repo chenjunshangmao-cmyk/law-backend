@@ -17,7 +17,7 @@ import {
   validateAccountTest,
   validateCookies
 } from '../middleware/validateAccounts.js';
-import { syncAccountData as syncOzonData } from '../services/ozonApi.js';
+import { syncAccountData as syncOzonData, createOzonClient, getSellerInfo } from '../services/ozonApi.js';
 
 const router = express.Router();
 
@@ -416,6 +416,102 @@ router.post('/:id/sync', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('同步账号数据失败:', error);
     res.status(500).json({ success: false, error: '同步失败: ' + error.message });
+  }
+});
+
+/**
+ * POST /api/accounts/ozon-authorize
+ * OZON API 授权：验证 Client ID + API Key → 自动创建账号
+ */
+router.post('/ozon-authorize', authenticateToken, async (req, res) => {
+  try {
+    const { name, clientId, apiKey } = req.body;
+
+    if (!name || !clientId || !apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少必填字段：name（账号名称）、clientId、apiKey',
+      });
+    }
+
+    // 1. 调用 OZON API 验证凭证有效性
+    let sellerInfo;
+    try {
+      const client = createOzonClient(clientId, apiKey);
+      sellerInfo = await getSellerInfo(client);
+      console.log(`✅ OZON API 验证成功，店铺名: ${sellerInfo.seller?.company_name || '未知'}`);
+    } catch (apiError) {
+      return res.status(401).json({
+        success: false,
+        error: `OZON API 验证失败：${apiError.message}，请检查 Client ID 和 API Key 是否正确`,
+        code: 'OZON_AUTH_FAILED',
+      });
+    }
+
+    // 2. 检查是否已存在同 clientId 的账号（防重复）
+    const existingAccounts = await getAccountsByUser(req.userId);
+    const duplicate = existingAccounts.find(a => {
+      if (a.platform !== 'ozon') return false;
+      try {
+        const data = a.account_data || {};
+        return data.clientId === clientId || data.client_id === clientId;
+      } catch { return false; }
+    });
+
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        error: `已存在相同 Client ID 的 OZON 账号「${duplicate.account_name}」`,
+        code: 'DUPLICATE_ACCOUNT',
+        existingAccountId: duplicate.id,
+      });
+    }
+
+    // 3. 创建账号（加密保存 API 凭证）
+    const accountDataPayload = {
+      username: sellerInfo?.seller?.email || sellerInfo?.seller?.login || name,
+      status: 'active',
+      clientId,
+      apiKey: encrypt(apiKey),  // 加密存储
+      sellerInfo: {
+        company_name: sellerInfo?.seller?.company_name,
+        email: sellerInfo?.seller?.email,
+        login: sellerInfo?.seller?.login,
+      },
+      authMethod: 'api',
+      lastAuthCheck: new Date().toISOString(),
+    };
+
+    const newAccount = await createAccount({
+      user_id: req.userId,
+      platform: 'ozon',
+      account_name: name,
+      account_data: accountDataPayload,
+    });
+
+    if (!newAccount) {
+      return res.status(500).json({ success: false, error: '创建账号失败' });
+    }
+
+    console.log(`🆕 OZON 账号已创建: ${newAccount.id} - ${name}`);
+
+    res.status(201).json({
+      success: true,
+      message: `OZON 账号授权成功！${sellerInfo?.seller?.company_name ? `店铺：${sellerInfo.seller.company_name}` : ''}`,
+      data: {
+        id: newAccount.id,
+        platform: 'ozon',
+        name: newAccount.account_name,
+        status: 'active',
+        company: sellerInfo?.seller?.company_name || null,
+        email: sellerInfo?.seller?.email || null,
+        authedAt: new Date().toISOString(),
+      },
+    });
+
+  } catch (error) {
+    console.error('❌ OZON 授权失败:', error);
+    res.status(500).json({ success: false, error: 'OZON 授权失败: ' + error.message });
   }
 });
 

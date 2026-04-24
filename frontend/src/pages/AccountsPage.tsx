@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, RefreshCw, Trash2, TestTube2, Settings, CheckCircle, XCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, TestTube2, Settings, CheckCircle, XCircle, AlertCircle, ExternalLink, Key, ShieldCheck } from 'lucide-react';
 import api from '../services/api';
 import { Account, PLATFORM_CONFIG } from '../types';
 
@@ -12,7 +12,7 @@ export default function AccountsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState('');
-  
+
   // 添加账号表单
   const [form, setForm] = useState({
     platform: 'tiktok',
@@ -20,6 +20,9 @@ export default function AccountsPage() {
     username: '',
     email: '',
     password: '',
+    // OZON API 授权字段
+    clientId: '',
+    apiKey: '',
   });
 
   // 测试中的账号 ID
@@ -43,29 +46,64 @@ export default function AccountsPage() {
     }
   };
 
+  // 判断当前选择平台是否为 OZON（需要 API 授权）
+  const isOzonPlatform = form.platform === 'ozon';
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // OZON 平台走 API 授权流程
+    if (isOzonPlatform) {
+      if (!form.name || !form.clientId || !form.apiKey) {
+        setAddError('请填写：账号名称、Client ID、API Key');
+        return;
+      }
+      setAddLoading(true);
+      setAddError('');
+      try {
+        const res = await api.accounts.ozonAuthorize({
+          name: form.name,
+          clientId: form.clientId,
+          apiKey: form.apiKey,
+        });
+
+        setShowAdd(false);
+        setForm({
+          platform: 'tiktok', name: '', username: '', email: '', password: '',
+          clientId: '', apiKey: '',
+        });
+        await loadAccounts();
+        alert(res?.message || 'OZON 账号授权成功！');
+      } catch (e: any) {
+        setAddError(e.message || 'OZON 授权失败');
+      } finally {
+        setAddLoading(false);
+      }
+      return;
+    }
+
+    // 其他平台走原有逻辑
     if (!form.name) {
       setAddError('请输入账号名称');
       return;
     }
-    
+
     setAddLoading(true);
     setAddError('');
     try {
       const credentials: any = {};
       if (form.email) credentials.email = form.email;
       if (form.password) credentials.password = form.password;
-      
+
       await api.accounts.create({
         platform: form.platform,
         name: form.name,
         username: form.username || undefined,
         credentials: Object.keys(credentials).length > 0 ? credentials : undefined,
       });
-      
+
       setShowAdd(false);
-      setForm({ platform: 'tiktok', name: '', username: '', email: '', password: '' });
+      setForm({ platform: 'tiktok', name: '', username: '', email: '', password: '', clientId: '', apiKey: '' });
       await loadAccounts();
     } catch (e: any) {
       setAddError(e.message);
@@ -304,7 +342,67 @@ export default function AccountsPage() {
                   ))}
                 </select>
               </div>
-              
+
+              {/* ===== OZON 平台：API 授权模式 ===== */}
+              {isOzonPlatform ? (
+                <>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
+                    <ShieldCheck className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-semibold">OZON API 直接授权</p>
+                      <p className="mt-1 text-blue-600">输入 Client ID 和 API Key，系统自动验证并创建账号</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">账号名称 *</label>
+                    <input
+                      type="text"
+                      value={form.name}
+                      onChange={e => setForm({ ...form, name: e.target.value })}
+                      placeholder="例：OZON主店铺"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <Key className="w-4 h-4 inline mr-1" />Client ID *
+                    </label>
+                    <input
+                      type="text"
+                      value={form.clientId}
+                      onChange={e => setForm({ ...form, clientId: e.target.value })}
+                      placeholder="OZON Seller API 的 Client ID（在 seller.ozon.ru 获取）"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <Key className="w-4 h-4 inline mr-1" />API Key *
+                    </label>
+                    <input
+                      type="password"
+                      value={form.apiKey}
+                      onChange={e => setForm({ ...form, apiKey: e.target.value })}
+                      placeholder="OZON Seller API 的 API Key"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+
+                  <div className="bg-gray-50 border border-gray-200 rounded p-2.5">
+                    <p className="text-xs text-gray-500">
+                      🔑 在 OZON Seller 后台 → 设置 → API 密钥 中获取 Client ID 和 API Key
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+              {/* ===== 其他平台：普通表单 ===== */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">账号名称 *</label>
                 <input
@@ -338,6 +436,8 @@ export default function AccountsPage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+                </>
+              )}
               
               <div className="flex gap-3 pt-2">
                 <button
@@ -352,7 +452,10 @@ export default function AccountsPage() {
                   disabled={addLoading}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {addLoading ? '添加中...' : '确认添加'}
+                  {addLoading
+                    ? (isOzonPlatform ? '验证中...' : '添加中...')
+                    : (isOzonPlatform ? '🔗 授权并添加' : '确认添加')
+                  }
                 </button>
               </div>
             </form>
