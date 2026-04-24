@@ -15,6 +15,7 @@ import calculateRoutes from './routes/calculate.js';
 import accountsRoutes from './routes/accounts.js';
 import tasksRoutes from './routes/tasks.js';
 import membershipRoutes from './routes/membership.js';
+import membershipDbRoutes from './routes/membership.db.js';
 import browserRoutes from './routes/browser.js';
 import publishRoutes from './routes/publish.js';
 import customerServiceRoutes from './routes/customerService.js';
@@ -111,6 +112,7 @@ app.use('/api/calculate', calculateRoutes);
 app.use('/api/accounts', accountsRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/membership', membershipRoutes);
+app.use('/api/membership', membershipDbRoutes);
 app.use('/api/quota', membershipRoutes); // 额度接口
 app.use('/api/browser', browserRoutes); // 浏览器自动化
 app.use('/api/publish', publishRoutes); // 产品发布（链接/素材）
