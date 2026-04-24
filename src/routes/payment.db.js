@@ -152,9 +152,18 @@ async function getActiveTerminal() {
   // shouqianba.js storeDevices.claw-web-new3 已包含完整 terminalSn + terminalKey
   try {
     const { default: shouqianbaConfig } = await import('../config/shouqianba.js');
-    const deviceConfig = shouqianbaConfig.storeDevices['claw-web-new3'];
+    // shouqianba.js 的 storeDevices 是在 config.default 中（不是独立导出）
+    const storeDevices = shouqianbaConfig && shouqianbaConfig.storeDevices;
+    const deviceConfig = storeDevices && storeDevices['claw-web-new3'];
+    console.log('[支付] shouqianba.js 读取结果:', JSON.stringify({
+      hasConfig: !!shouqianbaConfig,
+      hasStoreDevices: !!storeDevices,
+      deviceConfigKeys: deviceConfig ? Object.keys(deviceConfig) : null,
+      terminalSn: deviceConfig?.terminalSn,
+      hasKey: !!deviceConfig?.terminalKey
+    }));
     if (deviceConfig && deviceConfig.terminalSn && deviceConfig.terminalKey) {
-      console.log('[支付] 从 shouqianba.js 读取终端配置:', deviceConfig.terminalSn);
+      console.log('[支付] ✅ 从 shouqianba.js 读取终端:', deviceConfig.terminalSn);
       return {
         terminalSn: deviceConfig.terminalSn,
         terminalKey: deviceConfig.terminalKey,
@@ -163,8 +172,22 @@ async function getActiveTerminal() {
         deviceId: 'claw-web-new3'
       };
     }
+    console.log('[支付] ⚠️ shouqianba.js deviceConfig 无效，尝试硬编码配置');
   } catch (e) {
     console.warn('[支付] shouqianba.js 配置读取失败:', e.message);
+  }
+
+  // 1b. 硬编码备用（确保能拿到 terminalSn + terminalKey）
+  const HARDCODED_TERMINAL = {
+    terminalSn: '100111220054389553',
+    terminalKey: '96bfaf401367d934cb10a1cbe9773647',
+    merchantId: '18956397746',
+    storeSn: '00010101001200200046406',
+    deviceId: 'claw-web-new3'
+  };
+  if (HARDCODED_TERMINAL.terminalSn && HARDCODED_TERMINAL.terminalKey) {
+    console.log('[支付] ✅ 使用硬编码终端配置:', HARDCODED_TERMINAL.terminalSn);
+    return HARDCODED_TERMINAL;
   }
 
   // 2. 优先从共享终端缓存文件读取（shouqianba.db.js 激活时写入）
