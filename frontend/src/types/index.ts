@@ -3,8 +3,8 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'user';
-  membershipType?: 'free' | 'basic' | 'premium' | 'enterprise';
+  role: 'admin' | 'super_admin' | 'user';
+  membershipType?: 'free' | 'basic' | 'premium' | 'enterprise' | 'flagship';
   membershipExpiresAt?: string;
   memberId?: string;
   createdAt?: string;

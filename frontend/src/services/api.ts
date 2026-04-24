@@ -274,6 +274,14 @@ export const api = {
   membership: {
     info: () => authFetch('/api/membership'),
     quota: () => authFetch('/api/quota'),
+    // 管理员接口
+    admin: {
+      listUsers: () => authFetch('/api/membership/admin/users'),
+      activate: (userId: string, plan: string) =>
+        authFetch('/api/membership/admin/activate', { method: 'POST', body: JSON.stringify({ userId, plan }) }),
+      deactivate: (userId: string) =>
+        authFetch('/api/membership/admin/deactivate', { method: 'POST', body: JSON.stringify({ userId }) }),
+    },
   },
 
   // ============================================================

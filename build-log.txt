@@ -1,34 +1,5 @@
-﻿[36mvite v5.4.21 [32mbuilding for production...[36m[39m
-transforming...
-[32m✓[39m 1588 modules transformed.
-rendering chunks...
-computing gzip size...
-[2m../complete-deploy/[22m[32mindex.html                           [39m[1m[2m  0.46 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
-[2m../complete-deploy/[22m[35massets/app.css                       [39m[1m[2m 37.73 kB[22m[1m[22m[2m │ gzip:  6.38 kB[22m
-[2m../complete-deploy/[22m[36massets/plus-CTFbwpWj.js              [39m[1m[2m  0.31 kB[22m[1m[22m[2m │ gzip:  0.24 kB[22m
-[2m../complete-deploy/[22m[36massets/clock-CS2w0mRu.js             [39m[1m[2m  0.34 kB[22m[1m[22m[2m │ gzip:  0.26 kB[22m
-[2m../complete-deploy/[22m[36massets/circle-x-DCLHBbC9.js          [39m[1m[2m  0.36 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
-[2m../complete-deploy/[22m[36massets/target-CGsDc9kC.js            [39m[1m[2m  0.38 kB[22m[1m[22m[2m │ gzip:  0.25 kB[22m
-[2m../complete-deploy/[22m[36massets/circle-alert--JdwDCud.js      [39m[1m[2m  0.41 kB[22m[1m[22m[2m │ gzip:  0.28 kB[22m
-[2m../complete-deploy/[22m[36massets/external-link-BzZk3C36.js     [39m[1m[2m  0.41 kB[22m[1m[22m[2m │ gzip:  0.29 kB[22m
-[2m../complete-deploy/[22m[36massets/refresh-cw-NS5xkf2q.js        [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
-[2m../complete-deploy/[22m[36massets/trash-2-D_GfdIrD.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
-[2m../complete-deploy/[22m[36massets/sparkles-CiiFND-i.js          [39m[1m[2m  0.67 kB[22m[1m[22m[2m │ gzip:  0.39 kB[22m
-[2m../complete-deploy/[22m[36massets/upload-CPepE9sz.js            [39m[1m[2m  0.67 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
-[2m../complete-deploy/[22m[36massets/users-Coa7o6pv.js             [39m[1m[2m  1.17 kB[22m[1m[22m[2m │ gzip:  0.48 kB[22m
-[2m../complete-deploy/[22m[36massets/qr-code-CymnADeT.js           [39m[1m[2m  1.61 kB[22m[1m[22m[2m │ gzip:  0.57 kB[22m
-[2m../complete-deploy/[22m[36massets/ProductsPage-DdV4TpoK.js      [39m[1m[2m  5.03 kB[22m[1m[22m[2m │ gzip:  1.96 kB[22m
-[2m../complete-deploy/[22m[36massets/CalculatorPage-DYR5X-1Z.js    [39m[1m[2m  6.23 kB[22m[1m[22m[2m │ gzip:  2.40 kB[22m
-[2m../complete-deploy/[22m[36massets/SettingsPage-m7MiIxRk.js      [39m[1m[2m  6.35 kB[22m[1m[22m[2m │ gzip:  2.43 kB[22m
-[2m../complete-deploy/[22m[36massets/AdCollectionPage-Df-SDkQ5.js  [39m[1m[2m  6.46 kB[22m[1m[22m[2m │ gzip:  2.65 kB[22m
-[2m../complete-deploy/[22m[36massets/TrendingPage-BdUrCn2b.js      [39m[1m[2m  7.31 kB[22m[1m[22m[2m │ gzip:  2.86 kB[22m
-[2m../complete-deploy/[22m[36massets/ServicesPage-VHSwCYQH.js      [39m[1m[2m  7.68 kB[22m[1m[22m[2m │ gzip:  3.67 kB[22m
-[2m../complete-deploy/[22m[36massets/MembershipPage-BQt1NhqY.js    [39m[1m[2m  8.56 kB[22m[1m[22m[2m │ gzip:  3.41 kB[22m
-[2m../complete-deploy/[22m[36massets/AccountsPage-BWSexbJj.js      [39m[1m[2m  9.14 kB[22m[1m[22m[2m │ gzip:  3.17 kB[22m
-[2m../complete-deploy/[22m[36massets/YouTubePage-DAP_hXE-.js       [39m[1m[2m 15.47 kB[22m[1m[22m[2m │ gzip:  4.57 kB[22m
-[2m../complete-deploy/[22m[36massets/ModernDashboard-bQHk7g3Q.js   [39m[1m[2m 16.91 kB[22m[1m[22m[2m │ gzip:  3.84 kB[22m
-[2m../complete-deploy/[22m[36massets/AvatarPage-I_wwEhKY.js        [39m[1m[2m 20.63 kB[22m[1m[22m[2m │ gzip:  5.95 kB[22m
-[2m../complete-deploy/[22m[36massets/TikTokPage-SxTkq1Q0.js        [39m[1m[2m 21.27 kB[22m[1m[22m[2m │ gzip:  5.59 kB[22m
-[2m../complete-deploy/[22m[36massets/PublishPage-Cb8Ig-uX.js       [39m[1m[2m 25.45 kB[22m[1m[22m[2m │ gzip:  8.23 kB[22m
-[2m../complete-deploy/[22m[36massets/app.js                        [39m[1m[2m214.01 kB[22m[1m[22m[2m │ gzip: 67.10 kB[22m
-[32m✓ built in 7.13s[39m
+﻿
+> claw-frontend@1.0.2 build
+> tsc --noEmit && vite build
+
+src/pages/MembershipPage.tsx(57,45): error TS2367: This comparison appears to be unintentional because the types '"user" | undefined' and '"super_admin"' have no overlap.

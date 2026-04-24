@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Check, Crown, Zap, Building2, ExternalLink, QrCode, RefreshCw } from 'lucide-react';
+import { Check, Crown, Zap, Building2, ExternalLink, QrCode, RefreshCw, Bot, Shield, ChevronDown, ChevronUp, Users, XCircle } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { PaymentOrder } from '../types';
@@ -52,6 +52,14 @@ export default function MembershipPage() {
   const [selectedPlan, setSelectedPlan] = useState('');
   const [polling, setPolling] = useState(false);
   const [pollTimer, setPollTimer] = useState<ReturnType<typeof setInterval> | null>(null);
+
+  // 管理员面板
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminAction, setAdminAction] = useState<{ userId: string; loading: boolean } | null>(null);
+  const [adminMsg, setAdminMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // 清理轮询
   useEffect(() => {
@@ -169,6 +177,51 @@ export default function MembershipPage() {
     setSelectedPlan('');
   };
 
+  // 加载用户列表
+  const loadAdminUsers = async () => {
+    setAdminLoading(true);
+    try {
+      const res = await api.membership.admin.listUsers();
+      setAdminUsers(res.data || []);
+    } catch {
+      setAdminMsg({ type: 'error', text: '加载用户列表失败' });
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (adminOpen && adminUsers.length === 0) loadAdminUsers();
+  }, [adminOpen]);
+
+  // 管理员手动激活
+  const handleAdminActivate = async (userId: string, plan: string) => {
+    setAdminAction({ userId, loading: true });
+    try {
+      await api.membership.admin.activate(userId, plan);
+      setAdminMsg({ type: 'success', text: `用户已升级为 ${PLANS.find(p => p.id === plan)?.name}` });
+      loadAdminUsers();
+    } catch {
+      setAdminMsg({ type: 'error', text: '激活失败' });
+    } finally {
+      setAdminAction(null);
+    }
+  };
+
+  // 管理员关闭会员
+  const handleAdminDeactivate = async (userId: string) => {
+    setAdminAction({ userId, loading: true });
+    try {
+      await api.membership.admin.deactivate(userId);
+      setAdminMsg({ type: 'success', text: '会员已关闭，降级为免费会员' });
+      loadAdminUsers();
+    } catch {
+      setAdminMsg({ type: 'error', text: '关闭失败' });
+    } finally {
+      setAdminAction(null);
+    }
+  };
+
   const currentPlan = user?.membershipType || 'free';
   const isExpired = user?.membershipExpiresAt ? new Date(user.membershipExpiresAt) < new Date() : false;
 
@@ -196,6 +249,32 @@ export default function MembershipPage() {
           </div>
         </div>
       )}
+
+      {/* AI 激活流程说明 */}
+      <div className="mb-8 p-5 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+        <div className="flex items-center gap-2 mb-3">
+          <Bot className="w-5 h-5 text-blue-600" />
+          <h2 className="font-bold text-blue-900 text-base">AI 客服 · 自动激活会员</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex items-start gap-2">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-200 text-blue-800 text-xs font-bold flex items-center justify-center mt-0.5">1</span>
+            <p className="text-sm text-blue-800 leading-relaxed">选择套餐<br /><b>扫码支付</b></p>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-200 text-blue-800 text-xs font-bold flex items-center justify-center mt-0.5">2</span>
+            <p className="text-sm text-blue-800 leading-relaxed">完成付款后<br /><b>联系客服</b></p>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-200 text-blue-800 text-xs font-bold flex items-center justify-center mt-0.5">3</span>
+            <p className="text-sm text-blue-800 leading-relaxed"><b>AI 客服</b> 确认到账<br />自动激活会员</p>
+          </div>
+        </div>
+        <div className="mt-3 pt-3 border-t border-blue-200 text-xs text-blue-600 flex items-center gap-2">
+          <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+          <span>支付成功后，AI 客服将自动为您开通对应套餐权益，有效期 30 天</span>
+        </div>
+      </div>
 
       {/* 错误提示 */}
       {error && (
@@ -373,6 +452,133 @@ export default function MembershipPage() {
         <p>如有支付问题，请联系客服：<span className="font-medium text-blue-600">15119885271</span></p>
         <p className="mt-1 text-xs text-gray-400">支持微信/支付宝支付</p>
       </div>
+
+      {/* ========================================
+          管理员面板（仅 admin/super_admin 可见）
+          ======================================== */}
+      {isAdmin && (
+        <div className="mt-8 border border-amber-200 rounded-2xl overflow-hidden">
+          {/* 面板头部 */}
+          <button
+            onClick={() => setAdminOpen(o => !o)}
+            className="w-full flex items-center justify-between px-5 py-4 bg-amber-50 hover:bg-amber-100 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-amber-600" />
+              <span className="font-semibold text-amber-800 text-sm">AI 会员管理面板</span>
+              <span className="text-xs text-amber-500 bg-amber-200 px-1.5 py-0.5 rounded">管理员</span>
+            </div>
+            {adminOpen ? <ChevronUp className="w-4 h-4 text-amber-500" /> : <ChevronDown className="w-4 h-4 text-amber-500" />}
+          </button>
+
+          {/* 面板内容 */}
+          {adminOpen && (
+            <div className="p-5 bg-white">
+              {/* 说明 */}
+              <div className="mb-4 flex items-start gap-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
+                <Bot className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
+                <span>
+                  <b>AI 客服激活：</b>用户扫码支付后，AI 客服自动调用 <code className="bg-gray-200 px-1 rounded">/api/membership/check-and-activate</code> 确认到账并激活会员（有效期30天）。
+                  <b className="ml-2">手动管理：</b>下方可手动激活或关闭指定用户的会员。
+                </span>
+              </div>
+
+              {/* 操作反馈 */}
+              {adminMsg && (
+                <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${adminMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                  {adminMsg.text}
+                </div>
+              )}
+
+              {/* 用户列表 */}
+              {adminLoading ? (
+                <div className="flex items-center justify-center py-8 text-gray-400 text-sm">
+                  <RefreshCw className="w-4 h-4 animate-spin mr-2" />加载中...
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500 border-b">
+                        <th className="pb-2 pr-4 font-medium">用户</th>
+                        <th className="pb-2 pr-4 font-medium">邮箱</th>
+                        <th className="pb-2 pr-4 font-medium">当前套餐</th>
+                        <th className="pb-2 pr-4 font-medium">到期时间</th>
+                        <th className="pb-2 font-medium">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminUsers.map(u => {
+                        const isCurrent = u.membership_type !== 'free';
+                        return (
+                          <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="py-2.5 pr-4">
+                              <div className="flex items-center gap-1.5">
+                                <Users className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="font-medium text-gray-800">{u.name || '—'}</span>
+                                {u.role === 'super_admin' && <span className="text-xs bg-red-100 text-red-600 px-1 rounded">超管</span>}
+                                {u.role === 'admin' && <span className="text-xs bg-amber-100 text-amber-600 px-1 rounded">管理员</span>}
+                              </div>
+                            </td>
+                            <td className="py-2.5 pr-4 text-gray-500 text-xs">{u.email}</td>
+                            <td className="py-2.5 pr-4">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                u.membership_type === 'free' ? 'bg-gray-100 text-gray-500' :
+                                u.membership_type === 'basic' ? 'bg-blue-100 text-blue-700' :
+                                u.membership_type === 'premium' ? 'bg-purple-100 text-purple-700' :
+                                u.membership_type === 'enterprise' ? 'bg-amber-100 text-amber-700' :
+                                'bg-red-100 text-red-700'
+                              }`}>
+                                {PLANS.find(p => p.id === u.membership_type)?.name || u.membership_type || '免费'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 pr-4 text-xs text-gray-400">
+                              {u.membership_expires_at
+                                ? new Date(u.membership_expires_at).toLocaleDateString('zh-CN')
+                                : '—'}
+                            </td>
+                            <td className="py-2.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {/* 激活按钮组 */}
+                                {['basic', 'premium', 'enterprise', 'flagship'].map(plan => (
+                                  <button
+                                    key={plan}
+                                    onClick={() => handleAdminActivate(u.id, plan)}
+                                    disabled={adminAction?.userId === u.id || u.membership_type === plan}
+                                    className="text-xs px-2 py-1 rounded border border-blue-300 text-blue-600 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    title={`激活为 ${PLANS.find(p => p.id === plan)?.name}`}
+                                  >
+                                    {PLANS.find(p => p.id === plan)?.name}
+                                  </button>
+                                ))}
+                                {/* 关闭会员 */}
+                                {isCurrent && (
+                                  <button
+                                    onClick={() => handleAdminDeactivate(u.id)}
+                                    disabled={adminAction?.userId === u.id}
+                                    className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-red-300 text-red-500 hover:bg-red-50 disabled:opacity-30 transition-colors"
+                                    title="关闭会员，降级为免费"
+                                  >
+                                    <XCircle className="w-3 h-3" />
+                                    关闭
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {adminUsers.length === 0 && (
+                        <tr><td colSpan={5} className="py-8 text-center text-gray-400 text-xs">暂无用户数据</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

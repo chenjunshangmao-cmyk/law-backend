@@ -638,6 +638,90 @@ router.post('/check-and-activate', async (req, res) => {
 });
 
 /**
+ * GET /api/membership/admin/users
+ * 管理员：获取所有用户及其会员状态
+ */
+router.get('/admin/users', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id::text, email, name, role,
+             membership_type, membership_expires_at, paid_until,
+             created_at, updated_at
+      FROM users
+      ORDER BY created_at DESC
+      LIMIT 200
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('[管理员] 获取用户列表失败:', error);
+    res.status(500).json({ success: false, error: '获取用户列表失败' });
+  }
+});
+
+/**
+ * POST /api/membership/admin/activate
+ * 管理员：手动激活指定用户的会员
+ */
+router.post('/admin/activate', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
+  try {
+    const { userId, plan } = req.body;
+
+    if (!userId) return res.status(400).json({ success: false, error: '缺少 userId' });
+    if (!PLANS[plan]) return res.status(400).json({ success: false, error: `无效套餐: ${plan}` });
+
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    await pool.query(`
+      UPDATE users SET
+        membership_type = $1,
+        membership_expires_at = $2,
+        paid_until = $2,
+        updated_at = NOW()
+      WHERE id::text = $3
+    `, [plan, expiresAt, String(userId)]);
+
+    console.log(`[管理员] ✅ 手动激活用户 ${userId} 为 ${plan}，到期: ${expiresAt.toISOString()}`);
+
+    res.json({
+      success: true,
+      message: `${PLANS[plan].name} 激活成功`,
+      data: { plan, planName: PLANS[plan].name, expiresAt: expiresAt.toISOString() }
+    });
+  } catch (error) {
+    console.error('[管理员] 手动激活失败:', error);
+    res.status(500).json({ success: false, error: '手动激活失败: ' + error.message });
+  }
+});
+
+/**
+ * POST /api/membership/admin/deactivate
+ * 管理员：关闭指定用户的会员（降级为 free）
+ */
+router.post('/admin/deactivate', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) return res.status(400).json({ success: false, error: '缺少 userId' });
+
+    await pool.query(`
+      UPDATE users SET
+        membership_type = 'free',
+        membership_expires_at = NULL,
+        paid_until = NULL,
+        updated_at = NOW()
+      WHERE id::text = $1
+    `, [String(userId)]);
+
+    console.log(`[管理员] ❌ 关闭用户 ${userId} 的会员`);
+
+    res.json({ success: true, message: '会员已关闭，当前为免费会员' });
+  } catch (error) {
+    console.error('[管理员] 关闭会员失败:', error);
+    res.status(500).json({ success: false, error: '关闭会员失败: ' + error.message });
+  }
+});
+
+/**
  * POST /api/membership/create
  * 创建支付订单（兼容前端调用）
  * 内部转发到 /api/payment/create

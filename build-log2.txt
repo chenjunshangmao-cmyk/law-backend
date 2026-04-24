@@ -1,0 +1,40 @@
+﻿
+> claw-frontend@1.0.2 build
+> tsc --noEmit && vite build
+
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1591 modules transformed.
+rendering chunks...
+computing gzip size...
+[2m../complete-deploy/[22m[32mindex.html                            [39m[1m[2m  0.46 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2m../complete-deploy/[22m[35massets/app.css                        [39m[1m[2m 39.78 kB[22m[1m[22m[2m │ gzip:  6.76 kB[22m
+[2m../complete-deploy/[22m[36massets/plus-CTFbwpWj.js               [39m[1m[2m  0.31 kB[22m[1m[22m[2m │ gzip:  0.24 kB[22m
+[2m../complete-deploy/[22m[36massets/clock-CS2w0mRu.js              [39m[1m[2m  0.34 kB[22m[1m[22m[2m │ gzip:  0.26 kB[22m
+[2m../complete-deploy/[22m[36massets/circle-x-DCLHBbC9.js           [39m[1m[2m  0.36 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2m../complete-deploy/[22m[36massets/video-XrUIltFi.js              [39m[1m[2m  0.41 kB[22m[1m[22m[2m │ gzip:  0.31 kB[22m
+[2m../complete-deploy/[22m[36massets/external-link-BzZk3C36.js      [39m[1m[2m  0.41 kB[22m[1m[22m[2m │ gzip:  0.29 kB[22m
+[2m../complete-deploy/[22m[36massets/shopping-bag-qJtKXq5V.js       [39m[1m[2m  0.41 kB[22m[1m[22m[2m │ gzip:  0.29 kB[22m
+[2m../complete-deploy/[22m[36massets/refresh-cw-NS5xkf2q.js         [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2m../complete-deploy/[22m[36massets/sparkles-CiiFND-i.js           [39m[1m[2m  0.67 kB[22m[1m[22m[2m │ gzip:  0.39 kB[22m
+[2m../complete-deploy/[22m[36massets/upload-CPepE9sz.js             [39m[1m[2m  0.67 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2m../complete-deploy/[22m[36massets/check-Crlx307t.js              [39m[1m[2m  0.84 kB[22m[1m[22m[2m │ gzip:  0.38 kB[22m
+[2m../complete-deploy/[22m[36massets/users-BKJ58wIM.js              [39m[1m[2m  0.85 kB[22m[1m[22m[2m │ gzip:  0.44 kB[22m
+[2m../complete-deploy/[22m[36massets/trash-2-BhB5PvfQ.js            [39m[1m[2m  0.88 kB[22m[1m[22m[2m │ gzip:  0.42 kB[22m
+[2m../complete-deploy/[22m[36massets/PaymentResultPage-Q7GyE7iU.js  [39m[1m[2m  2.21 kB[22m[1m[22m[2m │ gzip:  1.10 kB[22m
+[2m../complete-deploy/[22m[36massets/OrdersPage-DcPIpNih.js         [39m[1m[2m  4.68 kB[22m[1m[22m[2m │ gzip:  2.02 kB[22m
+[2m../complete-deploy/[22m[36massets/ProductsPage-C28YOD5Q.js       [39m[1m[2m  5.03 kB[22m[1m[22m[2m │ gzip:  1.96 kB[22m
+[2m../complete-deploy/[22m[36massets/SettingsPage-BZdupE08.js       [39m[1m[2m  6.35 kB[22m[1m[22m[2m │ gzip:  2.43 kB[22m
+[2m../complete-deploy/[22m[36massets/AdCollectionPage-BM20T-tJ.js   [39m[1m[2m  6.46 kB[22m[1m[22m[2m │ gzip:  2.65 kB[22m
+[2m../complete-deploy/[22m[36massets/TrendingPage-idY7moQh.js       [39m[1m[2m  7.30 kB[22m[1m[22m[2m │ gzip:  2.86 kB[22m
+[2m../complete-deploy/[22m[36massets/DashboardPage-K0AjGuDI.js      [39m[1m[2m  7.38 kB[22m[1m[22m[2m │ gzip:  2.69 kB[22m
+[2m../complete-deploy/[22m[36massets/ServicesPage-nldtsYZ4.js       [39m[1m[2m 10.23 kB[22m[1m[22m[2m │ gzip:  4.41 kB[22m
+[2m../complete-deploy/[22m[36massets/CalculatorPage-BFCn838a.js     [39m[1m[2m 12.71 kB[22m[1m[22m[2m │ gzip:  4.09 kB[22m
+[2m../complete-deploy/[22m[36massets/MembershipPage-Bu_K2TgH.js     [39m[1m[2m 15.30 kB[22m[1m[22m[2m │ gzip:  5.12 kB[22m
+[2m../complete-deploy/[22m[36massets/YouTubePage-Dq6F_P-0.js        [39m[1m[2m 15.47 kB[22m[1m[22m[2m │ gzip:  4.57 kB[22m
+[2m../complete-deploy/[22m[36massets/AccountsPage-CQGvGkMq.js       [39m[1m[2m 16.88 kB[22m[1m[22m[2m │ gzip:  5.52 kB[22m
+[2m../complete-deploy/[22m[36massets/AvatarPage-hVsn2H3W.js         [39m[1m[2m 20.62 kB[22m[1m[22m[2m │ gzip:  5.95 kB[22m
+[2m../complete-deploy/[22m[36massets/TikTokPage-DP24LJrH.js         [39m[1m[2m 21.29 kB[22m[1m[22m[2m │ gzip:  5.61 kB[22m
+[2m../complete-deploy/[22m[36massets/PublishPage-CfCUj0Tv.js        [39m[1m[2m 29.00 kB[22m[1m[22m[2m │ gzip:  9.15 kB[22m
+[2m../complete-deploy/[22m[36massets/app.js                         [39m[1m[2m220.50 kB[22m[1m[22m[2m │ gzip: 69.11 kB[22m
+[32m✓ built in 9.40s[39m
