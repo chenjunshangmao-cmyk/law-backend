@@ -288,4 +288,75 @@ function decrypt(text) {
   return decrypted;
 }
 
+/**
+ * POST /api/accounts/ozon-authorize
+ * OZON API授权：保存 Client ID + API Key
+ */
+router.post('/ozon-authorize', authenticateToken, async (req, res) => {
+  try {
+    const { name, clientId, apiKey } = req.body;
+    if (!name || !clientId || !apiKey) {
+      return res.status(400).json({ success: false, error: '缺少必要参数: name, clientId, apiKey' });
+    }
+
+    // 加密存储
+    const accounts = readData('accounts') || [];
+    const newAccount = {
+      id: 'ozon-' + Date.now(),
+      platform: 'ozon',
+      name,
+      clientId: encrypt(clientId),
+      apiKey: encrypt(apiKey),
+      status: 'active',
+      createdAt: new Date().toISOString()
+    };
+    accounts.push(newAccount);
+    writeData('accounts', accounts);
+
+    console.log(`[OZON] API授权成功: ${name}`);
+    res.json({ success: true, message: 'OZON API授权成功', data: { id: newAccount.id, name } });
+  } catch (error) {
+    console.error('[OZON] 授权失败:', error);
+    res.status(500).json({ success: false, error: 'OZON API授权失败: ' + error.message });
+  }
+});
+
+/**
+ * POST /api/accounts/ozon-test
+ * 测试 OZON API 连接
+ */
+router.post('/ozon-test', authenticateToken, async (req, res) => {
+  try {
+    const { accountId } = req.body;
+    const accounts = readData('accounts') || [];
+    const account = accounts.find(a => a.id === accountId && a.platform === 'ozon');
+    if (!account) {
+      return res.status(404).json({ success: false, error: 'OZON账号不存在' });
+    }
+
+    const clientId = decrypt(account.clientId);
+    const apiKey = decrypt(account.apiKey);
+
+    // 测试 OZON API /v1/description/category/tree
+    const response = await fetch('https://api-seller.ozon.ru/v1/description/category/tree', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Client-Id': clientId,
+        'Api-Key': apiKey
+      },
+      body: JSON.stringify({})
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      res.json({ success: true, message: 'OZON API连接成功', data: { categories: data.result?.length || 0 } });
+    } else {
+      res.json({ success: false, error: data.message || data.error || 'OZON API连接失败', code: data.code });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'OZON API测试失败: ' + error.message });
+  }
+});
+
 export default router;
