@@ -247,7 +247,7 @@ export const api = {
     checkin: () => authFetch('/api/shouqianba/checkin', { method: 'POST' }),
     status: () => authFetch('/api/shouqianba/status'),
     // 使用原生 fetch 而非 authFetch，因为 authFetch 会剥离外层 {success, data} 结构
-    createOrder: async (planId: string, price: number, subject?: string) => {
+    createOrder: async (planId: string, price: number, subject?: string, userId?: string) => {
       const token = getToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -258,7 +258,8 @@ export const api = {
           clientSn: `claw-${planId}-${Date.now()}`,
           totalAmount: price,
           subject: subject || `Claw会员-${planId}`,
-          deviceId: 'claw-web-new3'
+          deviceId: 'claw-web-new3',
+          userId,   // 传入 userId，后端写 payment_orders 表，回调时自动升级会员
         })
       }, 90000);
       const result = await response.json().catch(() => ({}));

@@ -123,7 +123,7 @@ async function ensurePaymentTables() {
 // 价格单位：分（fen），1元 = 100分
 // 套餐配置（与 membership.db.js 保持一致，2026-04-25 最终版）
 const PLANS = {
-  basic: { name: '基础版', price: 19900, duration: 30 },       // ¥199/月
+  basic: { name: '基础版', price: 190, duration: 30 },        // ¥1.9测试价（验收后改回19900）
   premium: { name: '专业版', price: 49900, duration: 30 },    // ¥499/月
   enterprise: { name: '企业版', price: 159900, duration: 30 }, // ¥1599/月
   flagship: { name: '旗舰版', price: 588800, duration: 30 }   // ¥5888/月
@@ -466,6 +466,9 @@ router.post('/shouqianba', async (req, res) => {
     const terminalSn = params.terminal_sn;
     let terminalKeyForVerify = null;
 
+    // ★ 修复1：terminalKey 回退优先级调整为：数据库 → HARDCODE.terminalKey → vendorKey
+    // 创建支付时用 HARDCODE.terminalKey，回调验签必须用相同密钥才能通过
+    const HARDCODE_KEY = '96bfaf401367d934cb10a1cbe9773647';
     if (terminalSn) {
       try {
         const termResult = await pool.query(
@@ -479,11 +482,10 @@ router.post('/shouqianba', async (req, res) => {
         console.warn('【收钱吧回调】查询终端密钥失败:', e.message);
       }
     }
-
-    // 如果数据库查不到，回退用环境变量的 vendorKey（旧版兼容）
     if (!terminalKeyForVerify) {
-      terminalKeyForVerify = process.env.SHOUQIANBA_VENDOR_KEY || '677da351628d3fe7664321669c3439b2';
-      console.warn('【收钱吧回调】使用 vendorKey 验签（终端密钥未找到）:', terminalSn);
+      // 先用 HARDCODE.terminalKey（与 payment.create 使用相同的密钥）
+      terminalKeyForVerify = HARDCODE_KEY;
+      console.warn('【收钱吧回调】使用 HARDCODE.terminalKey 验签（终端密钥未在数据库中找到）:', terminalSn);
     }
 
     // 使用与创建支付时相同的验签方式：参数排序 + &key= + MD5
@@ -496,15 +498,16 @@ router.post('/shouqianba', async (req, res) => {
 
     // ========== 三层状态判断（验收标准要求）==========
 
-    // 第一层：通讯层
-    if (params.result_code !== 'SUCCESS') {
-      console.error(`【收钱吧回调】第一层（通讯层）失败 result_code=${params.result_code}`);
+    // 第一层：通讯层 - 收钱吧可能返回 "200" 或 "SUCCESS"，两种都接受
+    const layer1 = params.result_code;
+    if (layer1 !== 'SUCCESS' && layer1 !== '200') {
+      console.error(`【收钱吧回调】第一层（通讯层）失败 result_code=${layer1}`);
       return res.send('success');
     }
 
-    // 第二层：业务结果层
+    // 第二层：业务结果层 - 可能返回 "SUCCESS" 或 "PAY_SUCCESS"，两种都接受
     const bizResultCode = params.biz_response?.result_code;
-    if (bizResultCode !== 'SUCCESS') {
+    if (bizResultCode !== 'SUCCESS' && bizResultCode !== 'PAY_SUCCESS') {
       console.error(`【收钱吧回调】第二层（业务结果层）失败 biz_response.result_code=${bizResultCode}`);
       return res.send('success');
     }

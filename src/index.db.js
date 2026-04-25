@@ -31,6 +31,7 @@ import publishRoutes from './routes/publish.js';
 import customerServiceRoutes from './routes/customerService.js';
 import paymentRoutes from './routes/payment.db.js';
 import shouqianbaRoutes from './routes/shouqianba.db.js';
+import xiaohongshuRoutes from './routes/xiaohongshu.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -190,6 +191,9 @@ app.use('/api/customer-service', customerServiceRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/webhook', paymentRoutes);
 app.use('/api/shouqianba', shouqianbaRoutes);
+
+// 小红书
+app.use('/api/xiaohongshu', xiaohongshuRoutes);
 
 // ==========================================
 // 商品抓取API (简化版)
