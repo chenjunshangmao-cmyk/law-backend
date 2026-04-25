@@ -8,7 +8,8 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import {
-  generateQrCodeUrl
+  generateQrCodeUrl,
+  queryOrder
 } from '../services/shouqianba.js';
 import { authenticateToken } from '../middleware/auth.js';
 import pool from '../config/database.js';
