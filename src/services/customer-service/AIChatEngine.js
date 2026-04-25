@@ -262,7 +262,8 @@ class AIChatEngine {
 
   // 调用AI模型
   async callAIModel(message, history, context) {
-    const provider = process.env.AI_PROVIDER || 'deepseek';
+    // 默认使用 bailian（百炼），因为我们有有效的百炼 API key
+    const provider = process.env.AI_PROVIDER || 'bailian';
     
     // 构建系统提示词
     const systemPrompt = `你是Claw智能客服助手"小芸"，专业帮助用户解决TikTok电商铺货相关问题。
@@ -352,8 +353,8 @@ class AIChatEngine {
 
   // 百炼/通义千问 API
   async callBailian(messages) {
-    const apiKey = process.env.BAILIAN_API_KEY;
-    if (!apiKey) {
+    const apiKey = process.env.BAILIAN_API_KEY || 'sk-8a07c75081df49ac877d6950a95b06ec';
+    if (!apiKey || apiKey === 'your_bailian_api_key') {
       throw new Error('百炼 API Key未配置');
     }
 
