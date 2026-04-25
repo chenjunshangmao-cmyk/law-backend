@@ -22,7 +22,8 @@ import {
   Globe,
   Zap,
   DollarSign,
-  Receipt
+  Receipt,
+  BookOpen
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { path: '/calculator',  icon: Calculator,      label: '利润计算', color: 'text-green-500' },
   { path: '/membership',  icon: Crown,           label: '会员中心', color: 'text-yellow-500' },
   { path: '/orders',     icon: Receipt,         label: '订单', color: 'text-orange-500' },
+  { path: '/xiaohongshu', icon: BookOpen,        label: '小红书', color: 'text-red-500' },
   { path: '/avatar',      icon: Bot,             label: 'AI数字人', color: 'text-violet-500' },
   { path: '/settings',    icon: Settings,        label: '设置', color: 'text-gray-500' },
 ];

@@ -464,6 +464,22 @@ export const api = {
     }),
     delete: (id: string) => authFetch(`/api/tasks/${id}`, { method: 'DELETE' }),
   },
+
+  // 小红书 API
+  xiaohongshu: {
+    listAccounts: () => authFetch('/api/xiaohongshu/accounts'),
+    loginQrcode: () => authFetch('/api/xiaohongshu/login/qrcode', { method: 'POST' }),
+    publishNote: (data: any) => authFetch('/api/xiaohongshu/publish/note', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    publishVideo: (data: any) => authFetch('/api/xiaohongshu/publish/video', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    shopInfo: () => authFetch('/api/xiaohongshu/shop/info'),
+    status: () => authFetch('/api/xiaohongshu/status'),
+  },
 };
 
 export default api;

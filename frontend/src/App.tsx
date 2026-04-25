@@ -18,6 +18,7 @@ const CalculatorPage     = lazy(() => import('./pages/CalculatorPage'));
 const SettingsPage       = lazy(() => import('./pages/SettingsPage'));
 const TikTokPage          = lazy(() => import('./pages/TikTokPage'));
 const YouTubePage          = lazy(() => import('./pages/YouTubePage'));
+const XiaohongshuPage       = lazy(() => import('./pages/XiaohongshuPage'));
 const AvatarPage           = lazy(() => import('./pages/AvatarPage'));
 const OrdersPage           = lazy(() => import('./pages/OrdersPage'));
 const PaymentResultPage    = lazy(() => import('./pages/PaymentResultPage'));
@@ -120,6 +121,7 @@ function AppRoutes() {
         <Route path="settings"       element={<Suspense fallback={<PageLoading />}><SettingsPage /></Suspense>} />
         <Route path="tiktok"         element={<Suspense fallback={<PageLoading />}><TikTokPage /></Suspense>} />
         <Route path="youtube"        element={<Suspense fallback={<PageLoading />}><YouTubePage /></Suspense>} />
+        <Route path="xiaohongshu"    element={<Suspense fallback={<PageLoading />}><XiaohongshuPage /></Suspense>} />
         <Route path="avatar"         element={<Suspense fallback={<PageLoading />}><AvatarPage /></Suspense>} />
         <Route path="orders"        element={<Suspense fallback={<PageLoading />}><OrdersPage /></Suspense>} />
       </Route>

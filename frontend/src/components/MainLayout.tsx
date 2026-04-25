@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { path: '/settings',    icon: '⚙️', label: '设置' },
   { path: '/tiktok',     icon: '🎵', label: 'TikTok' },
   { path: '/youtube',    icon: '📹', label: 'YouTube' },
+  { path: '/xiaohongshu', icon: '📕', label: '小红书' },
   { path: '/avatar',    icon: '🤖', label: 'AI数字人' },
 ];
 
