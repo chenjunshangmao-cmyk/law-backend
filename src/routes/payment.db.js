@@ -1,5 +1,6 @@
 /**
  * 支付订单 API - 收钱吧对接（修复版）
+ * 2026-04-25 修复：WAP支付改为网关拼接方案（m.wosai.cn/qr/gateway），替代已废弃的 REST API（upay/v2/wap2）
  */
 
 import express from 'express';
@@ -128,19 +129,15 @@ const PLANS = {
   flagship: { name: '旗舰版', price: 588800, duration: 30 }   // ¥5888/月
 };
 
-// 积分换算比例（1元 = 100分 = 100fen，5000积分 = ¥50 = 5000fen）
-const POINTS_RATIO = 100; // 1元 = 100积分
-const POINTS_PRICE_FEN = 1; // 1积分 = 1fen（直接1:1）
-
-// 业务服务配置（前端传 points，后端按 POINTS_PRICE_FEN 转 fen）
-// 5000 points × 1 = 5000fen = ¥50 ✅
+// 业务服务配置（价格单位：分 fen，1元 = 100分）
+// 前端传服务ID，后端按价格计算金额
 const SERVICES = {
-  'domestic-op': { name: '国内代运营', points: 5000 },      // 5000积分=¥50
-  'overseas-op': { name: '海外代运营', points: 5000 },      // 5000积分=¥50
-  'website-build': { name: '独立站搭建', points: 3800 },    // 3800积分=¥38
-  'youtube-live': { name: 'YouTube 直播号', points: 1000 }, // 1000积分=¥10
-  'facebook-live': { name: 'Facebook 直播推广号', points: 2800 }, // 2800积分=¥28
-  'ads-account': { name: '广告户开户', points: 500 }        // 500积分=¥5
+  'domestic-op': { name: '国内代运营', amount: 500000 },      // ¥5000
+  'overseas-op': { name: '海外代运营', amount: 500000 },      // ¥5000
+  'website-build': { name: '独立站搭建', amount: 380000 },    // ¥3800
+  'youtube-live': { name: 'YouTube 直播号', amount: 100000 },  // ¥1000
+  'facebook-live': { name: 'Facebook 直播推广号', amount: 280000 }, // ¥2800
+  'ads-account': { name: '广告户开户', amount: 50000 }        // ¥500
 };
 
 // 硬编码终端配置（claw-web-new3，已激活）
@@ -233,8 +230,8 @@ router.post('/create', authenticateToken, async (req, res) => {
       const serviceInfo = SERVICES[serviceId];
       orderType = serviceId;
       orderName = serviceName || serviceInfo.name;
-      // 业务服务：points × POINTS_PRICE_FEN（1积分=1fen）
-      orderAmount = serviceInfo.points * POINTS_PRICE_FEN; // 5000×1=5000fen=¥50 ✅
+      // 业务服务：直接使用 amount（单位：分，1元=100分）
+      orderAmount = serviceInfo.amount;
       subject = `Claw 业务服务 - ${orderName}`;
     } else if (serviceId && amount) {
       orderType = serviceId;
@@ -261,10 +258,9 @@ router.post('/create', authenticateToken, async (req, res) => {
     let paymentResult;
 
     if (hasShouqianbaConfig) {
-      // ★ 使用收钱吧原生扫码支付 API（/upay/v2/create）生成真实支付链接
-      // 与 shouqianba.js 中 sqbRequest() 使用相同的签名方式
+      // ★ 使用收钱吧WAP支付网关方案（与 shouqianba.db.js create-order 一致）
+      // 收钱吧 WAP 支付不走 REST API，而是参数签名后拼接到网关 URL
       try {
-        const { default: axios } = await import('axios');
         const wapParams = {
           terminal_sn: sn,
           client_sn: orderNo,
@@ -278,45 +274,31 @@ router.post('/create', authenticateToken, async (req, res) => {
         const pairs = sortedKeys.map(k => `${k}=${wapParams[k]}`);
         const signStr = pairs.join('&') + '&key=' + key;
         const sign = crypto.createHash('md5').update(signStr).digest('hex').toUpperCase();
-        const reqBody = { ...wapParams, sign, sign_type: 'MD5' };
+        const signedParams = { ...wapParams, sign, sign_type: 'MD5' };
 
-        console.log('[支付] 收钱吧扫码API请求:', JSON.stringify(reqBody).substring(0, 200));
+        // 构建支付链接（与 shouqianba.db.js 一致，使用收钱吧WAP网关）
+        const gatewayUrl = 'https://m.wosai.cn/qr/gateway';
+        const queryString = Object.keys(signedParams)
+          .sort()
+          .map(k => `${k}=${encodeURIComponent(signedParams[k])}`)
+          .join('&');
+        const payUrl = gatewayUrl + '?' + queryString;
 
-        const apiResp = await axios.post('https://vsi-api.shouqianba.com/upay/v2/wap2',
-          JSON.stringify(reqBody),
-          { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
-        );
-        const result = apiResp.data;
-        console.log('[支付] 收钱吧扫码API响应:', JSON.stringify(result).substring(0, 300));
-
-        // 收钱吧原生WAP扫码接口返回格式（与shouqianba.js中createWapPayment保持一致）
-        const payUrl = result.pay_url || result.payUrl || null;
-        if (result.result_code === '200' && payUrl) {
-          console.log('[支付] ✅ WAP支付链接获取成功:', payUrl.substring(0, 80) + '...');
-          paymentResult = {
-            sn: result.sn || orderNo,
-            payUrl,
-            testMode: false,
-            message: '请使用微信/支付宝扫码支付'
-          };
-        } else {
-          console.error('[支付] ❌ 收钱吧WAP接口返回失败:', result.result_code, result.error_message || result.biz_response?.error_message);
-          paymentResult = {
-            sn: `TEST-${orderNo}`,
-            payUrl: null,
-            qrCode: null,
-            testMode: true,
-            message: '收钱吧:' + (result.error_message || result.result_code)
-          };
-        }
+        console.log('[支付] ✅ WAP支付链接生成成功:', orderNo);
+        paymentResult = {
+          sn: orderNo,
+          payUrl,
+          testMode: false,
+          message: '请使用微信/支付宝扫码支付'
+        };
       } catch (wapErr) {
-        console.error('[支付] ❌ 扫码API异常:', wapErr.message, wapErr.response?.data);
+        console.error('[支付] ❌ 生成WAP支付链接异常:', wapErr.message);
         paymentResult = {
           sn: `TEST-${orderNo}`,
           payUrl: null,
           qrCode: null,
           testMode: true,
-          message: '收钱吧API异常：' + wapErr.message
+          message: '生成支付链接异常：' + wapErr.message
         };
       }
     } else {
@@ -429,7 +411,6 @@ router.get('/status/:orderNo', authenticateToken, async (req, res) => {
               ['paid', shouqianbaStatus.payway, new Date(), orderNo]
             );
 
-            // ★ 简化：只记录付款，会员激活由 AI客服 处理
             order.status = 'paid';
             order.payway = shouqianbaStatus.payway;
             order.paid_at = new Date();
@@ -561,9 +542,7 @@ router.post('/shouqianba', async (req, res) => {
         ['paid', params.payway || null, new Date(), params.client_sn]
       );
 
-      // ★ 简化：只记录付款，不自动激活会员
-      // 会员激活由 AI客服 通过 /api/membership/check-and-activate 检查并处理
-      console.log(`【收钱吧回调】✅ 订单 ${params.client_sn} 付款记录已保存，金额:¥${(params.total_amount / 100).toFixed(2)}，待AI客服激活会员`);
+      // 付款记录已保存，不自动激活会员
     } else if (orderStatus === 'CLOSED' || orderStatus === 'REFUND') {
       await pool.query(
         `UPDATE payment_orders SET status = $1, updated_at = NOW() WHERE order_no = $2`,
@@ -663,9 +642,6 @@ router.post('/confirm-test', authenticateToken, async (req, res) => {
       `UPDATE payment_orders SET status = 'paid', paid_at = NOW(), updated_at = NOW() WHERE order_no = $1`,
       [orderNo]
     );
-
-    // ★ 简化：只记录付款，会员激活由 AI客服 处理
-    console.log(`[支付] 测试模式订单已标记为已支付: ${orderNo}，待AI客服激活会员`);
 
     res.json({ success: true, message: '测试支付确认成功' });
 
