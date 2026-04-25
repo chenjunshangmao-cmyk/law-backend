@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Check, Crown, Zap, Building2, ExternalLink, QrCode, RefreshCw, Bot, Shield, ChevronDown, ChevronUp, Users, XCircle } from 'lucide-react';
+import { Check, Crown, Zap, Building2, QrCode, RefreshCw, Bot, Shield, ChevronDown, ChevronUp, Users, XCircle } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { PaymentOrder } from '../types';
@@ -69,28 +69,19 @@ export default function MembershipPage() {
   }, [pollTimer]);
 
   const handlePay = async (planId: string) => {
-    setLoading(true);  // Bug4 修复：设置 loading
+    setLoading(true);
     setError('');
     setSelectedPlan(planId);
     setOrder(null);
 
     try {
       const res = await api.payment.createOrder({ plan: planId });
-
-      if (!res.success) {
-        throw new Error(res.error || '创建订单失败');
-      }
-
+      if (!res.success) throw new Error(res.error || '创建订单失败');
       setOrder(res.data);
-
-      // 如果有支付链接，开始轮询订单状态
-      if (res.data?.orderNo) {
-        startPolling(res.data.orderNo);
-      }
     } catch (e: any) {
       setError(e.message || '支付服务暂时不可用，请稍后重试');
     } finally {
-      setLoading(false);  // Bug4 修复：无论成功失败都重置 loading
+      setLoading(false);
     }
   };
 
@@ -105,39 +96,22 @@ export default function MembershipPage() {
     setSqOrder(null);
 
     try {
-      // 使用 payment.createOrder 创建订单（会写入数据库，回调自动升级会员）
-      const res = await api.payment.createOrder({ plan: planId });
+      // 直接调用 shouqianba.createOrder，快速返回二维码
+      const res = await api.shouqianba.createOrder(
+        planId,
+        price,
+        `Claw会员-${PLANS.find(p => p.id === planId)?.name || planId}`,
+        user?.id
+      );
       if (!res.success) throw new Error(res.error || '创建订单失败');
 
       const orderData = res.data;
-      // 适配：payment.createOrder 返回 { orderNo, payUrl, ... }
       setSqOrder({
-        sn: orderData.orderNo,
-        clientSn: orderData.orderNo,
+        sn: orderData.sn,
+        clientSn: orderData.clientSn,
         payUrl: orderData.payUrl,
-        totalAmount: String(price)
+        totalAmount: String(orderData.totalAmount)
       });
-
-      // 轮询查询支付状态（用 payment.status）
-      setSqPolling(true);
-      const poll = setInterval(async () => {
-        try {
-          const statusRes = await api.payment.status(orderData.orderNo);
-          if (statusRes.data?.status === 'paid') {
-            clearInterval(poll);
-            setSqPolling(false);
-            setSqOrder(null);
-            alert('✅ 支付成功！会员已激活');
-            refreshUser();
-          }
-        } catch { /* ignore */ }
-      }, 3000);
-
-      // 5分钟超时
-      setTimeout(() => {
-        clearInterval(poll);
-        setSqPolling(false);
-      }, 5 * 60 * 1000);
     } catch (e: any) {
       setError(e.message || '支付服务暂时不可用，请稍后重试');
     } finally {
@@ -146,28 +120,17 @@ export default function MembershipPage() {
   };
 
   const startPolling = (orderNo: string) => {
-    setPolling(true);
-    const timer = setInterval(async () => {
-      try {
-        const res = await api.payment.status(orderNo);
-        if (res.data?.status === 'paid') {
-          clearInterval(timer);
-          setPolling(false);
-          setOrder(null);
-          alert('✅ 支付成功！会员已激活');
-          refreshUser();
-        }
-      } catch {
-        // 轮询失败不影响显示
-      }
-    }, 3000);
-    setPollTimer(timer);
-    
-    // 5分钟后停止轮询
-    setTimeout(() => {
-      clearInterval(timer);
-      setPolling(false);
-    }, 5 * 60 * 1000);
+    // 不自动检测支付状态，直接显示订单号，用户自行联系客服激活
+    const plan = PLANS.find(p => p.id === selectedPlan);
+    setOrder({
+      orderNo,
+      amount: plan?.price || 0,
+      planName: plan?.name || selectedPlan,
+      testMode: false,
+      payUrl: '',
+      qrCode: '',
+      message: '付款后联系客服激活会员'
+    });
   };
 
   const cancelPayment = () => {
@@ -291,7 +254,7 @@ export default function MembershipPage() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900">
-                {PLANS.find(p => p.id === selectedPlan)?.name} - ¥{Number(sqOrder.totalAmount)}
+                {PLANS.find(p => p.id === selectedPlan)?.name} - ¥{(Number(sqOrder.totalAmount) / 100).toFixed(0)}
               </h2>
               <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">收钱吧</span>
             </div>
@@ -308,16 +271,22 @@ export default function MembershipPage() {
                   className="mx-auto rounded-lg border border-gray-200"
                   style={{ width: 200, height: 200 }}
                 />
-                <p className="text-xs text-gray-500 mt-2">请用微信或支付宝扫码支付</p>
+                <p className="text-xs text-gray-500 mt-2">请用支付宝扫码支付</p>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(sqOrder.payUrl).then(() => {
+                      alert('支付链接已复制，请在微信/支付宝中粘贴访问，或截图发给自己打开');
+                    });
+                  }}
+                  className="mt-3 text-xs text-blue-600 underline hover:text-blue-800"
+                >
+                  微信支付 → 复制链接后在微信打开
+                </button>
+                <p className="text-xs text-gray-400 mt-1">订单号：{sqOrder.clientSn}</p>
               </div>
             )}
 
-            {sqPolling && (
-              <div className="flex items-center justify-center gap-2 text-sm text-green-600 mb-4">
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                等待支付确认（支付后页面自动更新）...
-              </div>
-            )}
+
 
             <button
               onClick={() => { setSqOrder(null); setSqPolling(false); setSelectedPlan(''); }}
@@ -354,17 +323,9 @@ export default function MembershipPage() {
                     className="w-48 h-48 mx-auto mb-2"
                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
-                  <p className="text-sm text-gray-600">扫码支付（支持微信/支付宝）</p>
+                  <p className="text-sm text-gray-600">用微信或支付宝扫码付款</p>
+                  <p className="text-xs text-gray-400 mt-1">扫码后自动识别支付方式</p>
                 </div>
-                <a
-                  href={order.payUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 mb-3"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  点击支付
-                </a>
               </div>
             ) : (
               <div className="text-center py-6 text-gray-500">
@@ -373,12 +334,7 @@ export default function MembershipPage() {
               </div>
             )}
             
-            {polling && (
-              <div className="flex items-center justify-center gap-2 text-sm text-blue-600 mb-4">
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                正在等待支付确认...
-              </div>
-            )}
+
             
             <button
               onClick={cancelPayment}
@@ -435,7 +391,7 @@ export default function MembershipPage() {
               
               {!isCurrentPlan && (
                 <button
-                  onClick={() => handleShouqianbaPay(plan.id, plan.price)}
+                  onClick={() => handlePay(plan.id)}
                   disabled={loading && selectedPlan !== plan.id}
                   className="w-full py-2.5 rounded-xl font-medium transition-colors text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >

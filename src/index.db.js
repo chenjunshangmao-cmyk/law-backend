@@ -32,7 +32,6 @@ import customerServiceRoutes from './routes/customerService.js';
 import paymentRoutes from './routes/payment.db.js';
 import shouqianbaRoutes from './routes/shouqianba.db.js';
 import xiaohongshuRoutes from './routes/xiaohongshu.js';
-import adminDirectRoutes from './routes/admin-direct.js'; // 临时管理员路由（用完删）
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -195,9 +194,6 @@ app.use('/api/shouqianba', shouqianbaRoutes);
 
 // 小红书
 app.use('/api/xiaohongshu', xiaohongshuRoutes);
-
-// 临时管理员直接操作（用完删）
-app.use('/api/admin-direct', adminDirectRoutes);
 
 // ==========================================
 // 商品抓取API (简化版)

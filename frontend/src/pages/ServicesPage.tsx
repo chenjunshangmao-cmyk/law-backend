@@ -382,19 +382,7 @@ export default function ServicesPage() {
                 ))}
               </ul>
 
-              {/* 两个支付按钮 —— 与 MembershipPage 完全一致 */}
-              <button
-                onClick={() => handlePay(service.id)}
-                disabled={isProcessing}
-                className={`w-full py-2.5 rounded-xl font-medium transition-colors text-sm mb-2 ${
-                  service.popular
-                    ? 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-50'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'
-                }`}
-              >
-                {isProcessing ? '处理中...' : '💳 银行卡支付'}
-              </button>
-
+              {/* 微信/支付宝支付 */}
               <button
                 onClick={() => handleShouqianbaPay(service.id, service.price)}
                 disabled={isProcessing}
