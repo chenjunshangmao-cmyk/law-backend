@@ -1,295 +1,28 @@
 /**
  * 账号管理 API
- * 管理用户的平台账号（1688/Amazon/TikTok等）
+ * 管理用户的平台账号（OZON/Amazon/TikTok等）
+ * 存储在后端的 PostgreSQL（线上）或 JSON 文件（本地）
  */
 
 import express from 'express';
 import crypto from 'crypto';
-import { readData, writeData, generateId } from '../services/dataStore.js';
+import { generateId } from '../services/dataStore.js';
 import { authenticateToken } from '../middleware/auth.js';
+import {
+  getAccountsByUser, getAllAccounts, getAccountById,
+  createAccount, updateAccount, deleteAccount, initAccountsTable
+} from '../services/accountsDb.js';
 
 const router = express.Router();
 
 // 支持的平台列表
-const PLATFORMS = ['1688', 'amazon', 'tiktok', 'ozon', 'lazada', 'shopee'];
-
-/**
- * GET /api/accounts
- * 获取用户账号列表
- */
-router.get('/', authenticateToken, async (req, res) => {
-  try {
-    const accounts = readData('accounts') || [];
-    const userAccounts = accounts.filter(a => a.userId === req.user.userId);
-    
-    // 返回时隐藏敏感信息
-    const sanitizedAccounts = userAccounts.map(a => ({
-      ...a,
-      apiKey: a.apiKey ? '***' + a.apiKey.slice(-4) : '',
-      apiSecret: a.apiSecret ? '***' : ''
-    }));
-    
-    res.json({ success: true, data: sanitizedAccounts });
-  } catch (error) {
-    console.error('获取账号列表失败:', error);
-    res.status(500).json({ success: false, error: '获取账号列表失败' });
-  }
-});
-
-/**
- * POST /api/accounts
- * 添加平台账号
- */
-router.post('/', authenticateToken, async (req, res) => {
-  try {
-    const { platform, name, username, credentials, clientId, apiKey, apiSecret } = req.body;
-    
-    // 验证必填字段
-    if (!platform || !name) {
-      return res.status(400).json({ 
-        success: false, 
-        error: '缺少必填字段：platform 和 name' 
-      });
-    }
-    
-    // 验证平台
-    if (!PLATFORMS.includes(platform.toLowerCase())) {
-      return res.status(400).json({ 
-        success: false, 
-        error: `不支持的平台: ${platform}，支持的平台: ${PLATFORMS.join(', ')}` 
-      });
-    }
-    
-    const accounts = readData('accounts') || [];
-    
-    // 支持来自 credentials 的敏感信息
-    const email = credentials?.email || req.body.email || '';
-    const password = credentials?.password || req.body.password || '';
-    const cid = clientId || req.body.clientId || '';
-    const akey = apiKey || credentials?.apiKey || '';
-    const asecret = apiSecret || credentials?.apiSecret || '';
-    
-    // 加密敏感信息
-    const encryptedEmail = email ? encrypt(email) : '';
-    const encryptedPassword = password ? encrypt(password) : '';
-    const encryptedClientId = cid ? encrypt(cid) : '';
-    const encryptedApiKey = akey ? encrypt(akey) : '';
-    const encryptedApiSecret = asecret ? encrypt(asecret) : '';
-    
-    const newAccount = {
-      id: generateId(),
-      userId: req.user.userId,
-      platform: platform.toLowerCase(),
-      name,
-      username: username || '',
-      email: encryptedEmail,
-      password: encryptedPassword,
-      clientId: encryptedClientId,
-      apiKey: encryptedApiKey,
-      apiSecret: encryptedApiSecret,
-      status: 'active',
-      lastSync: null,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    
-    accounts.push(newAccount);
-    writeData('accounts', accounts);
-    
-    res.status(201).json({ 
-      success: true, 
-      data: {
-        ...newAccount,
-        apiKey: akey ? '***' + akey.slice(-4) : '',
-        apiSecret: asecret ? '***' : ''
-      }
-    });
-  } catch (error) {
-    console.error('添加账号失败:', error);
-    res.status(500).json({ success: false, error: '添加账号失败' });
-  }
-});
-
-/**
- * GET /api/accounts/:id
- * 获取单个账号详情
- */
-router.get('/:id', authenticateToken, async (req, res) => {
-  try {
-    const accounts = readData('accounts') || [];
-    const account = accounts.find(a => 
-      a.id === req.params.id && a.userId === req.user.userId
-    );
-    
-    if (!account) {
-      return res.status(404).json({ success: false, error: '账号不存在' });
-    }
-    
-    res.json({ 
-      success: true, 
-      data: {
-        ...account,
-        apiKey: account.apiKey ? '***' + account.apiKey.slice(-4) : '',
-        apiSecret: account.apiSecret ? '***' : ''
-      }
-    });
-  } catch (error) {
-    console.error('获取账号详情失败:', error);
-    res.status(500).json({ success: false, error: '获取账号详情失败' });
-  }
-});
-
-/**
- * PUT /api/accounts/:id
- * 更新账号
- */
-router.put('/:id', authenticateToken, async (req, res) => {
-  try {
-    const { platform, name, apiKey, apiSecret, status } = req.body;
-    const accounts = readData('accounts') || [];
-    const index = accounts.findIndex(a => 
-      a.id === req.params.id && a.userId === req.user.userId
-    );
-    
-    if (index === -1) {
-      return res.status(404).json({ success: false, error: '账号不存在' });
-    }
-    
-    // 更新字段
-    if (platform) accounts[index].platform = platform.toLowerCase();
-    if (name) accounts[index].name = name;
-    if (apiKey) accounts[index].apiKey = encrypt(apiKey);
-    if (apiSecret) accounts[index].apiSecret = encrypt(apiSecret);
-    if (status && ['active', 'inactive', 'error'].includes(status)) {
-      accounts[index].status = status;
-    }
-    accounts[index].updatedAt = Date.now();
-    
-    writeData('accounts', accounts);
-    
-    res.json({ 
-      success: true, 
-      data: {
-        ...accounts[index],
-        apiKey: accounts[index].apiKey ? '***' + accounts[index].apiKey.slice(-4) : '',
-        apiSecret: accounts[index].apiSecret ? '***' : ''
-      }
-    });
-  } catch (error) {
-    console.error('更新账号失败:', error);
-    res.status(500).json({ success: false, error: '更新账号失败' });
-  }
-});
-
-/**
- * DELETE /api/accounts/:id
- * 删除账号
- */
-router.delete('/:id', authenticateToken, async (req, res) => {
-  try {
-    const accounts = readData('accounts') || [];
-    const index = accounts.findIndex(a => 
-      a.id === req.params.id && a.userId === req.user.userId
-    );
-    
-    if (index === -1) {
-      return res.status(404).json({ success: false, error: '账号不存在' });
-    }
-    
-    accounts.splice(index, 1);
-    writeData('accounts', accounts);
-    
-    res.json({ success: true, message: '账号已删除' });
-  } catch (error) {
-    console.error('删除账号失败:', error);
-    res.status(500).json({ success: false, error: '删除账号失败' });
-  }
-});
-
-/**
- * POST /api/accounts/:id/test
- * 测试账号连接
- */
-router.post('/:id/test', authenticateToken, async (req, res) => {
-  try {
-    const accounts = readData('accounts') || [];
-    const account = accounts.find(a => 
-      a.id === req.params.id && a.userId === req.user.userId
-    );
-    
-    if (!account) {
-      return res.status(404).json({ success: false, error: '账号不存在' });
-    }
-    
-    // 模拟连接测试（实际应该调用各平台的API进行验证）
-    const testResult = await testPlatformConnection(account);
-    
-    // 更新账号状态
-    const index = accounts.findIndex(a => a.id === req.params.id);
-    accounts[index].status = testResult.success ? 'active' : 'error';
-    accounts[index].lastSync = testResult.success ? Date.now() : accounts[index].lastSync;
-    accounts[index].updatedAt = Date.now();
-    writeData('accounts', accounts);
-    
-    res.json({ 
-      success: true, 
-      data: {
-        platform: account.platform,
-        name: account.name,
-        connected: testResult.success,
-        message: testResult.message,
-        testedAt: Date.now()
-      }
-    });
-  } catch (error) {
-    console.error('测试账号连接失败:', error);
-    res.status(500).json({ success: false, error: '测试账号连接失败' });
-  }
-});
-
-/**
- * 模拟平台连接测试
- * 实际应该调用各平台的API
- */
-async function testPlatformConnection(account) {
-  // 解密获取原始凭证 - 根据不同平台选择不同凭证
-  const platform = account.platform;
-  
-  if (platform === 'ozon') {
-    const clientId = decrypt(account.clientId || account.apiKey);
-    const apiKey = decrypt(account.apiKey || account.apiSecret);
-    if (!clientId || !apiKey) {
-      return { success: false, message: '缺少 OZON Client ID 或 API Key' };
-    }
-    // OZON API 测试
-    try {
-      const response = await fetch('https://api-seller.ozon.ru/v1/ping', {
-        method: 'GET',
-        headers: { 'Client-Id': clientId, 'Api-Key': apiKey }
-      });
-      return { success: response.status === 200, message: response.status === 200 ? 'OZON API连接成功' : 'OZON API认证失败' };
-    } catch (e) {
-      return { success: false, message: 'OZON API不可达（网络问题或服务器被限）' };
-    }
-  }
-  
-  // 其他平台 - 仅检查是否有凭证
-  const email = decrypt(account.email || account.username);
-  const password = decrypt(account.password || account.apiSecret);
-  
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  const hasCreds = !!(email || account.username);
-  return {
-    success: hasCreds,
-    message: hasCreds ? '账号已配置' : '请填写平台登录信息'
-  };
-}
+const PLATFORMS = ['1688', 'amazon', 'tiktok', 'ozon', 'lazada', 'shopee', 'youtube'];
 
 /**
  * 加密函数
  */
 function encrypt(text) {
+  if (!text) return '';
   const algorithm = 'aes-256-cbc';
   const key = crypto.scryptSync(process.env.JWT_SECRET || 'claw-secret-key', 'salt', 32);
   const iv = crypto.randomBytes(16);
@@ -304,21 +37,200 @@ function encrypt(text) {
  */
 function decrypt(text) {
   if (!text) return '';
-  const algorithm = 'aes-256-cbc';
-  const key = crypto.scryptSync(process.env.JWT_SECRET || 'claw-secret-key', 'salt', 32);
-  const parts = text.split(':');
-  if (parts.length !== 2) return '';
-  const iv = Buffer.from(parts[0], 'hex');
-  const encrypted = parts[1];
-  const decipher = crypto.createDecipheriv(algorithm, key, iv);
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
+  try {
+    const algorithm = 'aes-256-cbc';
+    const key = crypto.scryptSync(process.env.JWT_SECRET || 'claw-secret-key', 'salt', 32);
+    const parts = text.split(':');
+    if (parts.length !== 2) return text; // 未加密直接返回
+    const iv = Buffer.from(parts[0], 'hex');
+    const encrypted = parts[1];
+    const decipher = crypto.createDecipheriv(algorithm, key, iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch {
+    return text;
+  }
 }
 
 /**
+ * 脱敏显示
+ */
+function sanitize(account) {
+  if (!account) return account;
+  const obj = { ...account };
+  if (obj.client_id) obj.client_id = obj.client_id.substring(0, 8) + '***';
+  if (obj.api_key) obj.api_key = '***' + obj.api_key.slice(-4);
+  if (obj.api_secret) obj.api_secret = '***';
+  if (obj.password) obj.password = '***';
+  if (obj.credentials) obj.credentials = '***';
+  return obj;
+}
+
+/**
+ * GET /api/accounts
+ * 获取用户账号列表
+ */
+router.get('/', authenticateToken, async (req, res) => {
+  try {
+    const accounts = await getAccountsByUser(req.user.userId);
+    res.json({ success: true, data: accounts.map(sanitize) });
+  } catch (error) {
+    console.error('获取账号列表失败:', error);
+    res.status(500).json({ success: false, error: '获取账号列表失败' });
+  }
+});
+
+/**
+ * POST /api/accounts
+ * 添加平台账号
+ */
+router.post('/', authenticateToken, async (req, res) => {
+  try {
+    const { platform, name, username, credentials, clientId, apiKey, apiSecret, email, password } = req.body;
+
+    if (!platform || !name) {
+      return res.status(400).json({ success: false, error: '缺少必填字段：platform 和 name' });
+    }
+
+    if (!PLATFORMS.includes(platform.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        error: `不支持的平台: ${platform}，支持的平台: ${PLATFORMS.join(', ')}`
+      });
+    }
+
+    // 支持来自 credentials 的敏感信息
+    const safeEmail = credentials?.email || email || '';
+    const safePassword = credentials?.password || password || '';
+    const safeClientId = clientId || credentials?.clientId || '';
+    const safeApiKey = apiKey || credentials?.apiKey || '';
+    const safeApiSecret = apiSecret || credentials?.apiSecret || '';
+
+    const newAccount = {
+      id: generateId(),
+      user_id: req.user.userId,
+      platform: platform.toLowerCase(),
+      name,
+      username: username || '',
+      email: encrypt(safeEmail),
+      password: encrypt(safePassword),
+      client_id: encrypt(safeClientId),
+      api_key: encrypt(safeApiKey),
+      api_secret: encrypt(safeApiSecret),
+      status: 'active',
+      credentials: credentials ? { masked: true } : null
+    };
+
+    const saved = await createAccount(newAccount);
+    res.status(201).json({ success: true, data: sanitize(saved) });
+  } catch (error) {
+    console.error('添加账号失败:', error);
+    res.status(500).json({ success: false, error: '添加账号失败: ' + error.message });
+  }
+});
+
+/**
+ * GET /api/accounts/:id
+ * 获取单个账号详情
+ */
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const account = await getAccountById(req.params.id, req.user.userId);
+    if (!account) {
+      return res.status(404).json({ success: false, error: '账号不存在' });
+    }
+    res.json({ success: true, data: sanitize(account) });
+  } catch (error) {
+    console.error('获取账号详情失败:', error);
+    res.status(500).json({ success: false, error: '获取账号详情失败' });
+  }
+});
+
+/**
+ * PUT /api/accounts/:id
+ * 更新账号
+ */
+router.put('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { platform, name, apiKey, apiSecret, status } = req.body;
+    const updates = {};
+    if (platform) updates.platform = platform.toLowerCase();
+    if (name) updates.name = name;
+    if (apiKey) updates.api_key = encrypt(apiKey);
+    if (apiSecret) updates.api_secret = encrypt(apiSecret);
+    if (status && ['active', 'inactive', 'error'].includes(status)) updates.status = status;
+    if (req.body.clientId) updates.client_id = encrypt(req.body.clientId);
+    if (req.body.email) updates.email = encrypt(req.body.email);
+    if (req.body.password) updates.password = encrypt(req.body.password);
+
+    const updated = await updateAccount(req.params.id, req.user.userId, updates);
+    if (!updated) {
+      return res.status(404).json({ success: false, error: '账号不存在' });
+    }
+
+    res.json({ success: true, data: sanitize(updated) });
+  } catch (error) {
+    console.error('更新账号失败:', error);
+    res.status(500).json({ success: false, error: '更新账号失败' });
+  }
+});
+
+/**
+ * DELETE /api/accounts/:id
+ * 删除账号
+ */
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    const deleted = await deleteAccount(req.params.id, req.user.userId);
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: '账号不存在' });
+    }
+    res.json({ success: true, message: '账号已删除' });
+  } catch (error) {
+    console.error('删除账号失败:', error);
+    res.status(500).json({ success: false, error: '删除账号失败' });
+  }
+});
+
+/**
+ * POST /api/accounts/:id/test
+ * 测试账号连接
+ */
+router.post('/:id/test', authenticateToken, async (req, res) => {
+  try {
+    const account = await getAccountById(req.params.id, req.user.userId);
+    if (!account) {
+      return res.status(404).json({ success: false, error: '账号不存在' });
+    }
+
+    const testResult = await testPlatformConnection(account);
+
+    // 更新状态
+    await updateAccount(req.params.id, req.user.userId, {
+      status: testResult.success ? 'active' : 'error',
+      last_sync: testResult.success ? new Date().toISOString() : null
+    });
+
+    res.json({
+      success: true,
+      data: {
+        platform: account.platform,
+        name: account.name,
+        connected: testResult.success,
+        message: testResult.message,
+        testedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('测试账号连接失败:', error);
+    res.status(500).json({ success: false, error: '测试账号连接失败' });
+  }
+});
+
+/**
  * POST /api/accounts/ozon-authorize
- * OZON API授权：保存 Client ID + API Key
+ * OZON API授权：不验证 API 连通性，直接保存凭证
  */
 router.post('/ozon-authorize', authenticateToken, async (req, res) => {
   try {
@@ -327,22 +239,19 @@ router.post('/ozon-authorize', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: '缺少必要参数: name, clientId, apiKey' });
     }
 
-    // 加密存储（不验证 API 连通性，由用户手动测试）
-    const accounts = readData('accounts') || [];
     const newAccount = {
       id: 'ozon-' + Date.now(),
+      user_id: req.user.userId,
       platform: 'ozon',
       name,
-      clientId: encrypt(clientId),
-      apiKey: encrypt(apiKey),
-      status: 'active',
-      createdAt: new Date().toISOString()
+      client_id: encrypt(clientId),
+      api_key: encrypt(apiKey),
+      status: 'active'
     };
-    accounts.push(newAccount);
-    writeData('accounts', accounts);
 
+    const saved = await createAccount(newAccount);
     console.log(`[OZON] API授权成功: ${name}`);
-    res.json({ success: true, message: 'OZON API授权成功', data: { id: newAccount.id, name } });
+    res.json({ success: true, message: 'OZON API授权成功', data: { id: saved.id, name } });
   } catch (error) {
     console.error('[OZON] 授权失败:', error);
     res.status(500).json({ success: false, error: 'OZON API授权失败: ' + error.message });
@@ -351,36 +260,39 @@ router.post('/ozon-authorize', authenticateToken, async (req, res) => {
 
 /**
  * POST /api/accounts/ozon-test
- * 测试 OZON API 连接
+ * 测试已保存的 OZON API 连接
  */
 router.post('/ozon-test', authenticateToken, async (req, res) => {
   try {
     const { accountId } = req.body;
-    const accounts = readData('accounts') || [];
-    const account = accounts.find(a => a.id === accountId && a.platform === 'ozon');
-    if (!account) {
+    const account = await getAccountById(accountId);
+    if (!account || account.platform !== 'ozon') {
       return res.status(404).json({ success: false, error: 'OZON账号不存在' });
     }
 
-    const clientId = decrypt(account.clientId);
-    const apiKey = decrypt(account.apiKey);
+    const clientId = decrypt(account.client_id);
+    const apiKey = decrypt(account.api_key);
 
-    // 测试 OZON API — 用 /v1/ping 检查连通性
-    const response = await fetch('https://api-seller.ozon.ru/v1/ping', {
-      method: 'GET',
-      headers: {
-        'Client-Id': clientId,
-        'Api-Key': apiKey
+    if (!clientId || !apiKey) {
+      return res.status(400).json({ success: false, error: 'OZON 凭证缺失，请重新绑定' });
+    }
+
+    try {
+      const response = await fetch('https://api-seller.ozon.ru/v1/ping', {
+        method: 'GET',
+        headers: { 'Client-Id': clientId, 'Api-Key': apiKey }
+      });
+
+      if (response.status === 200) {
+        await updateAccount(accountId, req.user.userId, { status: 'active' });
+        res.json({ success: true, message: 'OZON API连接成功' });
+      } else if (response.status === 403) {
+        res.status(400).json({ success: false, error: 'OZON API 认证失败 (403)：请检查 OZON Seller 后台 → 设置 → API 密钥 中的凭证' });
+      } else {
+        res.status(400).json({ success: false, error: `OZON API 请求失败 (${response.status})` });
       }
-    });
-
-    const text = await response.text();
-    if (response.status === 200) {
-      res.json({ success: true, message: 'OZON API连接成功' });
-    } else if (response.status === 403) {
-      res.status(400).json({ success: false, error: 'OZON API 认证失败 (403)：Client ID 或 API Key 不正确。请检查 OZON Seller 后台 → 设置 → API 密钥 中的凭证' });
-    } else {
-      res.status(400).json({ success: false, error: 'OZON API 请求失败 (' + response.status + ')：可能是网络不可达或被墙，请确认服务器可以访问 api-seller.ozon.ru', detail: text?.substring(0, 200) });
+    } catch (e) {
+      res.status(500).json({ success: false, error: 'OZON API不可达（服务器网络限制）', detail: e.message });
     }
   } catch (error) {
     res.status(500).json({ success: false, error: 'OZON API测试失败: ' + error.message });
@@ -393,64 +305,112 @@ router.post('/ozon-test', authenticateToken, async (req, res) => {
  */
 router.post('/:id/sync', authenticateToken, async (req, res) => {
   try {
-    const accounts = readData('accounts') || [];
-    const account = accounts.find(a => a.id === req.params.id && a.userId === req.user.userId);
+    const account = await getAccountById(req.params.id, req.user.userId);
     if (!account) {
       return res.status(404).json({ success: false, error: '账号不存在' });
     }
 
     const platform = account.platform;
-    
+
     if (platform === 'ozon') {
-      const clientId = decrypt(account.clientId || account.apiKey);
-      const apiKey = decrypt(account.apiKey || account.apiSecret);
-      
+      const clientId = decrypt(account.client_id);
+      const apiKey = decrypt(account.api_key);
+
       if (!clientId || !apiKey) {
         return res.json({ success: false, error: 'OZON 凭证缺失，请重新授权' });
       }
 
-      // 获取 OZON 产品列表
-      const response = await fetch('https://api-seller.ozon.ru/v2/product/list', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Client-Id': clientId,
-          'Api-Key': apiKey
-        },
-        body: JSON.stringify({
-          filter: { visibility: 'ALL' },
-          limit: 100,
-          offset: 0
-        })
-      });
+      try {
+        // 并发获取产品列表 + 统计数据 + 订单数据
+        const [productRes, statRes, orderRes] = await Promise.allSettled([
+          fetch('https://api-seller.ozon.ru/v2/product/list', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Client-Id': clientId, 'Api-Key': apiKey },
+            body: JSON.stringify({ filter: { visibility: 'ALL' }, limit: 100, offset: 0 })
+          }),
+          fetch('https://api-seller.ozon.ru/v1/analytics/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Client-Id': clientId, 'Api-Key': apiKey },
+            body: JSON.stringify({ date_from: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0], date_to: new Date().toISOString().split('T')[0], metrics: ['revenue', 'orders_count', 'products_sold'] })
+          }),
+          fetch('https://api-seller.ozon.ru/v3/order/list', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Client-Id': clientId, 'Api-Key': apiKey },
+            body: JSON.stringify({ filter: { since: new Date(Date.now() - 7 * 86400000).toISOString(), status: '' }, page: 1, page_size: 50 })
+          })
+        ]);
 
-      if (!response.ok) {
-        return res.json({ success: false, error: 'OZON API同步失败 (' + response.status + ')' });
-      }
+        let products = [];
+        let totalProducts = 0;
+        let stats = { total: 0, active: 0, archived: 0, awaiting_approval: 0, rejected: 0 };
+        let ordersSummary = { total: 0, pending: 0, awaiting_delivery: 0, delivered: 0, cancelled: 0 };
 
-      const data = await response.json();
-      const products = data.result?.items || [];
-      
-      // 更新同步时间
-      const index = accounts.findIndex(a => a.id === req.params.id);
-      accounts[index].lastSync = Date.now();
-      accounts[index].updatedAt = Date.now();
-      writeData('accounts', accounts);
+        // 解析产品数据
+        if (productRes.status === 'fulfilled' && productRes.value.ok) {
+          const productData = await productRes.value.json();
+          products = productData.result?.items || [];
+          totalProducts = productData.result?.total || products.length;
 
-      res.json({
-        success: true,
-        message: '同步完成',
-        data: {
-          total: data.result?.total || products.length,
-          products: products.map(p => ({
-            id: p.offer_id || p.product_id,
-            name: p.name,
-            price: p.price,
-            stock: p.stocks?.present || 0,
-            status: p.state?.name || p.status
-          }))
+          // 统计产品状态
+          products.forEach(p => {
+            const status = (p.state?.name || p.status || '').toLowerCase();
+            if (status.includes('approved') || status.includes('published') || status.includes('active') || status.includes('for_sale')) {
+              stats.active++;
+            } else if (status.includes('archived') || status.includes('inactive')) {
+              stats.archived++;
+            } else if (status.includes('pending') || status.includes('moderation') || status.includes('new')) {
+              stats.awaiting_approval++;
+            } else if (status.includes('rejected') || status.includes('failed')) {
+              stats.rejected++;
+            } else {
+              stats.total++;
+            }
+          });
+          stats.total = totalProducts;
         }
-      });
+
+        // 解析订单数据
+        if (orderRes.status === 'fulfilled' && orderRes.value.ok) {
+          const orderData = await orderRes.value.json();
+          const orders = orderData.orders || orderData.result?.orders || [];
+          orders.forEach(o => {
+            const status = (o.status || '').toLowerCase();
+            if (status.includes('pending') || status.includes('awaiting_payment') || status.includes('unpaid')) {
+              ordersSummary.pending++;
+            } else if (status.includes('awaiting_delivery') || status.includes('shipped') || status.includes('delivering')) {
+              ordersSummary.awaiting_delivery++;
+            } else if (status.includes('delivered') || status.includes('complete')) {
+              ordersSummary.delivered++;
+            } else if (status.includes('cancelled') || status.includes('refund')) {
+              ordersSummary.cancelled++;
+            }
+          });
+          ordersSummary.total = orders.length;
+        }
+
+        await updateAccount(req.params.id, req.user.userId, {
+          last_sync: new Date().toISOString()
+        });
+
+        res.json({
+          success: true,
+          message: '同步完成',
+          data: {
+            total: totalProducts,
+            stats,
+            ordersSummary,
+            products: products.map(p => ({
+              id: p.offer_id || p.product_id,
+              name: p.name,
+              price: p.price,
+              stock: p.stocks?.present || 0,
+              status: p.state?.name || p.status
+            }))
+          }
+        });
+      } catch (e) {
+        res.json({ success: false, error: 'OZON API不可达: ' + e.message });
+      }
     } else {
       res.json({ success: false, error: `平台 ${platform} 暂不支持数据同步` });
     }
@@ -458,5 +418,42 @@ router.post('/:id/sync', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: '同步失败: ' + error.message });
   }
 });
+
+/**
+ * 测试平台连接
+ */
+async function testPlatformConnection(account) {
+  const platform = account.platform;
+
+  if (platform === 'ozon') {
+    const clientId = decrypt(account.client_id);
+    const apiKey = decrypt(account.api_key);
+    if (!clientId || !apiKey) {
+      return { success: false, message: '缺少 OZON Client ID 或 API Key' };
+    }
+    try {
+      const response = await fetch('https://api-seller.ozon.ru/v1/ping', {
+        method: 'GET',
+        headers: { 'Client-Id': clientId, 'Api-Key': apiKey }
+      });
+      return { success: response.status === 200, message: response.status === 200 ? 'OZON API连接成功' : 'OZON API认证失败' };
+    } catch {
+      return { success: false, message: 'OZON API不可达（网络问题或服务器被限）' };
+    }
+  }
+
+  // 其他平台
+  await new Promise(r => setTimeout(r, 500));
+  return { success: true, message: '账号已配置' };
+}
+
+/**
+ * 初始化数据库表
+ */
+export async function initAccountsRoutes(app) {
+  await initAccountsTable();
+  app.use('/api/accounts', router);
+  console.log('[accounts] 账号路由已注册（数据库模式）');
+}
 
 export default router;

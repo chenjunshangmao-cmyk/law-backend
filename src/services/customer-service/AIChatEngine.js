@@ -5,6 +5,7 @@
 
 import { OpenAI } from 'openai';
 import axios from 'axios';
+import { pool, useMemoryMode } from '../../config/database.js';
 
 class AIChatEngine {
   constructor() {
@@ -16,79 +17,124 @@ class AIChatEngine {
   // 初始化知识库
   initializeKnowledgeBase() {
     this.knowledgeBase.set('铺货流程', {
-      keywords: ['铺货', '上架', '发布', '流程'],
-      response: `TikTok铺货有两种模式：
+      keywords: ['铺货', '上架', '发布', '流程', '怎么卖', '怎么开始'],
+      response: `📦 <b>上架操作指南</b>
 
-**模式一：链接抓取**
+您绑定的店铺可以通过以下方式上架商品：
+
+<b>🔗 链接抓取（最常用）</b>
 1. 复制1688/淘宝/拼多多商品链接
-2. 粘贴到输入框，点击"开始抓取"
-3. 系统自动获取商品信息、图片、规格
-4. AI分析竞品并生成优化内容
-5. 确认后一键发布
+2. 粘贴到「AI工作台」→「智能铺货」
+3. 系统自动抓取商品信息、图片、规格
+4. AI自动翻译并优化标题和描述
+5. 支持多语言发布（中文→俄语/英语）
+6. 一键发布到OZON店铺
 
-**模式二：图片上传**
+<b>📷 图片上传</b>
 1. 上传商品图片（最多9张）
-2. AI全网搜索相似竞品
-3. 分析爆款元素和定价
-4. 生成同款商品信息
-5. 确认后一键发布
+2. AI搜索相似竞品
+3. 参考爆款元素生成商品信息
+4. 确认后发布
 
-需要我详细说明哪个步骤？`
+<b>💡 小贴士：</b>
+- OZON俄罗斯站建议用俄语标题，转化率高
+- 定价建议使用「定价计算器」自动算
+- 首次上架建议先发1-2个商品测试流程
+
+需要我引导您操作哪个步骤？`
     });
 
     this.knowledgeBase.set('定价计算', {
-      keywords: ['定价', '价格', '利润', '成本', '计算'],
-      response: `智能定价公式：
+      keywords: ['定价', '价格', '利润', '成本', '计算', '多少钱', '运费'],
+      response: `💰 <b>智能定价计算器</b>
 
-**基础定价**
-- 售价 = (成本 + 运费) ÷ 汇率 × 利润率
-- 默认汇率：5.2（新币/人民币）
-- 默认利润率：2.5倍（毛利≥50%）
-- 取整规则：X.90 结尾
+系统内置定价计算器，支持三种模式：
 
-**竞品参考**
-- 系统会抓取TikTok同款商品
-- 分析竞品价格区间
-- 建议定价在竞品中位价
+<b>📐 基础定价（成本加成）</b>
+售价 = (采购成本 + 运费) × 目标利润率
+- 默认利润率：2.0 ~ 2.5倍（毛利≥50%）
+- OZON俄罗斯站：考虑跨境物流成本
+- 系统自动取整为市场可接受的价格
 
-**示例**
-成本20元 + 运费15元 = 35元
-35 ÷ 5.2 × 2.5 = 16.83新币
-取整后：16.90新币
+<b>📊 竞品参考定价</b>
+- 系统搜索同款商品在平台上的售价
+- 分析价格区间、销量分布
+- 建议定价在中位价附近
 
-需要我帮你计算具体商品的价格吗？`
+<b>🧮 定价计算器入口：</b>
+在「AI工作台」→「定价计算器」中：
+1. 输入采购成本
+2. 选择平台（OZON/TikTok）
+3. 输入运费
+4. 点击「开始计算」
+5. 系统自动给出建议售价
+
+<b>⚡ 快速示例：</b>
+成本¥35 + 运费¥30 = ¥65
+OZON售价建议：₽1500~₽1890（约¥120~¥150）
+利润率：约85%~130%
+
+想让我帮您具体算一算吗？`
     });
 
     this.knowledgeBase.set('发布失败', {
-      keywords: ['失败', '错误', '发布不了', '提交失败', '报错'],
-      response: `发布失败的常见原因及解决方法：
+      keywords: ['失败', '错误', '发布不了', '提交失败', '报错', '出错', '不行', '没反应', '异常'],
+      response: `❌ <b>发布失败排查指南</b>
 
-**1. 网络问题**
-- 检查网络连接
-- 刷新页面重试
-- 切换网络环境
+<b>🔍 按原因排查：</b>
 
-**2. 账号问题**
-- 确认TikTok账号已登录
-- 检查账号状态是否正常
-- 重新授权店铺
+<b>1. 网络不稳定</b>
+→ 刷新页面重新尝试
+→ 检查网络连接是否正常
+→ 可尝试切换网络环境
 
-**3. 商品信息不完整**
-- 检查必填项是否填写
-- 图片数量是否符合要求
-- 规格信息是否完整
+<b>2. 商品信息不完整</b>
+→ 检查必填项是否都已填写
+→ 图片是否已上传（至少1张，建议3-9张）
+→ 规格/尺寸信息是否完整
+→ 价格是否填写
 
-**4. 平台限制**
-- 检查是否触发风控
-- 商品类目是否受限
-- 价格是否在合理区间
+<b>3. 平台风控/限制</b>
+→ 商品类目是否在平台限制范围内
+→ 价格是否在合理区间（过低或过高都会触发审核）
+→ 标题是否包含违禁词
 
-**5. 系统问题**
-- 清除浏览器缓存
-- 重启浏览器
-- 联系技术支持
+<b>4. 店铺授权问题</b>
+→ 店铺授权是否过期？重新授权即可
+→ 进入「店铺管理」查看授权状态
 
-如果问题持续，请联系人工客服处理。`
+<b>5. 系统问题</b>
+→ 清除浏览器缓存后重试
+→ 刷新页面重试
+→ 如果持续报错，请联系技术支持
+
+<b>📞 如果以上都无法解决：</b>
+联系人工客服（页面右下角或微信 claw_support）`
+    });
+
+    this.knowledgeBase.set('OZON店铺', {
+      keywords: ['ozon', 'ozon店铺', '俄罗斯', '俄语', '俄罗斯站', '店铺管理', 'qiming', 'chenjun'],
+      response: `🇷🇺 <b>OZON俄罗斯店铺管理</b>
+
+您已绑定的OZON店铺：
+• <b>Chenjun Trading</b> — 主营制冷配件
+• <b>Chenjun Mall</b> — 综合店铺
+• <b>qiming Trading</b> — 主营制冷配件 + LED灯泡
+
+<b>📋 OZON运营要点：</b>
+
+• <b>语言：</b>商品标题和描述建议用俄语，转化率高30%+
+• <b>物流：</b>支持跨境直发和本地仓，建议用平台物流FBO
+• <b>定价：</b>建议利润率≥50%，俄罗斯消费者对价格敏感
+• <b>品类：</b>制冷配件和LED灯泡在OZON上竞争较小，毛利高
+
+<b>🚀 常用操作：</b>
+• 切换店铺：在「店铺管理」一键切换
+• 查看数据：在「工作台」查看各店铺销售情况
+• 批量上架：使用「智能铺货」同时发布到多个店铺
+• 数据同步：系统自动同步订单和库存
+
+有什么具体问题吗？`
     });
 
     this.knowledgeBase.set('AI生成', {
@@ -122,55 +168,144 @@ class AIChatEngine {
     });
 
     this.knowledgeBase.set('账号授权', {
-      keywords: ['登录', '授权', '账号', '店铺', '绑定'],
-      response: `店铺授权说明：
+      keywords: ['登录', '授权', '账号', '店铺', '绑定', '注册', '开通', '添加', '入驻'],
+      response: `🔗 <b>店铺绑定与账号管理</b>
 
-**TikTok Shop授权**
-1. 进入"店铺管理"页面
-2. 点击"添加店铺"
-3. 选择"TikTok Shop"
-4. 扫码或输入账号密码登录
-5. 授权成功后即可使用
+<b>支持绑定的平台：</b>
+• 🇷🇺 OZON 俄罗斯 — 已绑定3个店铺
+• 🇸🇬 TikTok Shop 新加坡 — 可绑定
+• 🇺🇸 YouTube — 视频发布（即将支持）
 
-**支持的店铺**
-- TikTok Shop 新加坡
-- TikTok Shop 马来西亚
-- TikTok Shop 菲律宾
-- OZON 俄罗斯
+<b>📝 如何绑定新店铺：</b>
+1. 进入「店铺管理」页面
+2. 点击「添加店铺」
+3. 选择平台（OZON/TikTok等）
+4. 输入API信息或扫码授权
+5. 绑定成功即可使用
 
-**常见问题**
-- 授权有效期30天，到期需重新授权
-- 一个账号可以绑定多个店铺
-- 支持随时切换店铺
+<b>OZON店铺绑定需要：</b>
+• <b>Client ID</b> — 在OZON Seller Center获取
+• <b>API Key</b> — 在OZON Seller Center生成
 
-**安全说明**
-- 账号信息加密存储
-- 不会保存密码
-- 使用官方API接口
+<b>🔐 安全说明</b>
+• API信息加密存储，不会泄露
+• 一个会员账号可以绑定多个店铺
+• 会员等级决定可绑定的店铺数量上限
+• 支持随时解绑和切换
 
-需要授权新店铺吗？`
+<b>当前您的店铺：</b>
+3个OZON店铺已绑定（Chenjun Trading / Chenjun Mall / qiming Trading）
+想绑定更多店铺吗？`
+    });
+
+    this.knowledgeBase.set('会员权益', {
+      keywords: ['会员', '套餐', '收费', '多少钱', '价格', '付费', '升级', '免费', 'vip', 'pro', '企业', '权益'],
+      response: `⭐ <b>会员权益说明</b>
+
+<b>🆓 免费版</b>
+• 绑定1个店铺
+• 每月50次AI客服咨询
+• 基础定价计算器
+• 每日数据简报
+
+<b>💎 专业版 （Pro）</b>
+• 绑定最多5个店铺
+• 无限AI客服咨询
+• AI智能选品分析
+• 高级定价策略建议
+• 多平台数据看板
+• 自动生成运营周报
+
+<b>🏢 企业版</b>
+• 绑定最多20个店铺
+• 所有专业版功能
+• 专属AI运营顾问
+• API接口开放
+• 团队协作功能
+• 优先技术支持
+• 定制化功能开发
+
+<b>当前您的会员：</b>企业版 ✅
+已有3个OZON店铺绑定，可使用所有功能
+
+想了解某个功能的具体用法吗？`
+    });
+
+    this.knowledgeBase.set('功能介绍', {
+      keywords: ['功能', '有什么功能', '能干什么', '用途', '特色', '优势', '能用'],
+      response: `🚀 <b>Claw 跨境智造 — 核心功能</b>
+
+<b>🤖 AI智能铺货</b>
+• 链接抓取：1688/淘宝链接→自动提取→AI优化→一键发布到OZON
+• 多语言翻译：中文→俄语/英语，标题描述自动适配
+• 批量操作：一次上架多个商品，效率翻倍
+
+<b>💰 智能定价计算器</b>
+• 成本自动核算
+• 竞品价格参考
+• 建议售价和利润分析
+
+<b>📊 数据看板</b>
+• 各店铺销售总览
+• 订单趋势分析
+• 热销商品排行
+• 利润核算
+
+<b>🎬 数字人视频</b>
+• 自动生成产品展示视频
+• 多语言配音
+• 适用于TikTok/YouTube
+
+<b>🏪 多店铺管理</b>
+• 绑定多个OZON店铺
+• 一键切换
+• 统一数据看板
+
+想了解哪个功能的详细用法？`
+    });
+
+    this.knowledgeBase.set('数据问题', {
+      keywords: ['数据', '分析', '报表', '统计', '销售', '订单', '销量', '利润', '赚了多少'],
+      response: `📊 <b>数据与报表</b>
+
+<b>可查看的数据：</b>
+• <b>销售总览：</b>各店铺的今日、本周、本月销售额
+• <b>订单管理：</b>最新订单、待处理订单
+• <b>利润分析：</b>销售额 - 成本 - 运费 = 净利润
+• <b>热销商品：</b>按销量排名，分析爆款特征
+• <b>趋势图表：</b>销售额/订单量变化趋势
+
+<b>查看入口：</b>
+「工作台」→「数据看板」→ 选择店铺和时间范围
+
+<b>数据同步说明：</b>
+• 系统每4小时自动同步一次
+• 也可以手动点击「立即同步」
+• 最新订单实时更新
+
+需要我帮您看具体哪个数据？`
     });
 
     this.knowledgeBase.set('人工客服', {
-      keywords: ['人工', '客服', '联系', '电话', '微信'],
-      response: `联系人工客服：
+      keywords: ['人工', '真人', '转人工', '联系', '电话', '微信', '投诉'],
+      response: `📞 <b>联系人工客服</b>
 
-**在线时间**
-- 工作日：9:00 - 21:00
-- 周末：10:00 - 18:00
+<b>在线时间</b>
+• 工作日：9:00 - 21:00
+• 周末：10:00 - 18:00
 
-**联系方式**
-- 微信：claw_support
-- 邮箱：support@claw.ai
-- 电话：400-XXX-XXXX
+<b>📱 联系方式</b>
+• 微信：claw_support
+• 邮箱：support@claw.ai
 
-**紧急问题**
-如果是系统故障或紧急问题，请直接电话联系。
+<b>⚡ 紧急问题</b>
+系统故障或账号异常 → 建议立即微信联系
 
-**反馈建议**
-欢迎提出功能建议和使用反馈，我们会持续优化产品体验。
+<b>💬 转接人工</b>
+· 您可以直接描述问题，我先尝试帮您解决
+· 如果解决不了，再帮您转接人工客服
 
-需要我帮你转接人工客服吗？`
+有什么问题我可以先帮您看看？`
     });
   }
 
@@ -209,9 +344,100 @@ class AIChatEngine {
     return null;
   }
 
+  // 保存消息到数据库
+  async saveMessageToDB(sessionId, role, content, source) {
+    if (useMemoryMode) return;
+    try {
+      await pool.query(
+        `INSERT INTO chat_messages (session_id, role, content, source) VALUES ($1, $2, $3, $4)`,
+        [sessionId, role, content, source || null]
+      );
+    } catch (err) {
+      // 静默失败，不影响对话流程
+      console.error('[AI客服] 保存消息失败:', err.message);
+    }
+  }
+
+  // 从数据库加载会话历史
+  async loadHistoryFromDB(sessionId, limit = 20) {
+    if (useMemoryMode) return [];
+    try {
+      const result = await pool.query(
+        `SELECT role, content, source, created_at as timestamp 
+         FROM chat_messages 
+         WHERE session_id = $1 
+         ORDER BY created_at ASC 
+         LIMIT $2`,
+        [sessionId, limit]
+      );
+      return result.rows.map(r => ({
+        role: r.role,
+        content: r.content,
+        source: r.source,
+        timestamp: r.timestamp
+      }));
+    } catch (err) {
+      console.error('[AI客服] 加载历史失败:', err.message);
+      return [];
+    }
+  }
+
+  // 关联会话与用户
+  async linkSessionToUser(sessionId, userId) {
+    if (useMemoryMode) return;
+    try {
+      await pool.query(
+        `INSERT INTO chat_sessions (session_id, user_id) VALUES ($1, $2)
+         ON CONFLICT (session_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
+        [sessionId, userId]
+      );
+    } catch (err) {
+      console.error('[AI客服] 关联会话失败:', err.message);
+    }
+  }
+
+  // 获取用户最近的会话列表
+  async getUserSessions(userId, limit = 10) {
+    if (useMemoryMode) return [];
+    try {
+      // 获取用户最近的会话，并带上首条消息预览
+      const result = await pool.query(
+        `SELECT cs.session_id, cs.created_at, cs.updated_at,
+                (SELECT content FROM chat_messages 
+                 WHERE session_id = cs.session_id AND role = 'user' 
+                 ORDER BY created_at ASC LIMIT 1) as first_question,
+                (SELECT content FROM chat_messages 
+                 WHERE session_id = cs.session_id AND role = 'assistant' 
+                 ORDER BY created_at DESC LIMIT 1) as last_reply
+         FROM chat_sessions cs
+         WHERE cs.user_id = $1
+         ORDER BY cs.updated_at DESC
+         LIMIT $2`,
+        [userId, limit]
+      );
+      return result.rows;
+    } catch (err) {
+      console.error('[AI客服] 获取会话列表失败:', err.message);
+      return [];
+    }
+  }
+
   // 主对话方法
   async chat(message, sessionId, context = {}) {
     const { sessionId: sid, session } = this.getOrCreateSession(sessionId);
+
+    // 如果是新会话（没有消息），尝试从数据库加载历史
+    if (session.messages.length === 0) {
+      const history = await this.loadHistoryFromDB(sid);
+      if (history.length > 0) {
+        session.messages = history;
+      }
+    }
+    
+    // 如果传入了userId，关联会话
+    if (context.userId) {
+      await this.linkSessionToUser(sid, context.userId);
+    }
     
     // 添加用户消息
     session.messages.push({
@@ -220,9 +446,12 @@ class AIChatEngine {
       timestamp: new Date()
     });
 
-    // 限制历史消息数量（保留最近10轮）
-    if (session.messages.length > 20) {
-      session.messages = session.messages.slice(-20);
+    // 保存到数据库
+    await this.saveMessageToDB(sid, 'user', message);
+
+    // 限制历史消息数量（保留最近30轮，充分利用长上下文）
+    if (session.messages.length > 60) {
+      session.messages = session.messages.slice(-60);
     }
 
     let response;
@@ -253,6 +482,9 @@ class AIChatEngine {
       source
     });
 
+    // 保存到数据库
+    await this.saveMessageToDB(sid, 'assistant', response, source);
+
     return {
       sessionId: sid,
       response,
@@ -266,22 +498,28 @@ class AIChatEngine {
     const provider = process.env.AI_PROVIDER || 'bailian';
     
     // 构建系统提示词
-    const systemPrompt = `你是Claw智能客服助手"小芸"，专业帮助用户解决TikTok电商铺货相关问题。
+    const systemPrompt = `你是Claw跨境智造平台的AI运营顾问"小芸"，专业帮助跨境卖家解决电商运营问题。
 
-你的职责：
-1. 解答铺货流程、定价计算、发布操作等问题
-2. 指导用户使用AI生成、竞品分析等功能
-3. 处理常见错误和故障排查
-4. 提供运营建议和最佳实践
+你的身份：Claw平台首席AI运营顾问
+
+你的职责范围：
+1. 解答OZON/TikTok等平台的店铺管理、商品上架、定价策略等问题
+2. 指导用户使用AI铺货、智能定价、多语言发布等功能
+3. 分析销售数据和运营指标，提供优化建议
+4. 处理常见报错和故障排查
+5. 介绍平台功能和会员权益
 
 回答风格：
-- 友好亲切，使用emoji增加亲和力
-- 结构清晰，使用序号和分段
-- 具体实用，给出可操作的建议
-- 如果无法回答，引导用户联系人工客服
+- 专业且亲切：像一个懂行的运营顾问，不是冷冰冰的机器人
+- 结构化：用分段、要点让回复清晰易读（纯文本，不要用HTML标签）
+- 实用导向：给出可操作的具体建议，而不是泛泛而谈
+- 有温度：适当使用emoji，表达理解和共情
+- 坦诚：不确定或超出能力的，诚实告知并引导联系人工客服
 
-当前页面：${context.page || '未知'}
-用户环境：${context.userAgent ? 'Web' : '未知'}`;
+用户上下文信息：
+- 当前页面：${context.page || '客户中心'}
+- 用户环境：${context.userAgent ? 'Web' : '未知'}
+- 记住用户之前问过什么，保持对话连贯性。用户可能会接着上次的话题继续问。`;
 
     // 构建消息历史
     const messages = [

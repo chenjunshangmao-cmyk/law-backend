@@ -12,7 +12,7 @@ import authRoutes from './routes/auth.js';
 import productRoutes from './routes/products.js';
 import generateRoutes from './routes/generate.js';
 import calculateRoutes from './routes/calculate.js';
-import accountsRoutes from './routes/accounts.js';
+import accountsRoutes, { initAccountsRoutes } from './routes/accounts.js';
 import tasksRoutes from './routes/tasks.js';
 import membershipRoutes from './routes/membership.js';
 import membershipDbRoutes from './routes/membership.db.js';
@@ -110,7 +110,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/generate', generateRoutes);
 app.use('/api/calculate', calculateRoutes);
-app.use('/api/accounts', accountsRoutes);
+// accounts 路由：自动初始化数据库表
+initAccountsRoutes(app);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/membership', membershipRoutes);
 app.use('/api/membership', membershipDbRoutes);

@@ -169,19 +169,22 @@ const sequelize = {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    // 先删除 accounts 表（解决历史遗留外键问题）
+    // 创建/保留 accounts 表（使用 VARCHAR id 兼容 OZON 账号）
     await pool.query(`DROP TABLE IF EXISTS account_sync_data CASCADE`).catch(() => {});
     await pool.query(`DROP TABLE IF EXISTS products CASCADE`).catch(() => {});
-    await pool.query(`DROP TABLE IF EXISTS accounts CASCADE`).catch(() => {});
     await pool.query(`
-      CREATE TABLE accounts (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      CREATE TABLE IF NOT EXISTS accounts (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(64) NOT NULL,
         platform VARCHAR(50) NOT NULL,
-        account_name VARCHAR(100) NOT NULL,
+        name VARCHAR(255),
+        client_id VARCHAR(255),
+        api_key TEXT,
         account_data JSONB DEFAULT '{}',
         status VARCHAR(20) DEFAULT 'active',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        last_sync TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await pool.query(`
@@ -201,7 +204,7 @@ const sequelize = {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS account_sync_data (
         id SERIAL PRIMARY KEY,
-        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        account_id VARCHAR(64) REFERENCES accounts(id) ON DELETE CASCADE,
         products_count INTEGER DEFAULT 0,
         orders_count INTEGER DEFAULT 0,
         sync_status VARCHAR(20) DEFAULT 'pending',
@@ -210,6 +213,41 @@ const sequelize = {
         UNIQUE(account_id)
       )
     `);
+    // 创建聊天会话表（支持AI客服长上下文记忆）
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS chat_sessions (
+        session_id VARCHAR(128) PRIMARY KEY,
+        user_id VARCHAR(64),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(128) REFERENCES chat_sessions(session_id) ON DELETE CASCADE,
+        role VARCHAR(20) NOT NULL,
+        content TEXT NOT NULL,
+        source VARCHAR(20),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // 索引：加速查询
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, created_at ASC)
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id)
+    `).catch(() => {});
+
+    // 初始化 OZON 账号（如果不存在）
+    await pool.query(`
+      INSERT INTO accounts (id, user_id, platform, name, client_id, api_key, account_data) VALUES
+      ('ozon-chenjun-trading', 'dd0a80ed-5721-44ff-bea1-3d3520c2968d', 'ozon', 'Chenjun Trading', '253100', '97cbc32c-5a85-405e-8bf0-d45cb943acf1', '{}'),
+      ('ozon-chenjun-mall', 'dd0a80ed-5721-44ff-bea1-3d3520c2968d', 'ozon', 'Chenjun Mall', '2838302', '3652be69-0a0b-4e3e-8510-83ad7b082529', '{}'),
+      ('ozon-qiming-trading', 'dd0a80ed-5721-44ff-bea1-3d3520c2968d', 'ozon', 'qiming Trading', '3101652', '90356528-af82-42c1-81af-86fddec89224', '{}')
+      ON CONFLICT (id) DO UPDATE SET user_id = EXCLUDED.user_id
+    `).catch(() => {});
     return true;
   },
   query: (sql, options) => useMemoryMode ? memoryQuery(sql, options) : pool.query(sql, options),

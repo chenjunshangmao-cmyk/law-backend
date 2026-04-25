@@ -18,6 +18,13 @@ import {
   validateCookies
 } from '../middleware/validateAccounts.js';
 import { syncAccountData as syncOzonData, createOzonClient, getSellerInfo } from '../services/ozonApi.js';
+import axios from 'axios';
+
+// YouTube OAuth 配置
+const YT_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const YT_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const YT_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+const YT_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
 const router = express.Router();
 
@@ -354,14 +361,16 @@ router.post('/:id/sync', authenticateToken, async (req, res) => {
         });
       }
       
-      // 同步成功，保存数据
+      // 同步成功，保存数据（含统计）
       await createOrUpdateSyncData(account.id, {
         products_count: syncResult.productsCount,
         orders_count: syncResult.ordersCount,
         sync_status: 'success',
         sync_data: {
-          products: syncResult.products.slice(0, 10), // 只保存前10个产品详情
-          orders: syncResult.orders.slice(0, 10), // 只保存前10个订单详情
+          stats: syncResult.stats || { total: syncResult.productsCount, active: 0, archived: 0, awaiting_approval: 0, rejected: 0 },
+          ordersSummary: syncResult.ordersSummary || { total: 0, pending: 0, awaiting_delivery: 0, delivered: 0, cancelled: 0 },
+          products: (syncResult.products || []).slice(0, 10),
+          orders: (syncResult.orders || []).slice(0, 10),
           syncTime: syncResult.syncTime
         }
       });
@@ -372,7 +381,9 @@ router.post('/:id/sync', authenticateToken, async (req, res) => {
           ...accountData,
           lastSync: new Date().toISOString(),
           productsCount: syncResult.productsCount,
-          ordersCount: syncResult.ordersCount
+          ordersCount: syncResult.ordersCount,
+          stats: syncResult.stats,
+          ordersSummary: syncResult.ordersSummary
         }
       });
       
@@ -384,6 +395,8 @@ router.post('/:id/sync', authenticateToken, async (req, res) => {
           platform: 'ozon',
           productsCount: syncResult.productsCount,
           ordersCount: syncResult.ordersCount,
+          stats: syncResult.stats,
+          ordersSummary: syncResult.ordersSummary,
           syncTime: syncResult.syncTime
         }
       });
@@ -416,6 +429,207 @@ router.post('/:id/sync', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('同步账号数据失败:', error);
     res.status(500).json({ success: false, error: '同步失败: ' + error.message });
+  }
+});
+
+/**
+ * POST /api/accounts/youtube-authorize
+ * YouTube OAuth 授权：开始 OAuth 流程，返回 Google 授权 URL
+ */
+router.post('/youtube-authorize', authenticateToken, async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!YT_CLIENT_ID || !YT_CLIENT_SECRET) {
+      return res.status(500).json({
+        success: false,
+        error: 'Google OAuth 未配置（GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET）',
+        code: 'OAUTH_NOT_CONFIGURED'
+      });
+    }
+
+    // 生成回调 URL
+    const host = req.get('host') || '';
+    const isSecure = req.secure || req.get('x-forwarded-proto') === 'https'
+      || host.includes('.onrender.com') || host.includes('chenjuntrading.cn');
+    const protocol = isSecure ? 'https' : 'http';
+
+    let callbackBase;
+    if (host.includes('chenjuntrading.cn')) {
+      callbackBase = 'https://api.chenjuntrading.cn';
+    } else if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      callbackBase = `${protocol}://localhost:${process.env.PORT || 9000}`;
+    } else if (host.includes('.onrender.com')) {
+      callbackBase = `https://${host}`;
+    } else {
+      callbackBase = `${protocol}://${host}`;
+    }
+
+    const callbackUrl = `${callbackBase}/api/accounts/youtube-callback`;
+
+    // state 中存储用户信息
+    const state = Buffer.from(JSON.stringify({
+      userId: req.userId,
+      name: name || 'YouTube 账号',
+      ts: Date.now()
+    })).toString('base64url');
+
+    const params = new URLSearchParams({
+      client_id: YT_CLIENT_ID,
+      redirect_uri: callbackUrl,
+      response_type: 'code',
+      scope: 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/userinfo.email',
+      access_type: 'offline',
+      prompt: 'consent',
+      state
+    });
+
+    const authUrl = `${YT_AUTH_URL}?${params}`;
+
+    res.json({
+      success: true,
+      data: { authUrl, callbackUrl }
+    });
+  } catch (error) {
+    console.error('[YouTube] 发起授权失败:', error);
+    res.status(500).json({ success: false, error: '发起授权失败: ' + error.message });
+  }
+});
+
+/**
+ * GET /api/accounts/youtube-callback
+ * YouTube OAuth 回调（接收 Google 重定向）
+ */
+router.get('/youtube-callback', async (req, res) => {
+  const { code, state, error } = req.query;
+
+  if (error) {
+    console.error('[YouTube] 用户拒绝授权:', error);
+    return res.redirect(`/?error=${encodeURIComponent('YouTube 授权被拒绝')}`);
+  }
+
+  if (!code) {
+    return res.status(400).send('缺少授权码');
+  }
+
+  // 解析 state
+  let stateData = { userId: null, name: 'YouTube 账号' };
+  try {
+    stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
+  } catch { /* ignore */ }
+
+  // 构建回调 URL（与请求中一致）
+  const host = req.get('host') || '';
+  const isSecure = req.secure || req.get('x-forwarded-proto') === 'https'
+    || host.includes('.onrender.com') || host.includes('chenjuntrading.cn');
+  const protocol = isSecure ? 'https' : 'http';
+  let callbackBase;
+  if (host.includes('chenjuntrading.cn')) callbackBase = 'https://api.chenjuntrading.cn';
+  else if (host.includes('localhost') || host.includes('127.0.0.1')) callbackBase = `${protocol}://localhost:${process.env.PORT || 9000}`;
+  else if (host.includes('.onrender.com')) callbackBase = `https://${host}`;
+  else callbackBase = `${protocol}://${host}`;
+
+  const callbackUrl = `${callbackBase}/api/accounts/youtube-callback`;
+
+  try {
+    // 换取 token
+    const tokenRes = await axios.post(YT_TOKEN_URL, new URLSearchParams({
+      code,
+      client_id: YT_CLIENT_ID,
+      client_secret: YT_CLIENT_SECRET,
+      redirect_uri: callbackUrl,
+      grant_type: 'authorization_code'
+    }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+
+    const { access_token, refresh_token, expires_in } = tokenRes.data;
+
+    // 获取频道信息
+    let channelTitle = '', channelId = '';
+    try {
+      const ytRes = await axios.get(
+        'https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails&mine=true',
+        { headers: { Authorization: `Bearer ${access_token}` } }
+      );
+      const channel = ytRes.data.items?.[0];
+      if (channel) {
+        channelId = channel.id;
+        channelTitle = channel.snippet.title;
+      }
+    } catch { /* ignore */ }
+
+    // 获取用户邮箱
+    let email = '';
+    try {
+      const userRes = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${access_token}` }
+      });
+      email = userRes.data.email || '';
+    } catch { /* ignore */ }
+
+    // 保存到 accounts 表
+    if (stateData.userId) {
+      const accountData = {
+        user_id: stateData.userId,
+        platform: 'youtube',
+        account_name: stateData.name || channelTitle || 'YouTube 账号',
+        account_data: {
+          username: email || channelTitle,
+          email,
+          channelTitle,
+          channelId,
+          accessToken: access_token,
+          refreshToken: refresh_token,
+          expiresAt: new Date(Date.now() + expires_in * 1000).toISOString(),
+          authMethod: 'oauth',
+          status: 'active',
+          lastAuthCheck: new Date().toISOString()
+        }
+      };
+
+      // 检查是否已存在同 channelId 的账号
+      const existing = await getAccountsByUser(stateData.userId);
+      const dup = existing.find(a => {
+        if (a.platform !== 'youtube') return false;
+        try { return a.account_data?.channelId === channelId && channelId; } catch { return false; }
+      });
+
+      if (!dup) {
+        await createAccount(accountData);
+        console.log(`[YouTube] 账号已绑定: ${channelTitle} (${email})`);
+      } else {
+        // 更新已有的
+        await updateAccount(dup.id, {
+          account_data: {
+            ...dup.account_data,
+            ...accountData.account_data
+          }
+        });
+        console.log(`[YouTube] 账号已更新: ${channelTitle}`);
+      }
+    }
+
+    // popup 模式返回 HTML
+    const html = `<!DOCTYPE html><html><body>
+    <script>
+      try {
+        window.opener.postMessage({
+          type: 'youtube_auth_success',
+          data: {
+            channelTitle: ${JSON.stringify(channelTitle)},
+            email: ${JSON.stringify(email)},
+            channelId: ${JSON.stringify(channelId)}
+          }
+        }, '*');
+        window.close();
+      } catch(e) {}
+    </script>
+    <p>YouTube 授权成功！正在关闭...</p>
+    </body></html>`;
+    res.type('html').send(html);
+
+  } catch (err) {
+    console.error('[YouTube] OAuth 回调失败:', err.response?.data || err.message);
+    res.status(500).send('授权失败，请重试');
   }
 });
 

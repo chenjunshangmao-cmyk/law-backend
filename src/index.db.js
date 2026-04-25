@@ -497,6 +497,37 @@ const startServer = async () => {
   });
 };
 
+// 启动会员到期检查（每5分钟检查一次，首次启动延迟30秒）
+setTimeout(() => {
+  const startMembershipCron = async () => {
+    try {
+      const { checkAndDowngradeExpired } = await import('./services/membershipService.js');
+      console.log('[会员] ⏰ 到期检查定时任务已启动，每5分钟检查一次');
+      
+      // 首次检查
+      const result = await checkAndDowngradeExpired();
+      if (result.downgraded > 0) {
+        console.log(`[会员] 启动时降级了 ${result.downgraded} 个到期会员`);
+      }
+      
+      // 每5分钟检查一次
+      setInterval(async () => {
+        try {
+          const r = await checkAndDowngradeExpired();
+          if (r.downgraded > 0) {
+            console.log(`[会员] 🔻 定时检查: 降级了 ${r.downgraded} 个到期会员`);
+          }
+        } catch (e) {
+          console.error('[会员] 定时检查异常:', e.message);
+        }
+      }, 5 * 60 * 1000);
+    } catch (err) {
+      console.error('[会员] 启动到期检查失败:', err.message);
+    }
+  };
+  startMembershipCron();
+}, 30000);
+
 startServer();
 
 export default app;

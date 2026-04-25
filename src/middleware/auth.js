@@ -1,7 +1,7 @@
 // JWT认证和安全中间件
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import pool from '../config/database.js';
+import { pool as dbPool, useMemoryMode } from '../config/database.js';
 import { findUserById, findUserByEmail, updateUser } from '../services/dbService.js';
 
 // 安全配置 - 从环境变量读取，使用默认密钥作为后备
@@ -103,8 +103,8 @@ export const authMiddleware = async (req, res, next) => {
   // dbService 的 useMemoryMode 导入绑定在 ESM 下可能有延迟问题
   let user = null;
   try {
-    if (pool) {
-      const result = await pool.query(
+    if (dbPool && !useMemoryMode) {
+      const result = await dbPool.query(
         `SELECT id::text, email, password, name,
          COALESCE(membership_type, 'free') as membership_type,
          membership_expires_at, created_at, updated_at

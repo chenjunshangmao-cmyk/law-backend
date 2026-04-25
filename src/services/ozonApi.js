@@ -101,9 +101,10 @@ export const getSellerInfo = async (client) => {
 };
 
 /**
- * 同步账号数据（产品+订单）
+ * 同步账号数据（产品+订单+统计）
  * @param {string} clientId - Client ID
  * @param {string} apiKey - API Key
+ * @returns {{ success, productsCount, ordersCount, products, orders, stats, syncTime }} 
  */
 export const syncAccountData = async (clientId, apiKey) => {
   try {
@@ -112,20 +113,61 @@ export const syncAccountData = async (clientId, apiKey) => {
     // 验证连接
     await getSellerInfo(client);
 
-    // 获取产品列表
-    const productsData = await getProducts(client);
-    const productsCount = productsData.items?.length || 0;
+    // 并发获取产品和订单
+    const [productsRes, ordersRes] = await Promise.allSettled([
+      getProducts(client),
+      getOrders(client, { page: 1, page_size: 50 })
+    ]);
 
-    // 获取订单列表
-    const ordersData = await getOrders(client);
-    const ordersCount = ordersData.orders?.length || 0;
+    // 解析产品
+    const productsData = productsRes.status === 'fulfilled' ? productsRes.value : { items: [] };
+    const items = productsData.items || [];
+    const productsCount = items.length;
+
+    // 产品状态统计
+    const stats = { total: 0, active: 0, archived: 0, awaiting_approval: 0, rejected: 0 };
+    items.forEach(p => {
+      const s = ((p.state?.name || p.status || '') + '').toLowerCase();
+      stats.total++;
+      if (s.includes('approved') || s.includes('published') || s.includes('active') || s.includes('for_sale')) {
+        stats.active++;
+      } else if (s.includes('archived') || s.includes('inactive')) {
+        stats.archived++;
+      } else if (s.includes('pending') || s.includes('moderation') || s.includes('new')) {
+        stats.awaiting_approval++;
+      } else if (s.includes('rejected') || s.includes('failed') || s.includes('not_approved')) {
+        stats.rejected++;
+      }
+    });
+
+    // 解析订单
+    const ordersData = ordersRes.status === 'fulfilled' ? ordersRes.value : { orders: [] };
+    const orders = ordersData.orders || [];
+    const ordersCount = orders.length;
+
+    // 订单状态统计
+    const ordersSummary = { total: ordersCount, pending: 0, awaiting_delivery: 0, delivered: 0, cancelled: 0 };
+    orders.forEach(o => {
+      const s = (o.status || '').toLowerCase();
+      if (s.includes('pending') || s.includes('awaiting_payment') || s.includes('unpaid')) {
+        ordersSummary.pending++;
+      } else if (s.includes('awaiting_delivery') || s.includes('shipped') || s.includes('delivering')) {
+        ordersSummary.awaiting_delivery++;
+      } else if (s.includes('delivered') || s.includes('complete')) {
+        ordersSummary.delivered++;
+      } else if (s.includes('cancelled') || s.includes('refund')) {
+        ordersSummary.cancelled++;
+      }
+    });
 
     return {
       success: true,
       productsCount,
       ordersCount,
-      products: productsData.items || [],
-      orders: ordersData.orders || [],
+      products: items,
+      orders,
+      stats,
+      ordersSummary,
       syncTime: new Date().toISOString(),
     };
   } catch (error) {
