@@ -139,7 +139,7 @@ class BrowserAutomation {
     const launchOpts = {
       headless,
       args,
-      timeout: headless ? 30000 : 60000,
+      timeout: headless ? 60000 : 90000,
     };
 
     // 如果 per-account 代理有认证信息，使用 Playwright 原生 proxy 选项

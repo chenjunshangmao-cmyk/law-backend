@@ -599,10 +599,10 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
     const response = await axios.post(
       'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
       {
-        model: 'qwen-turbo',
+        model: 'qwen3.5-plus',
         messages,
         temperature: 0.7,
-        max_tokens: 1000
+        max_tokens: 2000
       },
       {
         headers: {

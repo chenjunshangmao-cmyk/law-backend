@@ -170,8 +170,7 @@ const sequelize = {
       )
     `);
     // 创建/保留 accounts 表（使用 VARCHAR id 兼容 OZON 账号）
-    await pool.query(`DROP TABLE IF EXISTS account_sync_data CASCADE`).catch(() => {});
-    await pool.query(`DROP TABLE IF EXISTS products CASCADE`).catch(() => {});
+    // ⚠️ 不再 DROP 表，避免数据丢失
     await pool.query(`
       CREATE TABLE IF NOT EXISTS accounts (
         id VARCHAR(64) PRIMARY KEY,
@@ -187,8 +186,9 @@ const sequelize = {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    // 使用 CREATE TABLE IF NOT EXISTS，不再 DROP
     await pool.query(`
-      CREATE TABLE products (
+      CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         title VARCHAR(255) NOT NULL,
@@ -199,8 +199,7 @@ const sequelize = {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    // 先尝试删除旧表（解决历史遗留的外键类型不匹配问题）
-    await pool.query(`DROP TABLE IF EXISTS account_sync_data CASCADE`).catch(() => {});
+    // 不再 DROP 表，避免数据丢失
     await pool.query(`
       CREATE TABLE IF NOT EXISTS account_sync_data (
         id SERIAL PRIMARY KEY,

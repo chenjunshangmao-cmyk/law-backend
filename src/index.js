@@ -17,6 +17,7 @@ import tasksRoutes from './routes/tasks.js';
 import membershipRoutes from './routes/membership.js';
 import membershipDbRoutes from './routes/membership.db.js';
 import browserRoutes from './routes/browser.js';
+import xiaohongshuRoutes from './routes/xiaohongshu.js';
 import publishRoutes from './routes/publish.js';
 import customerServiceRoutes from './routes/customerService.js';
 import shouqianbaRoutes from './routes/shouqianba.db.js';
@@ -118,6 +119,7 @@ app.use('/api/membership', membershipDbRoutes);
 app.use('/api/quota', membershipRoutes); // 额度接口
 app.use('/api/browser', browserRoutes); // 浏览器自动化
 app.use('/api/publish', publishRoutes); // 产品发布（链接/素材）
+app.use('/api/xiaohongshu', xiaohongshuRoutes); // 小红书
 app.use('/api/customer-service', customerServiceRoutes); // AI客服
 app.use('/api/shouqianba', shouqianbaRoutes); // 收钱吧支付
 
