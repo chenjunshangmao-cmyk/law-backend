@@ -5,7 +5,7 @@
  * - 超时处理（解决 Render 冷启动 Bug5）
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://claw-backend-2026.onrender.com';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://api.chenjuntrading.cn';
 export const API_BASE_URL = BASE_URL;
 const DEFAULT_TIMEOUT = 60000; // 60秒，处理 Render 冷启动
 
@@ -316,6 +316,29 @@ export const api = {
 
     // 获取支持的语言
     languages: () => authFetch('/api/generate/languages'),
+  },
+
+  // ============================================================
+  // Dify 工作流 API（图文自动生成）
+  // ============================================================
+  dify: {
+    // 健康检查
+    health: () => authFetch('/api/dify/health'),
+
+    // 生成多平台营销文案
+    generate: (data: {
+      imageUrl?: string;
+      imageUrls?: string[];
+      platform?: string;
+      productName?: string;
+    }) => authFetch('/api/dify/generate', { method: 'POST', body: JSON.stringify(data) }),
+
+    // 查询任务状态
+    getTask: (taskId: string) =>
+      authFetch(`/api/dify/task/${taskId}`),
+
+    // 获取应用信息
+    getInfo: () => authFetch('/api/dify/info'),
   },
 
   // ============================================================

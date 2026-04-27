@@ -268,4 +268,162 @@ router.get('/tasks', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/dify/health
+ * 健康检查接口
+ */
+router.get('/health', (req, res) => {
+  const apiKey = process.env.DIFY_API_KEY;
+  res.json({
+    success: true,
+    data: {
+      status: 'ready',
+      configured: !!(apiKey && apiKey.startsWith('app-')),
+      apiKeyPrefix: apiKey ? apiKey.substring(0, 8) + '***' : null,
+    }
+  });
+});
+
+/**
+ * GET /api/dify/info
+ * 获取 Dify 应用信息
+ */
+router.get('/info', async (req, res) => {
+  const apiKey = process.env.DIFY_API_KEY;
+  const appUrl = process.env.DIFY_APP_URL || 'https://api.dify.ai/v1';
+
+  if (!apiKey) {
+    return res.json({
+      success: false,
+      error: 'DIFY_API_KEY 未配置，请联系管理员'
+    });
+  }
+
+  try {
+    const response = await fetch(`${appUrl}/appparameters`, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Dify API 错误: ${response.status}`);
+    }
+
+    const data = await response.json();
+    res.json({ success: true, data });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/dify/generate
+ * 触发 Dify 工作流生成营销文案
+ *
+ * 请求体：
+ * {
+ *   platform: "tiktok" | "xiaohongshu" | "youtube",
+ *   productName: "商品名称",
+ *   imageUrls?: ["url1", "url2"]
+ * }
+ */
+router.post('/generate', async (req, res) => {
+  const apiKey = process.env.DIFY_API_KEY;
+  const appUrl = process.env.DIFY_APP_URL || 'https://api.dify.ai/v1';
+  const appId = process.env.DIFY_APP_ID;
+
+  if (!apiKey) {
+    return res.status(500).json({
+      success: false,
+      error: 'DIFY_API_KEY 未配置'
+    });
+  }
+
+  try {
+    const { platform = 'tiktok', productName, imageUrls } = req.body;
+
+    // 构造 Dify 请求
+    const difyInputs = {
+      platform: platform,
+      product_name: productName || '',
+      image_url: imageUrls?.[0] || '',
+    };
+
+    // 先检查任务状态（如果传了 task_id）
+    const { taskId } = req.body;
+    if (taskId) {
+      const statusResp = await fetch(`${appUrl}/workflows/tasks/${taskId}`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      });
+      const statusData = await statusResp.json();
+      if (statusData.data?.outputs) {
+        return res.json({ success: true, data: statusData.data.outputs, taskId });
+      }
+    }
+
+    // 触发新任务
+    const triggerResp = await fetch(`${appUrl}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        workflow_id: appId,
+        inputs: difyInputs,
+        response_mode: 'blocking', // 同步返回结果
+      })
+    });
+
+    if (!triggerResp.ok) {
+      const errText = await triggerResp.text();
+      throw new Error(`Dify 触发失败 ${triggerResp.status}: ${errText}`);
+    }
+
+    const result = await triggerResp.json();
+
+    // 提取文案结果
+    const outputs = result.data?.outputs || {};
+    const parsed = parseDifyOutputs(outputs, platform);
+
+    res.json({
+      success: true,
+      data: parsed,
+      taskId: result.data?.task_id,
+    });
+
+  } catch (error) {
+    console.error('[Dify Generate] ❌ 错误:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 解析 Dify 输出的文案
+ */
+function parseDifyOutputs(outputs, platform) {
+  // 支持直接 JSON 字符串输出
+  let data = outputs;
+  if (typeof outputs === 'string') {
+    try { data = JSON.parse(outputs); } catch { data = { raw: outputs }; }
+  }
+
+  // 兼容不同字段名
+  return {
+    title: data.title || data.Title || '',
+    description: data.description || data.Description || data.xiaohongshu_copy || '',
+    xiaohongshu_copy: data.xiaohongshu_copy || data.xhs || '',
+    youtube_description: data.youtube_description || data.youtube || '',
+    hashtags: Array.isArray(data.hashtags) ? data.hashtags
+      : typeof data.hashtags === 'string' ? data.hashtags.split(/[,\s]+/).filter(Boolean)
+      : (data.tags || []),
+    price_usd: parseFloat(data.price_usd || data.price || 0),
+    platform: platform,
+    score: parseInt(data.score || data.score_rating || 0),
+    raw: data,
+  };
+}
+
 export default router;

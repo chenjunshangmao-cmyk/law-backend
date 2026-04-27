@@ -9,14 +9,14 @@ import {
   AlertCircle, Upload, Video, Zap, Sparkles, ChevronDown,
   Globe, Eye, EyeOff, Lock, Image, DollarSign, Package,
   Tag, Layers, Settings, Users, ExternalLink, Copy, Loader2,
-  Youtube, ShoppingBag, Monitor, Shield, Store, Link
+  Youtube, ShoppingBag, Monitor, Shield, Store, Link, BookOpen
 } from 'lucide-react';
 import { api } from '../services/api';
 
 // ============================================================
 // 类型定义
 // ============================================================
-type Platform = 'tiktok_shop' | 'tiktok_web' | 'youtube' | 'ozon';
+type Platform = 'tiktok_shop' | 'tiktok_web' | 'youtube' | 'ozon' | 'xiaohongshu';
 type PublishMode = 'manual' | 'semiauto' | 'fullauto' | 'oauth';
 type AccountStatus = 'logged_in' | 'not_logged_in' | 'checking' | 'expired';
 
@@ -107,6 +107,14 @@ const PLATFORM_CONFIG = {
     icon: Store,
     color: '#005BFF',
     gradient: 'linear-gradient(135deg, #005BFF 0%, #0094FF 100%)',
+    modes: ['manual', 'semiauto'] as PublishMode[],
+  },
+  xiaohongshu: {
+    label: '小红书',
+    sublabel: '图文/视频笔记',
+    icon: BookOpen,
+    color: '#E60023',
+    gradient: 'linear-gradient(135deg, #E60023 0%, #FF6B6B 100%)',
     modes: ['manual', 'semiauto'] as PublishMode[],
   },
 };
@@ -424,7 +432,7 @@ export default function PublishPage() {
       const res = await api.accounts.list();
       const data = Array.isArray(res) ? res : (res?.data || []);
       const mapped: Account[] = data
-        .filter((a: any) => ['tiktok_shop', 'tiktok_web', 'youtube', 'ozon'].includes(a.platform))
+        .filter((a: any) => ['tiktok_shop', 'tiktok_web', 'youtube', 'ozon', 'xiaohongshu'].includes(a.platform))
         .map((a: any) => ({
           id: a.id,
           platform: a.platform,
@@ -456,6 +464,9 @@ export default function PublishPage() {
       } else if (account.platform === 'ozon') {
         const res = await api.browser?.ozon?.status?.(account.email, account.id);
         loggedIn = res?.data?.loggedIn;
+      } else if (account.platform === 'xiaohongshu') {
+        const res = await api.xiaohongshu?.status?.();
+        loggedIn = res?.data?.loggedIn || false;
       } else {
         const res = await api.browser?.tiktok?.status?.(account.email, account.id);
         loggedIn = res?.data?.loggedIn;
@@ -546,7 +557,7 @@ export default function PublishPage() {
     });
   };
 
-  // AI 生成文案
+  // AI 生成文案 - 优先调用 Dify 工作流，降级使用旧 API
   const handleGenerate = async () => {
     if (!form.title && !form.description) {
       setPublishMsg({ type: 'error', text: '请先填写产品名称或描述' }); return;
@@ -554,6 +565,27 @@ export default function PublishPage() {
     setGenerating(true);
     setPublishMsg(null);
     try {
+      // 优先使用 Dify 工作流
+      const difyResult = await api.dify?.generate?.({
+        platform: platform === 'xiaohongshu' ? 'xiaohongshu' : 'tiktok',
+        productName: form.title || form.description,
+        imageUrls: previews.length > 0 ? previews : undefined,
+      });
+
+      if (difyResult?.data) {
+        const d = difyResult.data;
+        setForm(f => ({
+          ...f,
+          title: d.title || f.title,
+          description: d.description || d.xiaohongshu_copy || f.description,
+          tags: Array.isArray(d.hashtags) ? d.hashtags.join(' ') : (d.tags || f.tags),
+          price: d.price_usd ? String(d.price_usd) : f.price,
+        }));
+        setPublishMsg({ type: 'success', text: '✨ Dify 工作流文案生成成功！' });
+        return;
+      }
+
+      // 降级：使用旧版 generate API
       const result = await api.generate?.text?.({
         prompt: `为以下产品生成英文标题和描述，用于跨境电商上架：${form.title} ${form.description}。类别：${form.category}`,
         type: 'product_description',
@@ -569,7 +601,7 @@ export default function PublishPage() {
         setPublishMsg({ type: 'success', text: '✨ AI 文案生成成功！' });
       }
     } catch (e: any) {
-      setPublishMsg({ type: 'error', text: e.message || '生成失败' });
+      setPublishMsg({ type: 'error', text: e.message || '生成失败，请稍后重试' });
     } finally {
       setGenerating(false);
     }
@@ -627,6 +659,19 @@ export default function PublishPage() {
           ...t, status: 'success', result: res?.data?.url || '发布成功'
         } : t));
         setPublishMsg({ type: 'success', text: '🎉 OZON 商品发布成功！' });
+      } else if (platform === 'xiaohongshu') {
+        // 小红书
+        const res = await api.xiaohongshu?.publishNote?.({
+          accountId: activeAccount.id,
+          title: form.title,
+          content: form.description,
+          images: form.images,
+          tags: form.tags ? form.tags.split(/[,，\s]+/).filter((t: string) => t.trim()) : [],
+        });
+        setTasks(prev => prev.map(t => t.id === task.id ? {
+          ...t, status: 'success', result: '发布成功'
+        } : t));
+        setPublishMsg({ type: 'success', text: '🎉 小红书笔记发布成功！' });
       } else {
         // TikTok Shop / Web
         const res = await api.browser.tiktok.publish({
@@ -719,7 +764,7 @@ export default function PublishPage() {
         padding: '16px 20px',
         background: '#1A1D27', borderRadius: 14, border: '1px solid #e2e8f0'
       }}>
-        {(['tiktok_shop', 'tiktok_web', 'youtube', 'ozon'] as Platform[]).map(p => (
+        {(['tiktok_shop', 'tiktok_web', 'youtube', 'ozon', 'xiaohongshu'] as Platform[]).map(p => (
           <PlatformCard
             key={p}
             platform={p}
