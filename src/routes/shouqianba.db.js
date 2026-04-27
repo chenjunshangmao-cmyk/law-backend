@@ -622,7 +622,7 @@ async function upgradeMembershipDirect(userId, planType) {
 router.get('/return', async (req, res) => {
   const { clientSn } = req.query;
   console.log('[收钱吧] 用户返回（return_url）: clientSn =', clientSn);
-  const frontendUrl = process.env.FRONTEND_URL || 'https://4d12215a.claw-app-2026.pages.dev';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://claw-app-2026.pages.dev';
   res.redirect(frontendUrl + '/payment-result?paid=' + encodeURIComponent(clientSn || '') + '&status=success');
 });
 
