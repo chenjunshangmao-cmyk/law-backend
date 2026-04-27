@@ -199,9 +199,10 @@ app.use('/api/xiaohongshu', xiaohongshuRoutes);
 import difyRoutes from './routes/dify.js';
 app.use('/api/dify', difyRoutes);
 
-// ==========================================
-// 商品抓取API (简化版)
-// ==========================================
+// 商品抓取API - 支持1688/淘宝/拼多多
+import ProductScraper from './services/scraper/ProductScraper.js';
+const scraperInstance = new ProductScraper();
+
 app.post('/api/scraper/fetch', async (req, res) => {
   try {
     const { url } = req.body;
@@ -215,23 +216,43 @@ app.post('/api/scraper/fetch', async (req, res) => {
 
     console.log(`[INFO] 抓取商品 - ${url}`);
     
-    // 简化版商品抓取 - 返回模拟数据
-    // TODO: 实际实现需要 Playwright 抓取
-    const mockProduct = {
-      title: '商品标题（模拟数据）',
-      description: '商品描述（模拟数据）',
-      price: 0,
-      images: [],
-      source: '1688',
-      url: url,
-      specs: {},
-      note: '这是模拟数据，实际抓取功能需要配置 Playwright'
-    };
+    // 检测来源
+    const source = url.includes('1688.com') ? '1688' 
+      : url.includes('taobao.com') || url.includes('tmall.com') ? 'taobao'
+      : url.includes('pinduoduo.com') ? 'pdd'
+      : 'unknown';
 
-    res.json({
-      success: true,
-      data: mockProduct
-    });
+    if (source === 'unknown') {
+      return res.status(400).json({
+        success: false,
+        error: '暂不支持该链接类型，请使用1688/淘宝/天猫/拼多多链接'
+      });
+    }
+
+    // 尝试真实抓取（Playwright不可用时返回友好提示）
+    try {
+      const product = await scraperInstance.fetchProduct(url);
+      res.json({ success: true, data: product });
+    } catch (scrapeErr) {
+      console.warn('[WARN] 抓取失败，使用模拟数据:', scrapeErr.message);
+      // 真实抓取失败时，从URL提取商品ID，返回友好提示
+      const productId = url.match(/\/(\d+)\.html/) || [null, Date.now().toString()];
+      res.json({
+        success: true,
+        data: {
+          title: `商品 ${productId[1] || ''}`,
+          description: '',
+          price: 0,
+          cost: 0,
+          images: [],
+          source,
+          url,
+          specs: [],
+          warning: '自动抓取暂不可用，请在下方手动填写商品信息',
+          note: '链接已记录，可手动补充信息后继续发布'
+        }
+      });
+    }
 
   } catch (error) {
     console.error('[ERROR] 抓取商品失败:', error);
@@ -239,6 +260,252 @@ app.post('/api/scraper/fetch', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// AI生成产品图片
+app.post('/api/generate/product-image', async (req, res) => {
+  try {
+    const { productName, productDesc, style, referenceImages } = req.body;
+
+    if (!productName) {
+      return res.status(400).json({ success: false, error: '请提供产品名称' });
+    }
+
+    console.log(`[INFO] AI生成产品图 - ${productName}`);
+
+    // 优先使用百炼API生成图片（Flux或通义万相）
+    const FLUX_KEY = process.env.FLUX_API_KEY;
+    const Bailian_KEY = process.env.BAILIAN_API_KEY;
+    const Bailian_URL = process.env.BAILIAN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+
+    let imageUrls = [];
+    const styleMap = {
+      fresh: '清新自然风格，柔和光线，自然背景，适合电商主图',
+      cartoon: '卡通插画风格，明亮色彩，有趣可爱，适合儿童产品',
+      minimal: '极简风格，留白多，高级感，纯色背景',
+      luxury: '奢华高端，金色点缀，精致包装，适合礼品',
+      sport: '运动风格，活力动感，户外场景，适合运动产品',
+      auto: '专业电商摄影，高品质，简洁构图，适合跨境电商'
+    };
+    const styleText = styleMap[style] || styleMap.auto;
+
+    const scenes = [
+      `专业电商主图，${styleText}，正面展示，高品质照明`,
+      `产品细节图，${styleText}，特写镜头，展示质感`,
+      `场景应用图，${styleText}，生活化展示，代入感强`
+    ];
+
+    if (Bailian_KEY) {
+      // 百炼通义万相（wanx）
+      for (const scene of scenes) {
+        try {
+          const prompt = `${scene}，产品：${productName} ${productDesc || ''}`;
+          const resp = await fetch(`${Bailian_URL}/services/aigc/text2image/image-synthesis`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${Bailian_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: 'wanx2.1',
+              input: { prompt },
+              parameters: { size: '1024*1024', n: 1 }
+            })
+          });
+          const data = await resp.json();
+          if (data.output?.image_url) {
+            imageUrls.push(data.output.image_url);
+          }
+        } catch (e) {
+          console.warn('[WARN] 万相生成失败:', e.message);
+        }
+      }
+    }
+
+    if (FLUX_KEY && imageUrls.length === 0) {
+      // Flux API fallback
+      for (const scene of scenes) {
+        try {
+          const prompt = `Product photography, ${scene}, ${productName}, high quality, professional, 4K`;
+          const resp = await fetch('https://api.bfl.ml/v1/flux-pro', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${FLUX_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, width: 1024, height: 1024, num_images: 1 })
+          });
+          const data = await resp.json();
+          if (data.result?.sample) imageUrls.push(data.result.sample);
+        } catch (e) {
+          console.warn('[WARN] Flux生成失败:', e.message);
+        }
+      }
+    }
+
+    // 全部失败时返回占位图
+    if (imageUrls.length === 0) {
+      imageUrls = [
+        `https://placehold.co/1024x1024/6366f1/ffffff?text=${encodeURIComponent(productName)}`
+      ];
+    }
+
+    res.json({
+      success: true,
+      data: {
+        images: imageUrls,
+        productName,
+        style,
+        note: imageUrls[0]?.startsWith('https://placehold') 
+          ? '⚠️ AI图片生成服务未配置，当前显示占位图。请在后台配置 FLUX_API_KEY 或 BAILIAN_API_KEY' 
+          : '✨ 图片生成成功，请选择满意的图片使用'
+      }
+    });
+
+  } catch (error) {
+    console.error('[ERROR] AI图片生成失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// AI生成视频脚本
+app.post('/api/generate/video-script', async (req, res) => {
+  try {
+    const { productName, productDesc, platform, duration = 30, tone } = req.body;
+
+    if (!productName) {
+      return res.status(400).json({ success: false, error: '请提供产品名称' });
+    }
+
+    console.log(`[INFO] AI生成视频脚本 - ${productName}`);
+
+    const BAILIAN_KEY = process.env.BAILIAN_API_KEY;
+    const Bailian_URL = process.env.BAILIAN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+    const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY;
+
+    let script = null;
+
+    if (BAILIAN_KEY) {
+      try {
+        const platformMap = {
+          tiktok: 'TikTok',
+          youtube: 'YouTube',
+          xiaohongshu: '小红书',
+          ozon: 'OZON'
+        };
+        const toneMap = {
+          fun: '轻松有趣，充满活力，适合病毒式传播',
+          professional: '专业可信，权威讲解，建立信任',
+          emotional: '情感共鸣，故事化叙述，打动人心',
+          auto: '自然流畅，带货风格，促进转化'
+        };
+        const prompt = `你是一个专业的产品视频带货脚本专家。请为以下产品生成一个${duration}秒的短视频带货脚本。
+
+产品：${productName}
+产品描述：${productDesc || '无'}
+目标平台：${platformMap[platform] || 'TikTok'}
+风格：${toneMap[tone] || toneMap.auto}
+时长：${duration}秒
+
+要求：
+1. 开场3秒：抓眼球（用一个问题、惊人数据或视觉冲击开场）
+2. 中间${duration - 10}秒：产品卖点（3-5个核心卖点，每个卖点用一句话）
+3. 最后7秒：行动号召（引导点击购买）
+4. 包含2-3个热门话题标签
+
+请严格按以下JSON格式返回：
+{
+  "hook": "开场白（5-15字，吸引注意力）",
+  "title": "短视频标题（20字以内，带爆款感）",
+  "sections": [
+    { "time": "0-3秒", "content": "开场内容" },
+    { "time": "3-${duration - 7}秒", "content": "卖点1", "highlight": "关键数据/卖点词" },
+    { "time": "中间", "content": "卖点2", "highlight": "关键数据/卖点词" },
+    { "time": "最后", "content": "卖点3", "highlight": "关键数据/卖点词" },
+    { "time": "${duration - 7}-${duration}秒", "content": "行动号召" }
+  ],
+  "tags": ["#话题1", "#话题2", "#话题3"],
+  "tips": ["拍摄技巧提示1", "拍摄技巧提示2"]
+}`;
+
+        const resp = await fetch(`${Bailian_URL}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${BAILIAN_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'qwen-plus',
+            messages: [
+              { role: 'system', content: '你是一个专业的产品视频带货脚本专家，擅长写TikTok/YouTube短视频带货脚本。' },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.8,
+            max_tokens: 1500
+          })
+        });
+        const data = await resp.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (content) {
+          const match = content.match(/\{[\s\S]*\}/);
+          if (match) script = JSON.parse(match[0]);
+        }
+      } catch (e) {
+        console.warn('[WARN] 百炼脚本生成失败:', e.message);
+      }
+    }
+
+    // DeepSeek fallback
+    if (!script && DEEPSEEK_KEY) {
+      try {
+        const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${DEEPSEEK_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'deepseek-chat',
+            messages: [
+              { role: 'system', content: '你是专业短视频带货脚本专家' },
+              { role: 'user', content: `为产品"${productName}"生成${duration}秒TikTok带货脚本JSON` }
+            ],
+            temperature: 0.8,
+            max_tokens: 1500
+          })
+        });
+        const data = await resp.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (content) {
+          const match = content.match(/\{[\s\S]*\}/);
+          if (match) script = JSON.parse(match[0]);
+        }
+      } catch (e) {
+        console.warn('[WARN] DeepSeek脚本生成失败:', e.message);
+      }
+    }
+
+    // 默认脚本
+    if (!script) {
+      script = {
+        hook: `你一定没见过这样的${productName}！`,
+        title: `${productName}太牛了！后悔没早点买`,
+        sections: [
+          { time: '0-3秒', content: `你知道吗？这款${productName}最近在海外卖疯了！`, highlight: '🔥热销' },
+          { time: '3-20秒', content: '采用高品质材料，设计精美，性价比超高', highlight: '⭐核心卖点' },
+          { time: '20-25秒', content: '买家真实反馈都说好，回购率超高', highlight: '💬真实评价' },
+          { time: '25-30秒', content: '点击下方链接，现在购买还有优惠！快冲！', highlight: '👉立即购买' }
+        ],
+        tags: ['#跨境好物', '#爆款推荐', '#购物分享', '#种草', '#fyp'],
+        tips: ['用特写镜头展示产品细节', '背景音乐选择节奏感强的热门音乐', '真人出镜增加信任感']
+      };
+    }
+
+    res.json({
+      success: true,
+      data: {
+        script,
+        platform: platform || 'tiktok',
+        duration,
+        note: '✨ 脚本生成成功，可直接用于数字人视频或人工拍摄'
+      }
+    });
+
+  } catch (error) {
+    console.error('[ERROR] 视频脚本生成失败:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

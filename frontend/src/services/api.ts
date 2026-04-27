@@ -359,17 +359,39 @@ export const api = {
   },
 
   // ============================================================
-  // Scraper API (Bug1/Bug2 - 目前返回模拟数据)
+  // Scraper API (1688/淘宝/拼多多商品抓取)
   // ============================================================
   scraper: {
     fetch: (url: string) =>
-      publicFetch('/api/scraper/fetch', { method: 'POST', body: JSON.stringify({ url }) }),
+      authFetch('/api/scraper/fetch', { method: 'POST', body: JSON.stringify({ url }) }),
     
     searchCompetitor: (keyword: string, category?: string) =>
-      publicFetch('/api/competitor/search', {
+      authFetch('/api/competitor/search', {
         method: 'POST',
         body: JSON.stringify({ keyword, category }),
       }),
+  },
+
+  // ============================================================
+  // AI 增强 API
+  // ============================================================
+  ai: {
+    // AI生成产品图片
+    generateProductImage: (data: {
+      productName: string;
+      productDesc?: string;
+      style?: string;
+      referenceImages?: string[];
+    }) => authFetch('/api/generate/product-image', { method: 'POST', body: JSON.stringify(data) }),
+
+    // AI生成视频脚本
+    generateVideoScript: (data: {
+      productName: string;
+      productDesc?: string;
+      platform?: string;
+      duration?: number;
+      tone?: string;
+    }) => authFetch('/api/generate/video-script', { method: 'POST', body: JSON.stringify(data) }),
   },
 
   // ============================================================
