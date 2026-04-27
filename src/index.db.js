@@ -195,6 +195,10 @@ app.use('/api/shouqianba', shouqianbaRoutes);
 // 小红书
 app.use('/api/xiaohongshu', xiaohongshuRoutes);
 
+// Dify 工作流集成（Webhook + 触发器 + OpenClaw 任务队列）
+import difyRoutes from './routes/dify.js';
+app.use('/api/dify', difyRoutes);
+
 // ==========================================
 // 商品抓取API (简化版)
 // ==========================================
