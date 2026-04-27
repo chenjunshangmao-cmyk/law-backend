@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 收钱吧配置
  * 敏感凭证不提交到 Git！
  * 2026-04-22：claw-web-new3 新激活成功 ✅
@@ -25,7 +25,7 @@ const config = {
       merchantId: '18956397746',
       storeSn: '00010101001200200046406',
       terminalSn: '100111220054389553',    // 新激活的终端号
-      terminalKey: '96bfaf401367d934cb10a1cbe9773647'  // 新终端Key
+      terminalKey: '96bfaf401367d934cb10a1cbe9773647'  // 生产终端Key（2026-04-28修复）
     }
   },
 
@@ -34,3 +34,4 @@ const config = {
 };
 
 export default config;
+
