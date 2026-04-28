@@ -71,6 +71,11 @@ app.use(cors({
       return callback(null, true);
     }
     
+    // 允许 Chrome 扩展发起的请求
+    if (origin.startsWith('chrome-extension://')) {
+      return callback(null, true);
+    }
+    
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {

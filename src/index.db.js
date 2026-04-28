@@ -82,6 +82,11 @@ app.use(cors({
       return callback(null, true);
     }
 
+    // 允许 Chrome 扩展发起的请求（chrome-extension:// 起源）
+    if (/^chrome-extension:\/\//.test(origin)) {
+      return callback(null, true);
+    }
+
     console.warn(`🚫 CORS拒绝: ${origin}`);
     callback(new Error('CORS: 不允许的源'));
   },
