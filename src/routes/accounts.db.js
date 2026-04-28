@@ -305,13 +305,28 @@ async function testPlatformConnection(account) {
   // 模拟测试延迟
   await new Promise(resolve => setTimeout(resolve, 500));
   
-  // 简单验证（实际应该调用平台API）
-  const username = account.account_data?.username;
+  // 验证账号数据
+  const data = account.account_data || {};
+  
+  // 扩展同步的账号：检查 cookies 和 status
+  if (data.authMethod === 'extension') {
+    const hasCookies = data.cookies && Object.keys(data.cookies).length > 0;
+    const isActive = data.status === 'active';
+    return {
+      success: hasCookies && isActive,
+      message: hasCookies && isActive 
+        ? `连接成功（扩展同步于 ${data.lastSyncAt ? new Date(data.lastSyncAt).toLocaleString('zh-CN') : '未知时间'}）`
+        : (isActive ? 'Cookie 已过期，请重新扩展登录' : '账号未激活')
+    };
+  }
+  
+  // 手动添加的账号：检查 username
+  const username = data.username;
   const isValid = username && username.length >= 3;
   
   return {
     success: isValid,
-    message: isValid ? '连接成功' : '账号信息不完整'
+    message: isValid ? '连接成功' : '账号信息不完整（缺少用户名）'
   };
 }
 
