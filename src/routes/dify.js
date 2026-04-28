@@ -332,7 +332,6 @@ router.get('/info', async (req, res) => {
 router.post('/generate', async (req, res) => {
   const apiKey = process.env.DIFY_API_KEY;
   const appUrl = process.env.DIFY_APP_URL || 'https://api.dify.ai/v1';
-  const appId = process.env.DIFY_APP_ID;
 
   if (!apiKey) {
     return res.status(500).json({
@@ -343,55 +342,59 @@ router.post('/generate', async (req, res) => {
 
   try {
     const { platform = 'tiktok', productName, imageUrls } = req.body;
+    // 从 auth header 提取用户 ID，没有就用默认值
+    const userId = req.user?.id || req.body.user_id || 'claw-user-' + Date.now();
 
-    // 构造 Dify 请求
-    const difyInputs = {
-      platform: platform,
-      product_name: productName || '',
-      image_url: imageUrls?.[0] || '',
+    // 应用类型是 Chatflow，必须用 chat-messages 接口
+    const chatBody = {
+      query: `请为这个商品生成${platform === 'xiaohongshu' ? '小红书' : platform === 'youtube' ? 'YouTube' : 'TikTok'}平台的营销文案。商品名称：${productName || '未知商品'}`,
+      inputs: {
+        platform: platform,
+        product_name: productName || '',
+      },
+      response_mode: 'blocking',
+      user: userId,
+      auto_generate_name: true,
     };
 
-    // 先检查任务状态（如果传了 task_id）
-    const { taskId } = req.body;
-    if (taskId) {
-      const statusResp = await fetch(`${appUrl}/workflows/tasks/${taskId}`, {
-        headers: { 'Authorization': `Bearer ${apiKey}` }
-      });
-      const statusData = await statusResp.json();
-      if (statusData.data?.outputs) {
-        return res.json({ success: true, data: statusData.data.outputs, taskId });
-      }
+    // 如果有图片 URL，添加 files 字段
+    if (imageUrls && imageUrls.length > 0) {
+      chatBody.files = imageUrls.map(url => ({
+        type: 'image',
+        transfer_method: 'remote_url',
+        url: url,
+      }));
     }
 
-    // 触发新任务
-    const triggerResp = await fetch(`${appUrl}/workflows/run`, {
+    console.log('[Dify Generate] 调用 chat-messages:', { platform, productName, userId, hasImages: !!imageUrls?.length });
+
+    const triggerResp = await fetch(`${appUrl}/chat-messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        workflow_id: appId,
-        inputs: difyInputs,
-        response_mode: 'blocking', // 同步返回结果
-      })
+      body: JSON.stringify(chatBody)
     });
 
     if (!triggerResp.ok) {
       const errText = await triggerResp.text();
-      throw new Error(`Dify 触发失败 ${triggerResp.status}: ${errText}`);
+      console.error('[Dify Generate] API 错误:', triggerResp.status, errText);
+      throw new Error(`Dify 调用失败 ${triggerResp.status}: ${errText}`);
     }
 
     const result = await triggerResp.json();
+    console.log('[Dify Generate] 返回成功, message_id:', result.message_id);
 
-    // 提取文案结果
-    const outputs = result.data?.outputs || {};
-    const parsed = parseDifyOutputs(outputs, platform);
+    // Chatflow 返回格式：{ answer: "...", message_id: "...", conversation_id: "..." }
+    const answer = result.answer || '';
+    const parsed = parseDifyOutputs(answer, platform);
 
     res.json({
       success: true,
       data: parsed,
-      taskId: result.data?.task_id,
+      messageId: result.message_id,
+      conversationId: result.conversation_id,
     });
 
   } catch (error) {
@@ -403,26 +406,78 @@ router.post('/generate', async (req, res) => {
 /**
  * 解析 Dify 输出的文案
  */
-function parseDifyOutputs(outputs, platform) {
-  // 支持直接 JSON 字符串输出
-  let data = outputs;
-  if (typeof outputs === 'string') {
-    try { data = JSON.parse(outputs); } catch { data = { raw: outputs }; }
+function parseDifyOutputs(answer, platform) {
+  // Chatflow 返回的是纯文本 answer，需要尝试提取结构化数据
+  if (typeof answer !== 'string') {
+    // 兼容旧格式：如果传入的是对象
+    let data = answer;
+    if (data.outputs) data = data.outputs;
+    return {
+      title: data.title || data.Title || '',
+      description: data.description || data.Description || '',
+      xiaohongshu_copy: data.xiaohongshu_copy || '',
+      youtube_description: data.youtube_description || '',
+      hashtags: Array.isArray(data.hashtags) ? data.hashtags : [],
+      price_usd: parseFloat(data.price_usd || data.price || 0),
+      platform,
+      score: parseInt(data.score || 0),
+      raw: data,
+    };
   }
 
-  // 兼容不同字段名
+  // 尝试从文本中提取 JSON
+  try {
+    const jsonMatch = answer.match(/```json\s*([\s\S]*?)```/) || answer.match(/\{[\s\S]*"title"[\s\S]*\}/);
+    if (jsonMatch) {
+      const jsonStr = jsonMatch[1] || jsonMatch[0];
+      const data = JSON.parse(jsonStr);
+      return {
+        title: data.title || data.Title || '',
+        description: data.description || data.Description || data.xiaohongshu_copy || '',
+        xiaohongshu_copy: data.xiaohongshu_copy || data.xhs || '',
+        youtube_description: data.youtube_description || '',
+        hashtags: Array.isArray(data.hashtags) ? data.hashtags
+          : typeof data.hashtags === 'string' ? data.hashtags.split(/[,\s]+/).filter(Boolean)
+          : (data.tags || []),
+        price_usd: parseFloat(data.price_usd || data.price || 0),
+        platform,
+        score: parseInt(data.score || data.score_rating || 0),
+        raw: data,
+      };
+    }
+  } catch (e) {
+    console.log('[Dify] JSON 解析失败，使用文本提取');
+  }
+
+  // 纯文本提取
+  const lines = answer.split('\n').filter(l => l.trim());
+  let title = '';
+  let description = '';
+  const hashtags = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('#') && !trimmed.startsWith('##')) {
+      // 标签
+      const tags = trimmed.match(/#\S+/g) || [];
+      hashtags.push(...tags);
+    } else if (!title && (trimmed.startsWith('标题') || trimmed.startsWith('Title') || trimmed.match(/^【.*】$/))) {
+      title = trimmed.replace(/^(标题[：:]?\s*|Title[：:]?\s*)/, '').replace(/^【|】$/g, '');
+    } else {
+      description += (description ? '\n' : '') + trimmed;
+    }
+  }
+
   return {
-    title: data.title || data.Title || '',
-    description: data.description || data.Description || data.xiaohongshu_copy || '',
-    xiaohongshu_copy: data.xiaohongshu_copy || data.xhs || '',
-    youtube_description: data.youtube_description || data.youtube || '',
-    hashtags: Array.isArray(data.hashtags) ? data.hashtags
-      : typeof data.hashtags === 'string' ? data.hashtags.split(/[,\s]+/).filter(Boolean)
-      : (data.tags || []),
-    price_usd: parseFloat(data.price_usd || data.price || 0),
-    platform: platform,
-    score: parseInt(data.score || data.score_rating || 0),
-    raw: data,
+    title,
+    description: description || answer,
+    xiaohongshu_copy: platform === 'xiaohongshu' ? description : '',
+    youtube_description: platform === 'youtube' ? description : '',
+    hashtags,
+    price_usd: 0,
+    platform,
+    score: 0,
+    raw: answer,
   };
 }
 
