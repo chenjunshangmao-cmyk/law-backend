@@ -564,3 +564,65 @@ export async function initAccountsRoutes(app) {
 }
 
 export default router;
+
+/**
+ * POST /api/accounts/extension-sync
+ * Chrome 扩展同步平台 cookie/session 到云端
+ */
+router.post('/extension-sync', authenticateToken, async (req, res) => {
+  try {
+    const { platform, cookies, connectedAt } = req.body || {};
+
+    if (!platform) {
+      return res.status(400).json({ success: false, error: '缺少 platform 参数' });
+    }
+
+    const existingAccounts = await getAccountsByUser(req.userId);
+    const existing = existingAccounts.find(a => a.platform === platform);
+
+    if (existing) {
+      await updateAccount(existing.id, {
+        account_data: {
+          ...(existing.account_data || {}),
+          cookies: cookies,
+          connectedAt: connectedAt,
+          authMethod: 'extension',
+          status: 'active',
+          lastSyncAt: new Date().toISOString()
+        }
+      });
+    } else {
+      const platformNames = {
+        xiaohongshu: '小红书',
+        tiktok: 'TikTok Shop',
+        ozon: 'OZON',
+        alibaba1688: '1688'
+      };
+
+      await createAccount({
+        user_id: req.userId,
+        platform: platform,
+        account_name: platformNames[platform] || platform,
+        account_data: {
+          cookies: cookies,
+          connectedAt: connectedAt,
+          authMethod: 'extension',
+          status: 'active',
+          lastSyncAt: new Date().toISOString()
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        platform,
+        message: `${platform} cookie 同步成功`,
+        syncedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('[扩展同步] 失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
