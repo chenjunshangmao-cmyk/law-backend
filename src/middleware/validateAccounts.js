@@ -100,11 +100,9 @@ export const validateAccountUpdate = (req, res, next) => {
 export const validateAccountTest = (req, res, next) => {
   const errors = [];
 
-  // 账号ID验证
-  if (!req.params.id) {
+  // 账号ID验证（仅检查非空，UUID格式由数据库保证）
+  if (!req.params.id || req.params.id.length < 1) {
     errors.push('账号ID不能为空');
-  } else if (!/^[a-f0-9-]+$/i.test(req.params.id)) {
-    errors.push('账号ID格式无效');
   }
 
   if (errors.length > 0) {
