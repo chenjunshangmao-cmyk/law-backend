@@ -148,32 +148,80 @@ export class XiaohongshuAutomation {
 
   /**
    * 获取登录二维码（供前端展示）
+   * 优化：尽量截取二维码区域而非整个页面
    */
   async getLoginQRCode() {
     await this.gotoLogin();
-    // 等待二维码加载
-    await this.page.waitForSelector('canvas, img[class*="qrcode"], [class*="QRCode"]', {
-      timeout: 15000,
-    }).catch(() => null);
 
-    // 获取二维码图片
-    const qrImg = await this.page.$('canvas, img[class*="qrcode"]');
-    if (!qrImg) {
-      // 可能是手机号/密码登录页，尝试切换到扫码
-      const scanTab = await this.page.$('text=扫码登录');
-      if (scanTab) {
-        await scanTab.click();
-        await this.page.waitForTimeout(2000);
-      }
+    // 尝试找到二维码相关元素并等待
+    await this.page.waitForTimeout(2000);
+
+    // 尝试切换到扫码登录 tab（有些版本默认显示密码登录）
+    const scanTabSelectors = [
+      'text=扫码登录',
+      '[class*="qrcode-tab"]',
+      '[class*="scan-tab"]',
+      'div:has-text("扫码登录")',
+    ];
+    for (const sel of scanTabSelectors) {
+      try {
+        const el = await this.page.$(sel);
+        if (el) {
+          await el.click();
+          await this.page.waitForTimeout(1500);
+          break;
+        }
+      } catch { /* 继续尝试下一个 */ }
     }
 
-    const qrScreenshot = await this.page.screenshot({
-      type: 'png',
-      fullPage: false,
-    });
+    // 等待二维码元素加载
+    const qrSelectors = [
+      'canvas',
+      'img[class*="qrcode"]',
+      'img[class*="QRCode"]',
+      'img[class*="qr-code"]',
+      '[class*="qrcode"] img',
+      '[class*="qr-code"] img',
+      '[class*="login-code"] img',
+      'iframe',
+    ];
+
+    let qrElement = null;
+    for (const sel of qrSelectors) {
+      try {
+        qrElement = await this.page.waitForSelector(sel, { timeout: 5000 });
+        if (qrElement) break;
+      } catch { /* 继续尝试 */ }
+    }
+
+    let screenshot;
+    if (qrElement && !(await qrElement.evaluate(el => el.tagName === 'IFRAME'))) {
+      // 找到二维码元素 → 只截取该区域
+      try {
+        const box = await qrElement.boundingBox();
+        if (box && box.width > 50 && box.height > 50) {
+          // 加一点 padding
+          const padding = 20;
+          screenshot = await this.page.screenshot({
+            type: 'png',
+            clip: {
+              x: Math.max(0, box.x - padding),
+              y: Math.max(0, box.y - padding),
+              width: box.width + padding * 2,
+              height: box.height + padding * 2,
+            },
+          });
+        }
+      } catch { /* 截取区域失败，回退到全页截图 */ }
+    }
+
+    if (!screenshot) {
+      // 回退：截取整个页面（但要确保二维码可见）
+      screenshot = await this.page.screenshot({ type: 'png', fullPage: false });
+    }
 
     return {
-      screenshot: qrScreenshot.toString('base64'),
+      screenshot: screenshot.toString('base64'),
       loginUrl: this.page.url(),
     };
   }

@@ -247,8 +247,11 @@ router.post('/create', authenticateToken, async (req, res) => {
     const orderNo = `CLAW${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
     const expiredAt = new Date(Date.now() + 4 * 60 * 1000);
     const clientIp = (req.headers['x-forwarded-for'] || req.ip || '127.0.0.1').split(',')[0].trim();
-    const notifyUrl = `${process.env.API_BASE_URL || 'https://claw-backend-2026.onrender.com'}/api/webhook/shouqianba`;
-    const returnUrlFull = returnUrl || `${process.env.FRONTEND_URL || 'https://claw-frontend.pages.dev'}/payment/result`;
+        // 修复：notify_url 优先使用 chenjuntrading.cn API 域名，避免 Render 冷启动和 HTTP 问题
+    const apiBase = process.env.API_BASE_URL || 'https://api.chenjuntrading.cn';
+    const frontendBase = process.env.FRONTEND_URL || 'https://chenjuntrading.cn';
+    const notifyUrl = `${apiBase}/api/webhook/shouqianba`;
+    const returnUrlFull = returnUrl || `${frontendBase}/payment/result`;
 
     // 检查是否有有效的收钱吧配置（兼容驼峰和蛇形命名）
     const sn = terminal.terminalSn || terminal.terminal_sn;
@@ -281,7 +284,7 @@ router.post('/create', authenticateToken, async (req, res) => {
         const gatewayUrl = 'https://m.wosai.cn/qr/gateway';
         const queryString = Object.keys(signedParams)
           .sort()
-          .map(k => `${k}=${encodeURIComponent(signedParams[k])}`)
+          .map(k => `${k}=${signedParams[k]}`)
           .join('&');
         const payUrl = gatewayUrl + '?' + queryString;
 

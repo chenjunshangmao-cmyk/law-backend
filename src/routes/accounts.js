@@ -12,11 +12,12 @@ import {
   getAccountsByUser, getAllAccounts, getAccountById,
   createAccount, updateAccount, deleteAccount, initAccountsTable
 } from '../services/accountsDb.js';
+import { getXiaohongshuInstance } from '../services/xiaohongshuAutomation.js';
 
 const router = express.Router();
 
 // 支持的平台列表
-const PLATFORMS = ['1688', 'amazon', 'tiktok', 'ozon', 'lazada', 'shopee', 'youtube'];
+const PLATFORMS = ['1688', 'amazon', 'tiktok', 'ozon', 'lazada', 'shopee', 'youtube', 'xiaohongshu'];
 
 /**
  * 加密函数
@@ -446,6 +447,112 @@ async function testPlatformConnection(account) {
   await new Promise(r => setTimeout(r, 500));
   return { success: true, message: '账号已配置' };
 }
+
+/**
+ * =============================================================
+ * 小红书扫码登录（通过统一账号系统）
+ * =============================================================
+ */
+
+/**
+ * POST /api/accounts/xiaohongshu-login/qrcode
+ * 获取小红书登录二维码
+ */
+router.post('/xiaohongshu-login/qrcode', authenticateToken, async (req, res) => {
+  try {
+    const { accountId } = req.body || {};
+    const xhs = getXiaohongshuInstance();
+    await xhs.createContext(accountId, { headless: false });
+    const qrData = await xhs.getLoginQRCode();
+
+    res.json({
+      success: true,
+      data: {
+        qrImage: qrData.screenshot,
+        loginUrl: qrData.loginUrl,
+        accountId: accountId || 'default',
+        tip: '请使用小红书App扫码登录',
+      },
+    });
+  } catch (error) {
+    console.error('[小红书] 获取二维码失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/accounts/xiaohongshu-login/wait
+ * 等待扫码登录完成，成功后自动创建统一账号记录
+ */
+router.post('/xiaohongshu-login/wait', authenticateToken, async (req, res) => {
+  try {
+    const { accountId = 'default', timeout = 120000 } = req.body || {};
+    const xhs = getXiaohongshuInstance();
+    const loggedIn = await xhs.waitForLogin(timeout);
+
+    if (loggedIn) {
+      await xhs.saveSession(accountId);
+
+      // 自动在统一账号系统中创建/更新记录
+      const existingAccounts = await getAccountsByUser(req.user.userId);
+      const existing = existingAccounts.find(
+        a => a.platform === 'xiaohongshu' && a.username === accountId
+      );
+
+      if (!existing) {
+        // 新建账号记录
+        const newAccount = {
+          id: 'xhs-' + Date.now(),
+          user_id: req.user.userId,
+          platform: 'xiaohongshu',
+          name: accountId === 'default' ? '小红书默认账号' : `小红书-${accountId}`,
+          username: accountId,
+          status: 'active',
+        };
+        await createAccount(newAccount);
+      } else {
+        // 更新已有记录状态
+        await updateAccount(existing.id, req.user.userId, { status: 'active' });
+      }
+
+      res.json({ success: true, data: { loggedIn: true, accountId } });
+    } else {
+      res.json({ success: false, error: '登录超时', code: 'TIMEOUT' });
+    }
+  } catch (error) {
+    console.error('[小红书] 等待登录失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/accounts/xiaohongshu-login/status
+ * 检查小红书账号登录状态
+ */
+router.get('/xiaohongshu-login/status', authenticateToken, async (req, res) => {
+  try {
+    const accountId = req.query.accountId || 'default';
+    const xhs = getXiaohongshuInstance();
+    const hasSession = xhs.hasSavedSession(accountId);
+
+    let isValid = false;
+    if (hasSession) {
+      isValid = await xhs.validateSession(accountId);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        hasSession,
+        loggedIn: isValid,
+        accountId,
+      },
+    });
+  } catch (error) {
+    console.error('[小红书] 检查状态失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 /**
  * 初始化数据库表
