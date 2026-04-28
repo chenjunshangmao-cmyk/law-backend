@@ -318,19 +318,26 @@ router.post('/create-order', async (req, res) => {
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活，请先调用 /activate' });
     const baseUrl = process.env.RENDER_EXTERNAL_URL || (req.protocol + '://' + req.get('host'));
 
+    // return_url 简化：只传前端域名，不带 ?clientSn 参数
+    // 收钱吧扫码页点击"完成"后直接跳前端，避免 return_url 复杂导致白屏
+    // clientSn 通过 notify_url 异步回调来处理（订单在 payment_orders 表已创建）
+    const frontendBase = process.env.FRONTEND_URL || 'https://claw-app-2026.pages.dev';
+    const return_url = frontendBase + '/payment-result?clientSn=' + clientSn;
+
     // WAP支付参数（C扫B方案）
     // 用户手机扫码进入H5页面 → 点击支付按钮 → 唤起微信/支付宝
     const requestParams = {
       terminal_sn: terminal.terminalSn,
       client_sn: clientSn,
       total_amount: String(Math.round(Number(totalAmount) * 100)), // 金额（元→分，乘100）
-      subject,
-      return_url: baseUrl + '/api/shouqianba/return?clientSn=' + clientSn, // 支付完成后跳回
+      subject: subject || 'Claw会员',
+      return_url, // 直接传前端 URL，收钱吧跳转后由前端页面查询订单状态
       notify_url: baseUrl + '/api/shouqianba/notify', // 服务器异步回调
       operator: 'claw_admin'
     };
 
     // WAP签名：参数排序 + &key= + MD5 + 大写
+    // return_url 里的 ? 会被 encodeURIComponent 编码，不会干扰网关解析
     const sign = wapSign(requestParams, terminal.terminalKey);
     const signedParams = { ...requestParams, sign, sign_type: 'MD5' };
 
@@ -433,7 +440,7 @@ router.get('/query', async (req, res) => {
 });
 
 // 手动确认支付（WAP订单收钱吧查询接口不可用，回调也不稳定）
-// 前端「我已支付」按钮调用此接口，强制将订单标记为已支付
+// 前端「我已支付」按钮调用此接口，强制将订单标记为已支付并升级会员
 router.post('/force-confirm', async (req, res) => {
   try {
     const { sn, planId, totalAmount } = req.body;
@@ -441,21 +448,63 @@ router.post('/force-confirm', async (req, res) => {
 
     console.log('[收钱吧] 手动确认订单:', sn);
 
-    // 1. 更新本地文件（持久化）
+    // 1. 先查 payment_orders 表获取 userId 和 planType（如果传入的话可以直接用）
+    let userId = req.body.userId;
+    let planType = planId;
+    if (!userId || !planType) {
+      try {
+        const orderResult = await pool.query(
+          'SELECT user_id, plan_type, amount FROM payment_orders WHERE order_no = $1',
+          [sn]
+        );
+        if (orderResult.rows.length > 0) {
+          userId = userId || orderResult.rows[0].user_id;
+          planType = planType || orderResult.rows[0].plan_type;
+          console.log('[收钱吧] 从 payment_orders 找到: user=' + userId + ', plan=' + planType);
+        }
+      } catch (dbErr) {
+        console.error('[收钱吧] 查询 payment_orders 失败:', dbErr.message);
+      }
+    }
+
+    // 如果还是没有 userId 或 planType，从 sn 格式 claw-{planType}-{timestamp} 解析
+    if (!planType) {
+      const planMatch = sn.match(/^claw-(\w+)-/);
+      if (planMatch) planType = planMatch[1];
+    }
+
+    // 2. 更新 payment_orders 表
+    if (userId && planType) {
+      try {
+        await pool.query(
+          `UPDATE payment_orders SET status = 'paid', paid_at = NOW(), updated_at = NOW() WHERE order_no = $1 AND status != 'paid'`,
+          [sn]
+        );
+      } catch (dbErr) {
+        console.error('[收钱吧] 更新 payment_orders 失败:', dbErr.message);
+      }
+    }
+
+    // 3. 升级会员
+    if (userId && planType) {
+      await upgradeMembershipDirect(userId, planType);
+    } else {
+      console.log('[收钱吧] 手动确认：缺少 userId 或 planType，无法升级会员');
+    }
+
+    // 4. 更新本地文件（持久化）
     const fileOrder = getOrder(sn);
     if (!fileOrder) {
-      // 如果文件里没有（可能是其他方式创建的订单），新建记录
       saveOrder({
         clientSn: sn,
         sn: sn,
         orderStatus: 'PAID',
         status: 'SUCCESS',
         totalAmount: Number(totalAmount) || 0,
-        planId: planId || null,
+        planId: planType || null,
         confirmedAt: Date.now()
       });
     } else {
-      // 已存在，更新状态
       updateOrder(sn, {
         orderStatus: 'PAID',
         status: 'SUCCESS',
@@ -463,7 +512,7 @@ router.post('/force-confirm', async (req, res) => {
       });
     }
 
-    // 2. 同时更新内存缓存（如果有）
+    // 5. 更新内存缓存
     orderStatusCache.set(sn, {
       sn,
       clientSn: sn,
@@ -473,7 +522,7 @@ router.post('/force-confirm', async (req, res) => {
       confirmedAt: Date.now()
     });
 
-    res.json({ success: true, data: { sn, orderStatus: 'PAID', status: 'SUCCESS' } });
+    res.json({ success: true, data: { sn, orderStatus: 'PAID', status: 'SUCCESS', userId, planType } });
   } catch (err) {
     console.error('[收钱吧] 手动确认失败:', err.message);
     res.status(500).json({ success: false, error: err.message });
