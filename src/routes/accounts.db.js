@@ -29,7 +29,7 @@ const YT_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const router = express.Router();
 
 // 支持的平台列表
-const PLATFORMS = ['1688', 'amazon', 'tiktok', 'ozon', 'lazada', 'shopee', 'youtube', 'taobao', 'pdd'];
+const PLATFORMS = ['1688', 'amazon', 'tiktok', 'ozon', 'lazada', 'shopee', 'youtube', 'taobao', 'pdd', 'xiaohongshu'];
 
 // 应用速率限制（每分钟50个请求）
 const accountRateLimit = rateLimitMiddleware(60 * 1000, 50); // 1分钟，50个请求
@@ -800,5 +800,122 @@ function decrypt(text) {
   decrypted += decipher.final('utf8');
   return decrypted;
 }
+
+/**
+ * =============================================================
+ * 小红书扫码登录（通过统一账号系统）
+ * =============================================================
+ */
+
+/**
+ * POST /api/accounts/xiaohongshu-login/qrcode
+ * 获取小红书登录二维码
+ */
+router.post('/xiaohongshu-login/qrcode', authenticateToken, async (req, res) => {
+  try {
+    const { accountId } = req.body || {};
+    const { getXiaohongshuInstance } = await import('../services/xiaohongshuAutomation.js');
+    const xhs = getXiaohongshuInstance();
+    await xhs.createContext(accountId, { headless: false });
+    const qrData = await xhs.getLoginQRCode();
+
+    res.json({
+      success: true,
+      data: {
+        qrImage: qrData.screenshot,
+        loginUrl: qrData.loginUrl,
+        accountId: accountId || 'default',
+        tip: '请使用小红书App扫码登录',
+      },
+    });
+  } catch (error) {
+    console.error('[小红书] 获取二维码失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/accounts/xiaohongshu-login/wait
+ * 等待扫码登录完成，成功后自动创建统一账号记录
+ */
+router.post('/xiaohongshu-login/wait', authenticateToken, async (req, res) => {
+  try {
+    const { accountId = 'default', timeout = 120000 } = req.body || {};
+    const { getXiaohongshuInstance } = await import('../services/xiaohongshuAutomation.js');
+    const xhs = getXiaohongshuInstance();
+    const loggedIn = await xhs.waitForLogin(timeout);
+
+    if (loggedIn) {
+      await xhs.saveSession(accountId);
+
+      // 自动在统一账号系统中创建/更新记录
+      const existingAccounts = await getAccountsByUser(req.userId);
+      const existing = existingAccounts.find(
+        a => a.platform === 'xiaohongshu' && (a.account_data?.username === accountId || a.account_name === accountId)
+      );
+
+      if (!existing) {
+        // 新建账号记录
+        await createAccount({
+          user_id: req.userId,
+          platform: 'xiaohongshu',
+          account_name: accountId === 'default' ? '小红书默认账号' : `小红书-${accountId}`,
+          account_data: {
+            username: accountId,
+            status: 'active',
+            authMethod: 'qrcode',
+            lastAuthCheck: new Date().toISOString()
+          }
+        });
+      } else {
+        // 更新已有记录状态
+        await updateAccount(existing.id, {
+          account_data: {
+            ...(existing.account_data || {}),
+            status: 'active',
+            lastAuthCheck: new Date().toISOString()
+          }
+        });
+      }
+
+      res.json({ success: true, data: { loggedIn: true, accountId } });
+    } else {
+      res.json({ success: false, error: '登录超时', code: 'TIMEOUT' });
+    }
+  } catch (error) {
+    console.error('[小红书] 等待登录失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/accounts/xiaohongshu-login/status
+ * 检查小红书账号登录状态
+ */
+router.get('/xiaohongshu-login/status', authenticateToken, async (req, res) => {
+  try {
+    const accountId = req.query.accountId || 'default';
+    const { getXiaohongshuInstance } = await import('../services/xiaohongshuAutomation.js');
+    const xhs = getXiaohongshuInstance();
+    const hasSession = xhs.hasSavedSession(accountId);
+
+    let isValid = false;
+    if (hasSession) {
+      isValid = await xhs.validateSession(accountId);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        hasSession,
+        loggedIn: isValid,
+        accountId,
+      },
+    });
+  } catch (error) {
+    console.error('[小红书] 检查状态失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 export default router;
