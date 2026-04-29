@@ -562,6 +562,103 @@ const WANX_T2I_STYLE_MAP = {
 };
 
 // =============================================================
+// 11b. AI 批量文案生成（一次生成4种风格）
+// POST /api/xiaohongshu/ai/generate-multi-content
+// =============================================================
+router.post('/ai/generate-multi-content', async (req, res) => {
+  try {
+    const {
+      imageDescription,
+      productName,
+      extraInfo,
+    } = req.body || {};
+
+    if (!imageDescription && !productName) {
+      return res.status(400).json({ success: false, error: '请提供图片描述或产品名称' });
+    }
+
+    const systemPrompt = `你是一位小红书爆款内容创作者，擅长撰写高互动率的图文笔记。
+写作风格：真实、接地气、充满感染力，善用emoji，擅长制造代入感。
+
+请为同一产品生成4种不同风格的小红书笔记，每种风格一张：
+1. 种草推荐 — 像闺蜜分享好物，口吻亲切真实
+2. 真实测评 — 从外观/质地/使用感/性价比多维度分析
+3. 日常分享 — 自然融入生活感，不刻意推荐
+4. 好物带货 — 突出性价比和购买理由，有紧迫感
+
+要求：
+- 标题：吸引人，20字以内，可以有emoji，要有点击欲
+- 正文：200-400字，自然口语化，适当使用emoji，段落分明
+- 标签：8-12个相关话题标签（不带#号）
+
+产品信息：
+- 名称/描述：${imageDescription || productName}
+${productName ? `- 产品名称：${productName}` : ''}
+${extraInfo ? `- 补充信息：${extraInfo}` : ''}
+
+请严格以JSON格式输出：
+{
+  "plans": [
+    {
+      "style": "种草推荐",
+      "title": "笔记标题",
+      "content": "正文内容",
+      "tags": ["标签1", "标签2"]
+    },
+    {
+      "style": "真实测评",
+      "title": "笔记标题",
+      "content": "正文内容",
+      "tags": ["标签1", "标签2"]
+    },
+    {
+      "style": "日常分享",
+      "title": "笔记标题",
+      "content": "正文内容",
+      "tags": ["标签1", "标签2"]
+    },
+    {
+      "style": "好物带货",
+      "title": "笔记标题",
+      "content": "正文内容",
+      "tags": ["标签1", "标签2"]
+    }
+  ]
+}`;
+
+    const rawContent = await callQwen([
+      { role: 'system', content: '你是一位小红书爆款内容创作者。' },
+      { role: 'user', content: systemPrompt },
+    ], 'qwen-plus');
+
+    let result;
+    try {
+      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+      result = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    } catch {
+      result = null;
+    }
+
+    if (!result?.plans || !Array.isArray(result.plans)) {
+      // fallback：用单次生成结果拆分
+      result = {
+        plans: [
+          { style: '种草推荐', title: '', content: rawContent, tags: [] },
+          { style: '真实测评', title: '', content: '', tags: [] },
+          { style: '日常分享', title: '', content: '', tags: [] },
+          { style: '好物带货', title: '', content: '', tags: [] },
+        ],
+      };
+    }
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[小红书AI] 批量文案生成失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =============================================================
 // 11. AI 文案生成（基于图片描述或关键词）
 // POST /api/xiaohongshu/ai/generate-content
 // =============================================================
