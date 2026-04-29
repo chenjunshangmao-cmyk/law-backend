@@ -413,7 +413,8 @@ async function callQwen(messages, model = 'qwen-plus') {
  * imageBase64: "data:image/jpeg;base64,..."
  */
 async function callQwenVL(imageBase64, prompt) {
-  // Qwen-VL 需要通过 image_url 传 base64
+  // Qwen3-VL 需要通过 image_url 传 base64
+  // 2026-04: 升级到 qwen3-vl-plus（比旧 qwen-vl-plus 识别精度大幅提升）
   const response = await fetch(`${BAILIAN_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -421,7 +422,7 @@ async function callQwenVL(imageBase64, prompt) {
       'Authorization': `Bearer ${BAILIAN_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'qwen-vl-plus',
+      model: 'qwen3-vl-plus',
       messages: [
         {
           role: 'user',
@@ -431,7 +432,7 @@ async function callQwenVL(imageBase64, prompt) {
           ],
         },
       ],
-      max_tokens: 1500,
+      max_tokens: 2000,
     }),
   });
 
@@ -755,20 +756,21 @@ router.post('/ai/analyze-image', async (req, res) => {
       return res.status(400).json({ success: false, error: '请提供图片（base64）' });
     }
 
-    const prompt = `请识别这张图片中的商品，并用中文返回以下信息：
-1. 产品名称（简短，15字以内）
-2. 产品类型/类目
-3. 主要特点（3-5个词）
-4. 适合人群
-5. 用3-5句话描述这个产品
+    const prompt = `你是一位专业的跨境电商选品专家。请仔细观察这张图片，精准识别其中的商品信息。
+
+要求：
+- 如果图片中有多个商品，以最醒目的主商品为准
+- 产品名称要具体（如"女童碎花连衣裙"而非"衣服"）
+- 类目要精确到三级类目
+- 特点要从视觉可辨识的角度提取
 
 请严格以JSON格式输出：
 {
-  "productName": "产品名称",
-  "category": "产品类目",
-  "features": ["特点1", "特点2"],
+  "productName": "具体产品名称（15字以内）",
+  "category": "一级类目/二级类目/三级类目",
+  "features": ["视觉可见特点1", "视觉可见特点2", "视觉可见特点3"],
   "targetAudience": "适合人群",
-  "description": "产品描述"
+  "description": "3-5句话详细描述这个产品的外观、材质、用途"
 }`;
 
     const rawContent = await callQwenVL(imageBase64, prompt);
