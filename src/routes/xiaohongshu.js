@@ -813,8 +813,8 @@ router.post('/ai/image-to-image', async (req, res) => {
 
     // 2. 获取服务器域名（用于构造公开URL）
     const serverHost = process.env.SERVER_HOST || process.env.RENDER_EXTERNAL_URL || 'https://claw-backend-2026.onrender.com';
-    const relativePath = imgFile.path.replace(process.cwd(), '').replace(/\\/g, '/');
-    const publicImageUrl = `${serverHost}/uploads/xiaohongshu/${path.basename(imgFile.path)}`;
+    // 注意：express.static 挂载在 router.use('/uploads')，所以路径是 /api/xiaohongshu/uploads/
+    const publicImageUrl = `${serverHost}/api/xiaohongshu/uploads/${path.basename(imgFile.path)}`;
 
     // 3. 调用 Wanx 图生图
     let resultUrl;
@@ -1151,7 +1151,7 @@ ${sellingPoints.length > 0 ? `核心卖点：${sellingPoints.join('、')}` : ''}
     // 2. 保存原图为临时文件获取公开 URL
     const imgFile = saveBase64File(imageBase64, `competitive_${Date.now()}.jpg`);
     const serverHost = process.env.SERVER_HOST || process.env.RENDER_EXTERNAL_URL || 'https://claw-backend-2026.onrender.com';
-    const publicImageUrl = `${serverHost}/uploads/xiaohongshu/${path.basename(imgFile.path)}`;
+    const publicImageUrl = `${serverHost}/api/xiaohongshu/uploads/${path.basename(imgFile.path)}`;
 
     // 3. 调用 Wanx 图生图
     let resultUrl;
