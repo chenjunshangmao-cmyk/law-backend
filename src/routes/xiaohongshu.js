@@ -852,9 +852,28 @@ router.post('/ai/analyze-image', async (req, res) => {
 // =============================================================
 router.post('/ai/image-to-image', async (req, res) => {
   try {
-    const { imageBase64, style = 'product', prompt: customPrompt } = req.body || {};
+    let { imageBase64, style = 'product', prompt: customPrompt } = req.body || {};
     if (!imageBase64) {
       return res.status(400).json({ success: false, error: '请提供图片（base64）' });
+    }
+
+    // 如果传入的是 URL 而非 base64，先下载并转 base64
+    if (imageBase64.startsWith('http')) {
+      console.log('[小红书AI] 图生图：传入URL，先下载转base64...', imageBase64.substring(0, 80));
+      try {
+        const imgResp = await fetch(imageBase64);
+        if (!imgResp.ok) throw new Error(`下载图片失败: ${imgResp.status}`);
+        const imgBuffer = await imgResp.buffer();
+        const contentType = imgResp.headers.get('content-type') || 'image/jpeg';
+        imageBase64 = `data:${contentType};base64,${imgBuffer.toString('base64')}`;
+      } catch (dlErr) {
+        return res.status(400).json({ success: false, error: `图片URL下载失败: ${dlErr.message}` });
+      }
+    }
+
+    // 校验 base64 格式
+    if (!imageBase64.startsWith('data:image/')) {
+      return res.status(400).json({ success: false, error: '图片格式无效，需要 data:image/xxx;base64,... 格式' });
     }
 
     // 直接传 base64 给 Wanx 2.7（不再需要保存临时文件构造 URL）
@@ -863,6 +882,10 @@ router.post('/ai/image-to-image', async (req, res) => {
     res.json({ success: true, data: { url: resultUrl, style } });
   } catch (error) {
     console.error('[小红书AI] 图生图失败:', error);
+    // 区分 Wanx API 错误和内部错误
+    if (error.message?.includes('resolution must be at least')) {
+      return res.status(400).json({ success: false, error: '图片分辨率太低，需要至少 240x240 像素' });
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 });
