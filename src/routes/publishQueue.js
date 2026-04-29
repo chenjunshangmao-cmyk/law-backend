@@ -7,10 +7,13 @@
  *   pending → processing → completed / failed
  */
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import { pool, useMemoryMode, memoryStore } from '../config/database.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
+
+const JWT_SECRET = process.env.JWT_SECRET || 'claw-default-secret-key-for-development-only-32chars';
 
 // 内存模式存储
 if (!memoryStore.publishTasks) {
@@ -350,6 +353,165 @@ router.post('/report', async (req, res) => {
     res.json({ success: true, message: `任务 #${taskId} 已更新为 ${finalStatus}` });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ========== 实时监控：SSE + 进度推送 ==========
+
+// 内存中的进度事件缓存（key: taskId, value: 事件数组）
+if (!memoryStore.publishProgress) {
+  memoryStore.publishProgress = new Map();
+}
+
+// SSE 客户端连接池（key: taskId, value: Set<res>）
+if (!memoryStore.sseClients) {
+  memoryStore.sseClients = new Map();
+}
+
+// 向所有监听某个任务的 SSE 客户端广播事件
+function broadcastProgress(taskId, event) {
+  const clients = memoryStore.sseClients.get(String(taskId));
+  if (clients) {
+    const data = JSON.stringify(event);
+    for (const res of clients) {
+      try {
+        res.write(`data: ${data}\n\n`);
+      } catch (e) {
+        clients.delete(res);
+      }
+    }
+  }
+}
+
+// ========== API: 前端 SSE 监听任务进度 ==========
+// GET /api/publish-queue/tasks/:id/stream?token=xxx
+// 注意：SSE 不支持自定义 header，使用 query param 传递 token
+router.get('/tasks/:id/stream', async (req, res) => {
+  try {
+    // 手动验证 token（支持 query param，因为 EventSource 不支持自定义 header）
+    const token = req.query.token || (req.headers.authorization?.split(' ')[1]);
+    if (!token) {
+      return res.status(401).json({ success: false, error: '未提供认证令牌' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (e) {
+      return res.status(401).json({ success: false, error: '令牌无效或已过期' });
+    }
+
+    const userId = String(decoded.userId || decoded.id);
+    const taskId = req.params.id;
+
+    // 验证任务归属
+    let task;
+    if (useMemoryMode) {
+      task = memoryStore.publishTasks.get(Number(taskId));
+    } else {
+      const result = await pool.query('SELECT id, user_id, status FROM publish_tasks WHERE id = $1', [taskId]);
+      task = result.rows[0];
+    }
+
+    if (!task || (task.user_id !== userId && String(task.user_id) !== userId)) {
+      return res.status(403).json({ success: false, error: '无权查看此任务' });
+    }
+
+    // 设置 SSE 响应头
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no', // Nginx 不缓冲
+    });
+
+    // 发送初始连接确认
+    res.write(`data: ${JSON.stringify({ type: 'connected', taskId })}\n\n`);
+
+    // 注册客户端
+    const taskKey = String(taskId);
+    if (!memoryStore.sseClients.has(taskKey)) {
+      memoryStore.sseClients.set(taskKey, new Set());
+    }
+    memoryStore.sseClients.get(taskKey).add(res);
+
+    // 发送历史进度事件（如果有的话）
+    const history = memoryStore.publishProgress.get(taskKey) || [];
+    for (const evt of history) {
+      res.write(`data: ${JSON.stringify(evt)}\n\n`);
+    }
+
+    // 心跳保活（每 15 秒）
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(`: heartbeat\n\n`);
+      } catch (e) {
+        clearInterval(heartbeat);
+      }
+    }, 15000);
+
+    // 客户端断开时清理
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      const clients = memoryStore.sseClients.get(taskKey);
+      if (clients) {
+        clients.delete(res);
+        if (clients.size === 0) {
+          memoryStore.sseClients.delete(taskKey);
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('[发布队列] SSE 连接失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ========== API: 客服推送进度（截图+日志） ==========
+// POST /api/publish-queue/progress
+router.post('/progress', async (req, res) => {
+  try {
+    const { agentId, agentToken, taskId, step, stepName, screenshot, log } = req.body;
+
+    const validToken = process.env.AGENT_TOKEN || 'claw-agent-2026';
+    if (agentToken !== validToken) {
+      return res.status(401).json({ success: false, error: 'Agent 认证失败' });
+    }
+
+    if (!taskId) {
+      return res.status(400).json({ success: false, error: '缺少 taskId' });
+    }
+
+    const event = {
+      type: 'progress',
+      taskId,
+      step: step || 0,
+      stepName: stepName || '',
+      screenshot: screenshot || null,  // base64 截图
+      log: log || '',
+      timestamp: new Date().toISOString(),
+    };
+
+    // 缓存进度事件（最多保留 100 条）
+    const taskKey = String(taskId);
+    if (!memoryStore.publishProgress.has(taskKey)) {
+      memoryStore.publishProgress.set(taskKey, []);
+    }
+    const history = memoryStore.publishProgress.get(taskKey);
+    history.push(event);
+    if (history.length > 100) {
+      history.splice(0, history.length - 100);
+    }
+
+    // 广播给所有 SSE 客户端
+    broadcastProgress(taskId, event);
+
+    console.log(`[发布队列] 任务 #${taskId} 进度: Step ${step} - ${stepName}`);
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
