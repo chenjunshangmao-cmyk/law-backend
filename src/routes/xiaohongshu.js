@@ -446,11 +446,23 @@ async function callQwenVL(imageBase64, prompt) {
 
 /**
  * 百炼 Wanx 图生图（image-to-image / style transfer）
- * 使用 DashScope 异步任务接口
- * imageUrl: 公开可访问的图片URL（不支持base64直接传入）
+ * 使用 Wan 2.7 模型 + messages 格式，支持 base64 直接传入（不再需要临时文件URL）
  */
-async function callWanxImageToImage(imageUrl, prompt, style = 'anime') {
-  // 发起任务
+async function callWanxImageToImage(imageSource, prompt, style = 'anime') {
+  // 风格映射到中文 prompt（wan2.7 用 prompt 控制风格，不再用 style_index）
+  const STYLE_PROMPTS = {
+    anime: '转换为日系动漫风格，保留构图和主体',
+    oil: '转换为油画质感风格，笔触细腻',
+    watercolor: '转换为水彩画风格，色彩淡雅透明',
+    sketch: '转换为素描风格，黑白铅笔质感',
+    flat: '转换为扁平插画风格，色彩明快简洁',
+    pop: '转换为波普艺术风格，大胆用色',
+    general: '生成高质量产品图，商业摄影风格',
+  };
+
+  const effectivePrompt = prompt || STYLE_PROMPTS[style] || STYLE_PROMPTS.general;
+
+  // 发起异步任务
   const submitResp = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation', {
     method: 'POST',
     headers: {
@@ -459,13 +471,21 @@ async function callWanxImageToImage(imageUrl, prompt, style = 'anime') {
       'X-DashScope-Async': 'enable',
     },
     body: JSON.stringify({
-      model: 'wanx-style-repaint-v1',
+      model: 'wan2.7-image',
       input: {
-        image_url: imageUrl,
-        style_index: WANX_STYLE_MAP[style] ?? 0,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { image: imageSource },  // 支持 URL 或 base64（data:image/jpeg;base64,...）
+              { text: effectivePrompt },
+            ],
+          },
+        ],
       },
       parameters: {
         n: 1,
+        size: '1K',
       },
     }),
   });
@@ -478,8 +498,8 @@ async function callWanxImageToImage(imageUrl, prompt, style = 'anime') {
   const taskId = submitData.output?.task_id;
   if (!taskId) throw new Error('Wanx未返回任务ID');
 
-  // 轮询等待任务完成（最多 60 秒）
-  for (let i = 0; i < 20; i++) {
+  // 轮询等待任务完成（最多 90 秒，wan2.7 比 v1 慢）
+  for (let i = 0; i < 30; i++) {
     await new Promise(r => setTimeout(r, 3000));
     const pollResp = await fetch(
       `https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`,
@@ -489,22 +509,27 @@ async function callWanxImageToImage(imageUrl, prompt, style = 'anime') {
     const status = pollData.output?.task_status;
 
     if (status === 'SUCCEEDED') {
-      const resultUrl = pollData.output?.results?.[0]?.url;
+      // wan2.7 返回格式: output.choices[0].message.content[0].image
+      const resultUrl = pollData.output?.choices?.[0]?.message?.content?.[0]?.image
+        || pollData.output?.results?.[0]?.url;  // 兼容旧格式
       if (!resultUrl) throw new Error('Wanx未返回图片URL');
       return resultUrl;
     } else if (status === 'FAILED') {
-      throw new Error(`Wanx任务失败: ${pollData.output?.message || '未知原因'}`);
+      const msg = pollData.output?.message || pollData.output?.choices?.[0]?.message?.content?.[0]?.text || '未知原因';
+      throw new Error(`Wanx任务失败: ${msg}`);
     }
     // RUNNING / PENDING 继续等待
   }
-  throw new Error('Wanx任务超时（60秒）');
+  throw new Error('Wanx任务超时（90秒）');
 }
 
 /**
  * 百炼 Wanx 文生图（text-to-image）
+ * 使用 Wan 2.7 模型 + messages 格式
  */
 async function callWanxTextToImage(prompt, style = 'general') {
-  const submitResp = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis', {
+  // 发起异步任务
+  const submitResp = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -512,12 +537,20 @@ async function callWanxTextToImage(prompt, style = 'general') {
       'X-DashScope-Async': 'enable',
     },
     body: JSON.stringify({
-      model: 'wanx-v1',
-      input: { prompt },
+      model: 'wan2.7-image',
+      input: {
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { text: prompt },
+            ],
+          },
+        ],
+      },
       parameters: {
         n: 1,
-        size: '1024*1024',
-        style: WANX_T2I_STYLE_MAP[style] ?? '<auto>',
+        size: '1K',
       },
     }),
   });
@@ -530,7 +563,7 @@ async function callWanxTextToImage(prompt, style = 'general') {
   const taskId = submitData.output?.task_id;
   if (!taskId) throw new Error('Wanx文生图未返回任务ID');
 
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 30; i++) {
     await new Promise(r => setTimeout(r, 3000));
     const pollResp = await fetch(
       `https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`,
@@ -540,14 +573,16 @@ async function callWanxTextToImage(prompt, style = 'general') {
     const status = pollData.output?.task_status;
 
     if (status === 'SUCCEEDED') {
-      const resultUrl = pollData.output?.results?.[0]?.url;
+      const resultUrl = pollData.output?.choices?.[0]?.message?.content?.[0]?.image
+        || pollData.output?.results?.[0]?.url;
       if (!resultUrl) throw new Error('Wanx文生图未返回URL');
       return resultUrl;
     } else if (status === 'FAILED') {
-      throw new Error(`Wanx文生图失败: ${pollData.output?.message || '未知原因'}`);
+      const msg = pollData.output?.message || '未知原因';
+      throw new Error(`Wanx文生图失败: ${msg}`);
     }
   }
-  throw new Error('Wanx文生图超时（60秒）');
+  throw new Error('Wanx文生图超时（90秒）');
 }
 
 // Wanx 风格映射（图生图）
@@ -795,11 +830,9 @@ router.post('/ai/analyze-image', async (req, res) => {
 });
 
 // =============================================================
-// 13. AI 图生图（Wanx 风格迁移）
+// 13. AI 图生图（Wanx 2.7 风格迁移）
 // POST /api/xiaohongshu/ai/image-to-image
-// 注意：Wanx 需要公开可访问的图片URL，不能用 base64
-// 方案：先把 base64 保存到 uploads，暴露本地URL 或 转存至 OSS
-// 这里使用「先转存为本地临时文件，通过服务器URL返回」方案
+// wan2.7 支持直接传入 base64，不再需要临时文件URL
 // =============================================================
 router.post('/ai/image-to-image', async (req, res) => {
   try {
@@ -808,22 +841,8 @@ router.post('/ai/image-to-image', async (req, res) => {
       return res.status(400).json({ success: false, error: '请提供图片（base64）' });
     }
 
-    // 1. 将 base64 存为本地临时文件
-    const imgFile = saveBase64File(imageBase64, `ai_input_${Date.now()}.jpg`);
-
-    // 2. 获取服务器域名（用于构造公开URL）
-    const serverHost = process.env.SERVER_HOST || process.env.RENDER_EXTERNAL_URL || 'https://claw-backend-2026.onrender.com';
-    // 注意：express.static 挂载在 router.use('/uploads')，所以路径是 /api/xiaohongshu/uploads/
-    const publicImageUrl = `${serverHost}/api/xiaohongshu/uploads/${path.basename(imgFile.path)}`;
-
-    // 3. 调用 Wanx 图生图
-    let resultUrl;
-    try {
-      resultUrl = await callWanxImageToImage(publicImageUrl, customPrompt || '', style);
-    } finally {
-      // 清理临时文件（异步，不阻塞返回）
-      setTimeout(() => { try { fs.unlinkSync(imgFile.path); } catch {} }, 60000);
-    }
+    // 直接传 base64 给 Wanx 2.7（不再需要保存临时文件构造 URL）
+    const resultUrl = await callWanxImageToImage(imageBase64, customPrompt || '', style);
 
     res.json({ success: true, data: { url: resultUrl, style } });
   } catch (error) {
@@ -1148,18 +1167,8 @@ ${sellingPoints.length > 0 ? `核心卖点：${sellingPoints.join('、')}` : ''}
 
     const imgPrompt = await callQwenVL(imageBase64, analysisPrompt);
 
-    // 2. 保存原图为临时文件获取公开 URL
-    const imgFile = saveBase64File(imageBase64, `competitive_${Date.now()}.jpg`);
-    const serverHost = process.env.SERVER_HOST || process.env.RENDER_EXTERNAL_URL || 'https://claw-backend-2026.onrender.com';
-    const publicImageUrl = `${serverHost}/api/xiaohongshu/uploads/${path.basename(imgFile.path)}`;
-
-    // 3. 调用 Wanx 图生图
-    let resultUrl;
-    try {
-      resultUrl = await callWanxImageToImage(publicImageUrl, imgPrompt, style);
-    } finally {
-      setTimeout(() => { try { fs.unlinkSync(imgFile.path); } catch {} }, 120000);
-    }
+    // 2. 直接传 base64 给 Wanx 2.7（不再需要临时文件 URL）
+    const resultUrl = await callWanxImageToImage(imageBase64, imgPrompt, style);
 
     res.json({ success: true, data: { url: resultUrl, prompt: imgPrompt, style } });
   } catch (error) {
