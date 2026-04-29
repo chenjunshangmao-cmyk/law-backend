@@ -138,7 +138,13 @@ router.post('/publish/note', async (req, res) => {
 
     const hasSession = xhs.hasSavedSession(accountId);
     if (!hasSession) {
-      return res.status(401).json({ success: false, error: '请先登录小红书账号', code: 'NEED_LOGIN' });
+      // 扩展同步的账号没有 Playwright session，需要通过 Chrome 扩展在本地浏览器发布
+      return res.status(401).json({
+        success: false,
+        error: '此账号通过Chrome扩展同步，需要通过扩展在浏览器中发布',
+        code: 'NEED_EXTENSION_PUBLISH',
+        publishData: { accountId, title, content, images, tags, location, isPrivate },
+      });
     }
 
     // 将 base64 图片保存为临时文件
