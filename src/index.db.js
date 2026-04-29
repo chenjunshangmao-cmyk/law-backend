@@ -200,6 +200,10 @@ app.use('/api/shouqianba', shouqianbaRoutes);
 // 小红书
 app.use('/api/xiaohongshu', xiaohongshuRoutes);
 
+// 发布任务队列（OpenClaw 客服自动执行）
+import publishQueueRoutes from './routes/publishQueue.js';
+app.use('/api/publish-queue', publishQueueRoutes);
+
 // Dify 工作流集成（Webhook + 触发器 + OpenClaw 任务队列）
 import difyRoutes from './routes/dify.js';
 app.use('/api/dify', difyRoutes);
