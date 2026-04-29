@@ -448,19 +448,22 @@ async function callQwenVL(imageBase64, prompt) {
  * 百炼 Wanx 图生图（image-to-image / style transfer）
  * 使用 Wan 2.7 模型 + messages 格式，支持 base64 直接传入（不再需要临时文件URL）
  */
-async function callWanxImageToImage(imageSource, prompt, style = 'anime') {
-  // 风格映射到中文 prompt（wan2.7 用 prompt 控制风格，不再用 style_index）
+async function callWanxImageToImage(imageSource, prompt, style = 'product') {
+  // 风格映射到电商实用 prompt（wan2.7 用 prompt 控制风格）
   const STYLE_PROMPTS = {
-    anime: '转换为日系动漫风格，保留构图和主体',
-    oil: '转换为油画质感风格，笔触细腻',
-    watercolor: '转换为水彩画风格，色彩淡雅透明',
-    sketch: '转换为素描风格，黑白铅笔质感',
-    flat: '转换为扁平插画风格，色彩明快简洁',
-    pop: '转换为波普艺术风格，大胆用色',
+    product: '生成电商产品白底图，纯白背景，产品居中，专业影棚灯光，高清质感，适合电商平台主图',
+    lifestyle: '生成电商生活场景图，产品融入真实家居/生活场景，温馨自然光，氛围感强，适合小红书种草',
+    flatlay: '生成电商平铺摆拍图，俯视角度，产品与配饰精心摆放在桌面上，ins风布景，简洁高级',
+    model: '生成电商模特展示图，模特使用/穿着产品，自然姿态，户外或室内场景，真实感强',
+    detail: '生成电商细节特写图，放大产品材质/工艺细节，微距镜头质感，突出品质感',
+    comparison: '生成电商对比展示图，产品使用前后对比或尺寸参照，信息清晰，直观展示效果',
+    unboxing: '生成电商开箱展示图，产品精美包装打开状态，配件齐全展示，仪式感强',
+    aesthetic: '生成电商氛围感图片，柔和光影，高级色调，ins风构图，突出产品调性和生活方式',
+    // 兼容旧风格值
     general: '生成高质量产品图，商业摄影风格',
   };
 
-  const effectivePrompt = prompt || STYLE_PROMPTS[style] || STYLE_PROMPTS.general;
+  const effectivePrompt = prompt || STYLE_PROMPTS[style] || STYLE_PROMPTS.product;
 
   // 发起异步任务
   const submitResp = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation', {
@@ -527,8 +530,21 @@ async function callWanxImageToImage(imageSource, prompt, style = 'anime') {
  * 百炼 Wanx 文生图（text-to-image）
  * 使用 Wan 2.7 模型 + messages 格式
  */
-async function callWanxTextToImage(prompt, style = 'general') {
-  // 发起异步任务
+async function callWanxTextToImage(prompt, style = 'product') {
+  // 电商风格 prompt 前缀
+  const STYLE_PREFIXES = {
+    product: '电商产品白底图，纯白背景，专业影棚灯光，高清质感：',
+    lifestyle: '电商生活场景图，产品融入真实场景，温馨自然光：',
+    flatlay: '电商平铺摆拍图，俯视ins风布景，简洁高级：',
+    model: '电商模特展示图，自然姿态，真实场景：',
+    detail: '电商细节特写图，微距质感，突出品质：',
+    comparison: '电商对比展示图，信息清晰直观：',
+    unboxing: '电商开箱展示图，精美包装，仪式感：',
+    aesthetic: '电商氛围感图，柔和光影，高级色调ins风：',
+    general: '高质量产品图，商业摄影风格：',
+  };
+
+  const effectivePrompt = (STYLE_PREFIXES[style] || STYLE_PREFIXES.product) + prompt;
   const submitResp = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation', {
     method: 'POST',
     headers: {
@@ -543,7 +559,7 @@ async function callWanxTextToImage(prompt, style = 'general') {
           {
             role: 'user',
             content: [
-              { text: prompt },
+              { text: effectivePrompt },
             ],
           },
         ],
@@ -836,7 +852,7 @@ router.post('/ai/analyze-image', async (req, res) => {
 // =============================================================
 router.post('/ai/image-to-image', async (req, res) => {
   try {
-    const { imageBase64, style = 'anime', prompt: customPrompt } = req.body || {};
+    const { imageBase64, style = 'product', prompt: customPrompt } = req.body || {};
     if (!imageBase64) {
       return res.status(400).json({ success: false, error: '请提供图片（base64）' });
     }
@@ -857,7 +873,7 @@ router.post('/ai/image-to-image', async (req, res) => {
 // =============================================================
 router.post('/ai/text-to-image', async (req, res) => {
   try {
-    const { prompt, style = 'general' } = req.body || {};
+    const { prompt, style = 'product' } = req.body || {};
     if (!prompt) {
       return res.status(400).json({ success: false, error: '请提供图片描述' });
     }
@@ -1151,7 +1167,7 @@ ${visualInfo ? `\n## AI 识图结果\n${visualInfo}` : ''}
 // =============================================================
 router.post('/ai/competitive-images', async (req, res) => {
   try {
-    const { imageBase64, productTitle, sellingPoints = [], style = 'anime' } = req.body || {};
+    const { imageBase64, productTitle, sellingPoints = [], style = 'product' } = req.body || {};
     if (!imageBase64) {
       return res.status(400).json({ success: false, error: '请提供原始产品图片' });
     }
