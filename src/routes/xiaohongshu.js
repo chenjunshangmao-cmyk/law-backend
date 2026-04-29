@@ -579,7 +579,9 @@ router.post('/ai/generate-multi-content', async (req, res) => {
       extraInfo,
     } = req.body || {};
 
-    if (!imageDescription && !productName) {
+    // imageDescription 或 productName 至少有一个非空（空字符串也算缺失）
+    const effectiveDesc = (imageDescription || productName || '').trim();
+    if (!effectiveDesc) {
       return res.status(400).json({ success: false, error: '请提供图片描述或产品名称' });
     }
 
@@ -598,8 +600,8 @@ router.post('/ai/generate-multi-content', async (req, res) => {
 - 标签：8-12个相关话题标签（不带#号）
 
 产品信息：
-- 名称/描述：${imageDescription || productName}
-${productName ? `- 产品名称：${productName}` : ''}
+- 名称/描述：${effectiveDesc}
+${productName && productName !== effectiveDesc ? `- 产品名称：${productName}` : ''}
 ${extraInfo ? `- 补充信息：${extraInfo}` : ''}
 
 请严格以JSON格式输出：
