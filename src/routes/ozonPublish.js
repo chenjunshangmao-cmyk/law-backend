@@ -684,4 +684,92 @@ router.post('/api/update-stocks', authenticateToken, async (req, res) => {
   }
 });
 
+// =============================================================
+// 9. AI 场景图生成（复制小红书 wan2.7-image）
+// POST /api/ozon-publish/ai/generate-images
+// =============================================================
+const DASHSCOPE_API_KEY = process.env.BAILIAN_API_KEY || 'sk-8a07c75081df49ac877d6950a95b06ec';
+
+async function callWanxImageToImage(imageSource, prompt) {
+  const submitResp = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${DASHSCOPE_API_KEY}`,
+      'X-DashScope-Async': 'enable',
+    },
+    body: JSON.stringify({
+      model: 'wan2.7-image',
+      input: {
+        messages: [{ role: 'user', content: [{ image: imageSource }, { text: prompt }] }],
+      },
+      parameters: { n: 1, size: '1K' },
+    }),
+  });
+  if (!submitResp.ok) throw new Error(`Wanx提交失败: ${submitResp.status}`);
+  const submitData = await submitResp.json();
+  const taskId = submitData.output?.task_id;
+  if (!taskId) throw new Error('Wanx未返回任务ID');
+
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    const pollResp = await fetch(`https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`, {
+      headers: { 'Authorization': `Bearer ${DASHSCOPE_API_KEY}` },
+    });
+    const pollData = await pollResp.json();
+    if (pollData.output?.task_status === 'SUCCEEDED') {
+      return pollData.output?.choices?.[0]?.message?.content?.[0]?.image
+        || pollData.output?.results?.[0]?.url;
+    }
+    if (pollData.output?.task_status === 'FAILED') {
+      throw new Error('Wanx任务失败');
+    }
+  }
+  throw new Error('Wanx任务超时');
+}
+
+const OZON_IMAGE_STYLES = {
+  model: '电商模特展示图，俄罗斯模特穿着/使用产品，自然姿态，户外或室内场景，真实感强，适合OZON平台',
+  scene: '电商生活场景图，产品融入真实家居/生活场景，温馨自然光，氛围感强，适合OZON商品详情',
+  detail: '电商细节特写图，放大产品材质/工艺细节，微距镜头质感，突出品质感，白底或浅灰背景',
+  flatlay: '电商平铺摆拍图，俯视角度，产品与配饰精心摆放，简洁高级ins风布景',
+  whitebg: '电商白底图，纯白背景，产品居中，专业影棚灯光，高清质感，适合OZON平台主图',
+};
+
+router.post('/ai/generate-images', authenticateToken, async (req, res) => {
+  try {
+    const { images, style = 'model', count = 4, productName } = req.body || {};
+    if (!images || images.length === 0) {
+      return res.status(400).json({ success: false, error: '请提供产品图片' });
+    }
+
+    const prompt = OZON_IMAGE_STYLES[style] || OZON_IMAGE_STYLES.model;
+    const fullPrompt = productName ? `${productName} - ${prompt}` : prompt;
+    const results = [];
+
+    for (let i = 0; i < Math.min(count, 8); i++) {
+      const sourceImage = images[i % images.length];
+      try {
+        let imageSource = sourceImage;
+        if (sourceImage.startsWith('http')) {
+          const imgResp = await fetch(sourceImage);
+          if (!imgResp.ok) continue;
+          const buf = await imgResp.buffer();
+          const ct = imgResp.headers.get('content-type') || 'image/jpeg';
+          imageSource = `data:${ct};base64,${buf.toString('base64')}`;
+        }
+        const resultUrl = await callWanxImageToImage(imageSource, fullPrompt);
+        results.push(resultUrl);
+      } catch (e) {
+        console.error(`[OZON AI] 图生图 #${i} 失败:`, e.message);
+      }
+    }
+
+    res.json({ success: true, data: { images: results, style, count: results.length } });
+  } catch (error) {
+    console.error('[OZON AI] 生成图片失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
