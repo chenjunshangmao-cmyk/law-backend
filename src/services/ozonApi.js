@@ -23,12 +23,25 @@ export const createOzonClient = (clientId, apiKey) => {
     timeout: 30000,
   });
 
-  // 响应拦截器 - 统一错误处理
+  // 响应拦截器 - 统一错误处理（保留原始错误信息）
   client.interceptors.response.use(
     (response) => response,
     (error) => {
-      console.error('OZON API 错误:', error.response?.data || error.message);
-      throw new Error(error.response?.data?.message || 'OZON API 请求失败');
+      // 提取 OZON API 真实错误信息
+      const body = error.response?.data;
+      let msg = 'OZON API 请求失败';
+      if (body) {
+        // OZON 错误格式：{ code, message, details: [...] }
+        msg = body.message || (body.details?.[0]?.message) || JSON.stringify(body).slice(0, 200);
+      } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        msg = `网络不通：无法连接 OZON API (${error.code})`;
+      } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+        msg = `连接超时：OZON API 无响应 (${error.code})`;
+      } else if (error.message) {
+        msg = error.message;
+      }
+      console.error('OZON API 错误:', error.response?.status, msg);
+      throw new Error(msg);
     }
   );
 
