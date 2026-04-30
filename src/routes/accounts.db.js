@@ -18,7 +18,7 @@ import {
   validateCookies
 } from '../middleware/validateAccounts.js';
 import { syncAccountData as syncOzonData, createOzonClient, getSellerInfo } from '../services/ozonApi.js';
-import pool from '../config/database.js';
+import { pool } from '../config/database.js';
 import axios from 'axios';
 
 // YouTube OAuth 配置
