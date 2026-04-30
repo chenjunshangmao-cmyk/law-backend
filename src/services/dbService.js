@@ -414,6 +414,7 @@ export const getAccountById = async (id) => {
 
 export const createAccount = async (accountData) => {
   const { user_id, platform, account_name, account_data = {} } = accountData;
+  const name = account_name || accountData.username || '';
   
   if (useMemoryMode) {
     const id = String(memoryStore.idCounters.accounts++);
@@ -431,8 +432,8 @@ export const createAccount = async (accountData) => {
   }
   
   const result = await pool.query(
-    'INSERT INTO accounts (user_id, platform, account_name, account_data) VALUES ($1, $2, $3, $4) RETURNING *',
-    [user_id, platform, account_name, JSON.stringify(account_data)]
+    'INSERT INTO accounts (user_id, platform, name, account_data) VALUES ($1, $2, $3, $4) RETURNING *',
+    [user_id, platform, name, JSON.stringify(account_data)]
   );
   return result.rows[0];
 };
