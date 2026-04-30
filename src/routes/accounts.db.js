@@ -18,6 +18,7 @@ import {
   validateCookies
 } from '../middleware/validateAccounts.js';
 import { syncAccountData as syncOzonData, createOzonClient, getSellerInfo } from '../services/ozonApi.js';
+import pool from '../config/database.js';
 import axios from 'axios';
 
 // YouTube OAuth 配置
@@ -811,6 +812,36 @@ router.post('/ozon-authorize', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('❌ OZON 授权失败:', error);
     res.status(500).json({ success: false, error: 'OZON 授权失败: ' + error.message });
+  }
+});
+
+/**
+ * POST /api/accounts/fix-ozon
+ * 裸SQL直写OZON凭证（绕过所有buggy ORM代码）
+ */
+router.post('/fix-ozon', authenticateToken, async (req, res) => {
+  try {
+    const { name, clientId, apiKey } = req.body;
+    if (!clientId || !apiKey) {
+      return res.status(400).json({ success: false, error: '缺少 clientId 或 apiKey' });
+    }
+
+    // 裸SQL：INSERT ... ON CONFLICT (client_id) DO UPDATE
+    const id = 'ozon-' + Date.now();
+    const result = await pool.query(
+      `INSERT INTO accounts (id, user_id, platform, name, client_id, api_key, account_data, status)
+       VALUES ($1, $2, 'ozon', $3, $4, $5, $6::jsonb, 'active')
+       ON CONFLICT (id) DO UPDATE SET client_id = $4, api_key = $5, account_data = $6::jsonb, status = 'active'
+       RETURNING id, name, client_id`,
+      [id, req.userId, name || 'OZON店铺', clientId, encrypt(apiKey),
+       JSON.stringify({ clientId, apiKey: encrypt(apiKey), status: 'active', authMethod: 'api' })]
+    );
+
+    console.log(`[fix-ozon] 直写成功: ${id}`);
+    res.json({ success: true, message: '凭证已写入', data: { id: result.rows[0].id } });
+  } catch (error) {
+    console.error('[fix-ozon] 失败:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
