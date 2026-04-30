@@ -128,8 +128,15 @@ router.post('/', authenticateToken, validateAccountCreate, async (req, res) => {
       ...(credentials ? { credentials: encrypt(JSON.stringify(credentials)) } : {}),
       ...(settings || {}),
       username: username || null,
-      status: 'active'
+      status: 'active',
     };
+    
+    // ★ OZON 平台：保存 API 凭证
+    if (platform.toLowerCase() === 'ozon') {
+      const { clientId, apiKey } = req.body;
+      if (clientId) accountDataPayload.clientId = clientId;
+      if (apiKey) accountDataPayload.apiKey = encrypt(apiKey);
+    }
     
     const newAccount = await createAccount({
       user_id: req.userId,
@@ -821,6 +828,40 @@ router.post('/ozon-authorize', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('❌ OZON 授权失败:', error);
     res.status(500).json({ success: false, error: 'OZON 授权失败: ' + error.message });
+  }
+});
+
+/**
+ * PUT /api/accounts/:id/ozon-credentials
+ * 更新已有 OZON 账号的 API 凭证（不验证，直接保存）
+ */
+router.put('/:id/ozon-credentials', authenticateToken, async (req, res) => {
+  try {
+    const { clientId, apiKey } = req.body;
+    if (!clientId || !apiKey) {
+      return res.status(400).json({ success: false, error: '缺少 clientId 或 apiKey' });
+    }
+
+    const account = await getAccountById(req.params.id);
+    if (!account || account.user_id !== req.userId) {
+      return res.status(404).json({ success: false, error: '账号不存在' });
+    }
+    if (account.platform !== 'ozon') {
+      return res.status(400).json({ success: false, error: '该账号不是 OZON 平台' });
+    }
+
+    const data = account.account_data || {};
+    data.clientId = clientId;
+    data.apiKey = encrypt(apiKey);
+    data.status = 'active';
+    data.authMethod = 'api';
+    data.lastAuthCheck = new Date().toISOString();
+
+    await updateAccount(req.params.id, { account_data: data });
+
+    res.json({ success: true, message: 'OZON API 凭证已更新' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
