@@ -737,7 +737,7 @@ router.get('/youtube-callback', async (req, res) => {
 
 /**
  * POST /api/accounts/ozon-authorize
- * OZON API 授权：验证 Client ID + API Key → 自动创建账号
+ * OZON API 授权：直接保存凭证（跳过实时验证，用户后续点"测试"验证）
  */
 router.post('/ozon-authorize', authenticateToken, async (req, res) => {
   try {
@@ -750,21 +750,9 @@ router.post('/ozon-authorize', authenticateToken, async (req, res) => {
       });
     }
 
-    // 1. 调用 OZON API 验证凭证有效性
-    let sellerInfo;
-    try {
-      const client = createOzonClient(clientId, apiKey);
-      sellerInfo = await getSellerInfo(client);
-      console.log(`✅ OZON API 验证成功，店铺名: ${sellerInfo.seller?.company_name || '未知'}`);
-    } catch (apiError) {
-      return res.status(401).json({
-        success: false,
-        error: `OZON API 验证失败：${apiError.message}，请检查 Client ID 和 API Key 是否正确`,
-        code: 'OZON_AUTH_FAILED',
-      });
-    }
+    console.log(`[OZON] 直接保存凭证: ${name} (ClientId: ${clientId})`);
 
-    // 2. 检查是否已存在同 clientId 的账号（防重复）
+    // 检查是否已存在同 clientId 的账号（防重复）
     const existingAccounts = await getAccountsByUser(req.userId);
     const duplicate = existingAccounts.find(a => {
       if (a.platform !== 'ozon') return false;
@@ -783,17 +771,13 @@ router.post('/ozon-authorize', authenticateToken, async (req, res) => {
       });
     }
 
-    // 3. 创建账号（加密保存 API 凭证）
+    // 3. 创建账号（加密保存 API 凭证，不验证）
     const accountDataPayload = {
-      username: sellerInfo?.seller?.email || sellerInfo?.seller?.login || name,
+      username: name,
       status: 'active',
       clientId,
-      apiKey: encrypt(apiKey),  // 加密存储
-      sellerInfo: {
-        company_name: sellerInfo?.seller?.company_name,
-        email: sellerInfo?.seller?.email,
-        login: sellerInfo?.seller?.login,
-      },
+      apiKey: encrypt(apiKey),
+      sellerInfo: {},  // 后续同步时自动填充
       authMethod: 'api',
       lastAuthCheck: new Date().toISOString(),
     };
@@ -813,14 +797,13 @@ router.post('/ozon-authorize', authenticateToken, async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: `OZON 账号授权成功！${sellerInfo?.seller?.company_name ? `店铺：${sellerInfo.seller.company_name}` : ''}`,
+      message: `OZON 账号已保存！请点击"测试"按钮验证 API 连接`,
       data: {
         id: newAccount.id,
         platform: 'ozon',
         name: newAccount.account_name,
         status: 'active',
-        company: sellerInfo?.seller?.company_name || null,
-        email: sellerInfo?.seller?.email || null,
+        clientId,
         authedAt: new Date().toISOString(),
       },
     });
