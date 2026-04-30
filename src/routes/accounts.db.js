@@ -43,7 +43,7 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const accounts = await getAccountsByUser(req.userId);
     
-    // 返回时隐藏敏感信息，但保留 accountId（浏览器自动化需要）
+    // 返回时隐藏敏感信息，但保留 accountId（浏览器自动化需要）和 OZON/YouTube 关键字段
     const sanitizedAccounts = accounts.map(a => {
       // 解密 credentials，提取 accountId
       let accountId = null;
@@ -56,16 +56,40 @@ router.get('/', authenticateToken, async (req, res) => {
           // ignore
         }
       }
-      return {
+
+      const data = a.account_data || {};
+      const result = {
         id: a.id,
         platform: a.platform,
         name: a.account_name,
-        username: a.account_data?.username || null,
-        accountId,  // ✅ 修复：返回 accountId 供浏览器自动化使用
-        status: a.account_data?.status || 'active',
+        username: data.username || null,
+        accountId,  // ✅ 浏览器自动化需要
+        status: data.status || 'active',
         createdAt: a.created_at,
-        updatedAt: a.updated_at
+        updatedAt: a.updated_at,
       };
+
+      // OZON 平台：返回 API 凭证状态和店铺信息（不返回 apiKey 明文）
+      if (a.platform === 'ozon') {
+        result.clientId = data.clientId || data.client_id || null;
+        result.hasApiKey = !!(data.apiKey || data.api_key);  // 仅标识是否已配置
+        result.last_sync = data.lastSync || data.last_sync || null;
+        result.productsCount = data.productsCount || 0;
+        result.ordersCount = data.ordersCount || 0;
+        result.sellerInfo = data.sellerInfo || null;
+        result.authMethod = data.authMethod || null;
+      }
+
+      // YouTube 平台：返回频道信息
+      if (a.platform === 'youtube') {
+        result.account_data = {
+          channelTitle: data.channelTitle || null,
+          email: data.email || null,
+          expiresAt: data.expiresAt || null,
+        };
+      }
+
+      return result;
     });
     
     res.json({ success: true, data: sanitizedAccounts });
@@ -302,12 +326,63 @@ router.post('/:id/test', authenticateToken, validateAccountTest, async (req, res
  * 实际应该调用各平台的API
  */
 async function testPlatformConnection(account) {
-  // 模拟测试延迟
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  // 验证账号数据
   const data = account.account_data || {};
-  
+  const platform = account.platform?.toLowerCase();
+
+  // OZON 平台：真实调用 OZON API 验证凭证
+  if (platform === 'ozon') {
+    const clientId = data.clientId || data.client_id;
+    let apiKey = data.apiKey || data.api_key;
+
+    // apiKey 可能是加密的，尝试解密
+    if (apiKey && apiKey.includes(':')) {
+      try { apiKey = decrypt(apiKey); } catch { /* 解密失败，直接使用 */ }
+    }
+
+    if (!clientId || !apiKey) {
+      return {
+        success: false,
+        message: '缺少 OZON API 凭证（Client ID 或 API Key 未配置）'
+      };
+    }
+
+    try {
+      const client = createOzonClient(clientId, apiKey);
+      const sellerInfo = await getSellerInfo(client);
+      const companyName = sellerInfo?.seller?.company_name || '未知店铺';
+      return {
+        success: true,
+        message: `连接成功：${companyName}`
+      };
+    } catch (apiErr) {
+      return {
+        success: false,
+        message: `OZON API 验证失败：${apiErr.message}`
+      };
+    }
+  }
+
+  // YouTube 平台：检查 OAuth Token
+  if (platform === 'youtube' && data.authMethod === 'oauth') {
+    const hasToken = !!data.accessToken || !!data.refreshToken;
+    const notExpired = data.expiresAt ? new Date(data.expiresAt) > new Date() : !!data.refreshToken;
+    if (hasToken && notExpired) {
+      return {
+        success: true,
+        message: `连接成功（频道：${data.channelTitle || '未知'}）`
+      };
+    } else if (hasToken) {
+      return {
+        success: false,
+        message: 'OAuth Token 已过期，请重新授权'
+      };
+    }
+    return {
+      success: false,
+      message: 'OAuth Token 未配置'
+    };
+  }
+
   // 扩展同步的账号：检查 cookies 和 status
   if (data.authMethod === 'extension') {
     const hasCookies = data.cookies && Object.keys(data.cookies).length > 0;
@@ -349,8 +424,13 @@ router.post('/:id/sync', authenticateToken, async (req, res) => {
       // OZON 平台 - 调用 OZON API
       const accountData = account.account_data || {};
       const clientId = accountData.clientId || accountData.client_id;
-      const apiKey = accountData.apiKey || accountData.api_key;
+      let apiKey = accountData.apiKey || accountData.api_key;
       
+      // apiKey 可能是加密存储的（含冒号分隔符），尝试解密
+      if (apiKey && apiKey.includes(':')) {
+        try { apiKey = decrypt(apiKey); } catch { /* 解密失败，直接使用原值 */ }
+      }
+
       if (!clientId || !apiKey) {
         return res.status(400).json({ 
           success: false, 
