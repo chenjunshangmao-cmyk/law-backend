@@ -48,11 +48,15 @@ app.use(helmet({
   }
 }));
 
-// CORS配置 - 支持 *.claw-app-2026.pages.dev 动态子域名
+// CORS配置 - 支持多域名
 const corsWhiteList = [
   'https://claw-app-2026.pages.dev',
   'https://df98523c.claw-app-2026.pages.dev',
   'https://60872676.claw-app-2026.pages.dev',
+  'https://production.claw-app-2026.pages.dev',
+  'https://main.claw-app-2026.pages.dev',
+  'https://www.chenjuntrading.cn',
+  'https://chenjuntrading.cn',
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
