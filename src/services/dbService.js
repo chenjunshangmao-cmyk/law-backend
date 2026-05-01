@@ -439,8 +439,14 @@ export const createAccount = async (accountData) => {
 };
 
 export const updateAccount = async (id, updates) => {
-  const fields = Object.keys(updates);
-  const values = Object.values(updates);
+  // 生产数据库字段是 name（不是 account_name），做字段映射
+  const mappedUpdates = { ...updates };
+  if ('account_name' in mappedUpdates) {
+    mappedUpdates.name = mappedUpdates.account_name;
+    delete mappedUpdates.account_name;
+  }
+  const fields = Object.keys(mappedUpdates);
+  const values = Object.values(mappedUpdates);
   const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
   const result = await pool.query(
     `UPDATE accounts SET ${setClause} WHERE id = $1 RETURNING *`,

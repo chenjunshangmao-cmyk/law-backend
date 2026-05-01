@@ -62,7 +62,7 @@ router.get('/', authenticateToken, async (req, res) => {
       const result = {
         id: a.id,
         platform: a.platform,
-        name: a.name || a.name; a.account_name,
+        name: a.name,
         username: data.username || null,
         accountId,  // ✅ 浏览器自动化需要
         status: data.status || 'active',
@@ -154,7 +154,7 @@ router.post('/', authenticateToken, validateAccountCreate, async (req, res) => {
     const safeAccount = {
       id: newAccount.id,
       platform: newAccount.platform,
-      name: newAccount.name || newAccount.name; newAccount.account_name,
+      name: newAccount.name,
       username: newAccount.account_data?.username || null,
       status: newAccount.account_data?.status || 'active',
       createdAt: newAccount.created_at
@@ -182,7 +182,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     const safeAccount = {
       id: account.id,
       platform: account.platform,
-      name: account.name; account.account_name,
+      name: account.name,
       username: account.account_data?.username || null,
       status: account.account_data?.status || 'active',
       createdAt: account.created_at
@@ -229,7 +229,7 @@ router.put('/:id', authenticateToken, validateAccountUpdate, async (req, res) =>
     const safeAccount = {
       id: updatedAccount.id,
       platform: updatedAccount.platform,
-      name: updatedAccount.name; updatedAccount.account_name,
+      name: updatedAccount.name,
       username: updatedAccount.account_data?.username || null,
       status: updatedAccount.account_data?.status || 'active'
     };
@@ -284,7 +284,7 @@ router.post('/:id/cookies', authenticateToken, validateCookies, async (req, res)
       data: {
         id: updatedAccount.id,
         platform: updatedAccount.platform,
-        name: updatedAccount.name; updatedAccount.account_name,
+        name: updatedAccount.name,
         cookiesUpdated: true
       }
     });
@@ -317,7 +317,7 @@ router.post('/:id/test', authenticateToken, validateAccountTest, async (req, res
       success: true, 
       data: {
         platform: account.platform,
-        name: account.name; account.account_name,
+        name: account.name,
         connected: testResult.success,
         message: testResult.message,
         testedAt: new Date()
@@ -766,7 +766,7 @@ router.post('/ozon-authorize', authenticateToken, async (req, res) => {
     if (duplicate) {
       return res.status(409).json({
         success: false,
-        error: `已存在相同 Client ID 的 OZON 账号「${duplicate.name; duplicate.account_name}」`,
+        error: `已存在相同 Client ID 的 OZON 账号「${duplicate.name}」`,
         code: 'DUPLICATE_ACCOUNT',
         existingAccountId: duplicate.id,
       });
@@ -802,7 +802,7 @@ router.post('/ozon-authorize', authenticateToken, async (req, res) => {
       data: {
         id: newAccount.id,
         platform: 'ozon',
-        name: newAccount.name; newAccount.account_name,
+        name: newAccount.name,
         status: 'active',
         clientId,
         authedAt: new Date().toISOString(),
@@ -1001,7 +1001,7 @@ router.post('/xiaohongshu-login/wait', authenticateToken, async (req, res) => {
       // 自动在统一账号系统中创建/更新记录
       const existingAccounts = await getAccountsByUser(req.userId);
       const existing = existingAccounts.find(
-        a => a.platform === 'xiaohongshu' && (a.account_data?.username === accountId || a.name; a.account_name === accountId)
+        a => a.platform === 'xiaohongshu' && (a.account_data?.username === accountId || a.name === accountId)
       );
 
       if (!existing) {

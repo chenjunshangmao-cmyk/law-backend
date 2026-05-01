@@ -97,7 +97,7 @@ router.get('/list-accounts', checkAdminKey, async (req, res) => {
       email: user.email,
       accounts: accounts.map(a => ({
         id: a.id,
-        name: a.account_name,
+        name: a.name,
         platform: a.platform,
         clientId: a.account_data?.clientId,
         createdAt: a.created_at,
