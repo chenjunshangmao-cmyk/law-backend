@@ -416,8 +416,11 @@ export const createAccount = async (accountData) => {
   const { user_id, platform, account_name, account_data = {} } = accountData;
   const name = account_name || accountData.username || '';
   
+  // 生成唯一 ID（accounts 表的 id 是 VARCHAR(64) PRIMARY KEY，非自增，必须手动提供）
+  const id = `${platform}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+  
   if (useMemoryMode) {
-    const id = String(memoryStore.idCounters.accounts++);
+    // 内存模式也使用相同的 ID 格式（保持一致性）
     const newAccount = {
       id,
       user_id: String(user_id),
@@ -432,8 +435,8 @@ export const createAccount = async (accountData) => {
   }
   
   const result = await pool.query(
-    'INSERT INTO accounts (user_id, platform, name, account_data) VALUES ($1, $2, $3, $4) RETURNING *',
-    [user_id, platform, name, JSON.stringify(account_data)]
+    'INSERT INTO accounts (id, user_id, platform, name, account_data) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+    [id, user_id, platform, name, JSON.stringify(account_data)]
   );
   return result.rows[0];
 };
