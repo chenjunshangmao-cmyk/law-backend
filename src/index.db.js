@@ -32,6 +32,7 @@ import customerServiceRoutes from './routes/customerService.js';
 import paymentRoutes from './routes/payment.db.js';
 import shouqianbaRoutes from './routes/shouqianba.db.js';
 import xiaohongshuRoutes from './routes/xiaohongshu.js';
+import ozonPublishRoutes from './routes/ozonPublish.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -203,6 +204,9 @@ app.use('/api/shouqianba', shouqianbaRoutes);
 
 // 小红书
 app.use('/api/xiaohongshu', xiaohongshuRoutes);
+
+// OZON 智能发布
+app.use('/api/ozon-publish', ozonPublishRoutes);
 
 // 发布任务队列（OpenClaw 客服自动执行）
 import publishQueueRoutes from './routes/publishQueue.js';
