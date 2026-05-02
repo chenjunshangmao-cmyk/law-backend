@@ -298,8 +298,7 @@ router.post('/checkin', async (req, res) => {
   }
 });
 
-// 创建支付订单（WAP跳转支付 - C扫B方案）
-// 参考：收钱吧C扫B最佳实践文档，用户扫码 → H5页面 → 点击支付按钮 → 唤起支付
+// 创建支付订单（WAP跳转支付 - 调用收钱吧 REST API）
 router.post('/create-order', async (req, res) => {
   try {
     const { deviceId = config.defaultDeviceId, clientSn, totalAmount, subject, userId } = req.body || {};
@@ -316,52 +315,59 @@ router.post('/create-order', async (req, res) => {
     }
     const terminal = getTerminal(deviceId || config.defaultDeviceId);
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活，请先调用 /activate' });
+
     const baseUrl = process.env.RENDER_EXTERNAL_URL || (req.protocol + '://' + req.get('host'));
-
-    // return_url：不带 query 参数，避免 ? = 等特殊字符破坏 WAP 签名计算
-    // 收钱吧回调时会自动在 URL 中追加 client_sn 等参数
     const frontendBase = process.env.FRONTEND_URL || 'https://claw-app-2026.pages.dev';
-    const return_url = frontendBase + '/payment-result';
+    const amountFen = String(Math.round(Number(totalAmount) * 100));
 
-    // WAP支付参数（C扫B方案）
-    // 用户手机扫码进入H5页面 → 点击支付按钮 → 唤起微信/支付宝
+    // 构建请求参数
     const requestParams = {
       terminal_sn: terminal.terminalSn,
       client_sn: clientSn,
-      total_amount: String(Math.round(Number(totalAmount) * 100)), // 金额（元→分，乘100）
+      total_amount: amountFen,
       subject: subject || 'Claw会员',
-      return_url, // 直接传前端 URL，收钱吧跳转后由前端页面查询订单状态
-      notify_url: baseUrl + '/api/shouqianba/notify', // 服务器异步回调
-      operator: 'claw_admin'
+      return_url: frontendBase + '/payment-result',
+      notify_url: baseUrl + '/api/shouqianba/notify'
     };
 
-    // WAP签名：参数排序 + &key= + MD5 + 大写
-    // return_url 里的 ? 会被 encodeURIComponent 编码，不会干扰网关解析
+    // WAP签名字段在请求体中（不是 Authorization header）
     const sign = wapSign(requestParams, terminal.terminalKey);
-    const signedParams = { ...requestParams, sign, sign_type: 'MD5' };
+    const body = { ...requestParams, sign, sign_type: 'MD5' };
 
-    // 构建支付链接
-    const gatewayUrl = 'https://m.wosai.cn/qr/gateway';
-    const queryString = Object.keys(signedParams)
-      .sort()
-      .map(k => `${k}=${encodeURIComponent(signedParams[k])}`)
-      .join('&');
-    const payUrl = gatewayUrl + '?' + queryString;
+    console.log('[收钱吧] 调用 /upay/v2/wap2:', JSON.stringify(body));
+
+    // POST 到收钱吧 REST API 获取支付链接
+    const { default: axios } = await import('axios');
+    const apiResp = await axios.post(config.apiBase + '/upay/v2/wap2', JSON.stringify(body), {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 30000
+    });
+    const result = apiResp.data;
+    console.log('[收钱吧] wap2 响应:', JSON.stringify(result));
+
+    if (result.result_code !== '200') {
+      const errMsg = result.error_message || result.return_msg || '创建支付订单失败';
+      console.error('[收钱吧] wap2 失败:', errMsg, 'code:', result.result_code);
+      return res.status(400).json({ success: false, error: errMsg, code: result.result_code });
+    }
+
+    const payUrl = result.pay_url || result.biz_response?.pay_url;
+    if (!payUrl) {
+      return res.status(500).json({ success: false, error: '收钱吧未返回支付链接' });
+    }
 
     // 持久化订单（本地文件）
     saveOrder({
-      clientSn, sn: clientSn,
+      clientSn, sn: result.sn || clientSn,
       orderStatus: 'CREATED', status: 'CREATED',
       totalAmount: Number(totalAmount),
       subject, payUrl,
       createdAt: Date.now()
     });
 
-    // 如果有 userId，同时写入 payment_orders 表，使回调能自动升级会员
+    // 写入 payment_orders 表
     if (userId && planType) {
       try {
-        // amount 存分（totalAmount 是元，乘100转分）
-        const amountFen = Math.round(Number(totalAmount) * 100);
         await pool.query(`
           INSERT INTO payment_orders (order_no, user_id, amount, plan_type, status, created_at)
           VALUES ($1, $2, $3, $4, 'pending', NOW())
@@ -369,26 +375,28 @@ router.post('/create-order', async (req, res) => {
             user_id = EXCLUDED.user_id,
             plan_type = EXCLUDED.plan_type,
             status = 'pending'
-        `, [clientSn, userId, amountFen, planType]);
-        console.log('[收钱吧] 已写入 payment_orders 表: order_no=' + clientSn + ', user=' + userId + ', amount=' + amountFen + '分');
+        `, [clientSn, userId, parseInt(amountFen), planType]);
       } catch (dbErr) {
         console.error('[收钱吧] 写入 payment_orders 表失败:', dbErr.message);
       }
     }
 
-    console.log('[收钱吧] WAP支付URL已生成');
+    console.log('[收钱吧] ✅ 支付链接生成:', payUrl);
     res.json({
       success: true,
       data: {
-        sn: clientSn,
+        sn: result.sn || clientSn,
         clientSn,
-        totalAmount: Math.round(Number(totalAmount) * 100), // 转成分（与收钱吧一致），前端 /100 显示
-        payUrl,              // 支付链接（前端生成二维码供用户扫码）
+        totalAmount: parseInt(amountFen),
+        payUrl
       }
     });
   } catch (err) {
-    console.error('创建支付订单失败:', err);
-    res.status(500).json({ success: false, error: '创建订单失败: ' + (err.message || String(err)), stack: err.stack });
+    console.error('[收钱吧] 创建支付订单失败:', err.message);
+    if (err.response) {
+      console.error('[收钱吧] API错误:', JSON.stringify(err.response.data));
+    }
+    res.status(500).json({ success: false, error: '创建订单失败: ' + (err.response?.data?.error_message || err.message) });
   }
 });
 
