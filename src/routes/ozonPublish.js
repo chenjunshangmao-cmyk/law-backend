@@ -17,6 +17,136 @@ import { createOzonClient, importProduct, importPictures, getImportInfo, getCate
 import { authenticateToken } from '../middleware/auth.js';
 import { getAccountById } from '../services/dbService.js';
 
+// 1688 产品数据提取脚本（注入到页面 DOM 读取）
+const JINHUO1688_SCRIPT = `
+() => {
+  const tryExtract = () => {
+    // 方式1：从 __INIT_DATA__ 等全局变量提取
+    const keys = Object.keys(window).filter(k => k.includes('data') || k.includes('D') || k.includes('init'));
+    for (const k of keys) {
+      try {
+        const v = window[k];
+        if (v && typeof v === 'object') {
+          const str = JSON.stringify(v);
+          if (str.includes('price') && str.includes('offer') && str.length < 500000) {
+            const parsed = JSON.parse(str);
+            // 尝试找 offer 列表
+            const offers = parsed.data?.offerList || parsed.offerList || parsed.result?.offerList || [];
+            if (offers.length > 0) {
+              const o = offers[0];
+              return {
+                title: o.subject || o.title || o.name || '',
+                price: parseFloat(o.price || o.amount || '0') || null,
+                description: o.description || '',
+                images: (o.imageList || o.images || []).map(i => typeof i === 'string' ? i : (i.url || i.src || i.originalUrl || '')).filter(Boolean),
+                skuId: o.id || o.offerId || '',
+              };
+            }
+          }
+        }
+      } catch(e) {}
+    }
+
+    // 方式2：从 meta og:title 等标签提取（兜底）
+    const getMeta = (prop) => {
+      const el = document.querySelector(\`meta[property="\${prop}"], meta[name="\${prop}"]\`);
+      return el ? el.getAttribute('content') : '';
+    };
+
+    const title = getMeta('og:title') || document.title.replace(/.*1688.*/, '').trim() || document.title.split('-')[0].trim();
+    const price = (() => {
+      const el = document.querySelector('.price-value, .ma-spec-price, #mod-detail-price, .price');
+      if (el) {
+        const txt = el.textContent;
+        const m = txt.match(/[\\d,.]+/);
+        return m ? parseFloat(m[0].replace(/,/g, '')) : null;
+      }
+      return null;
+    })();
+    const description = getMeta('description');
+    const images = [...document.querySelectorAll('img')]
+      .map(img => img.src || img.getAttribute('data-src') || img.getAttribute('data-original'))
+      .filter(s => s && !s.includes('icon') && !s.includes('logo') && s.length > 60 && (s.includes('alicdn') || s.includes('1688') || s.includes('taobao')))
+      .slice(0, 15);
+
+    return { title, price, description, images, skuId: '' };
+  };
+
+  return tryExtract();
+}
+`;
+
+// Playwright 渲染抓取（1688 等动态页面必须）
+async function fetchWithPlaywright(url) {
+  const playwright = await import('playwright');
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'zh-CN,zh;q=0.9' });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.waitForTimeout(3000); // 等待 JS 渲染
+    const data = await page.evaluate(JINHUO1688_SCRIPT);
+    return data;
+  } catch (err) {
+    console.error('[OZON] Playwright fetch error:', err.message);
+    return null;
+  } finally {
+    if (browser) await browser.close();
+  }
+}
+
+// 普通 fetch（静态页面）
+async function fetchUrlContent(url) {
+  const resp = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,*/*',
+      'Accept-Language': 'zh-CN,zh;q=0.9',
+    },
+  });
+  return await resp.text();
+}
+
+// 从 HTML 提取产品信息（静态页面）
+function extractProductFromHtml(html, url) {
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i);
+  const title = (ogTitleMatch?.[1] || titleMatch?.[1] || '').replace(/[-_|–].*$/, '').trim();
+
+  const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
+  const ogDescMatch = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i);
+  const description = (ogDescMatch?.[1] || descMatch?.[1] || '').trim();
+
+  const images = [];
+  const imgRegex = /(?:src|data-src|data-original)=["'](https?:\/\/[^"']+\.(?:jpg|jpeg|png|webp)(?:\?[^"']*)?)/gi;
+  let imgMatch;
+  while ((imgMatch = imgRegex.exec(html)) !== null && images.length < 15) {
+    const imgUrl = imgMatch[1];
+    if (imgUrl.includes('icon') || imgUrl.includes('logo') || imgUrl.includes('avatar')) continue;
+    if (imgUrl.length < 40) continue;
+    if (!images.some(i => i.replace(/\?.*$/, '') === imgUrl.replace(/\?.*$/, ''))) {
+      images.push(imgUrl);
+    }
+  }
+
+  const priceText = html.match(/(?:price| Price|价格|优惠价)["'\s:]*[>"]?\s*(?:¥|￥|\$)?\s*([\d,.]+)/i);
+  const price = priceText ? parseFloat(priceText[1].replace(/,/g, '')) : null;
+
+  let platform = 'unknown';
+  if (url.includes('1688.com')) platform = '1688';
+  else if (url.includes('taobao.com') || url.includes('tmall.com')) platform = 'taobao';
+  else if (url.includes('jd.com')) platform = 'jd';
+  else if (url.includes('pinduoduo.com') || url.includes('yangkeduo.com')) platform = 'pdd';
+  else if (url.includes('amazon.')) platform = 'amazon';
+  else if (url.includes('aliexpress.com')) platform = 'aliexpress';
+  else if (url.includes('shein.com')) platform = 'shein';
+  else if (url.includes('temu.com')) platform = 'temu';
+  else if (url.includes('etsy.com')) platform = 'etsy';
+
+  return { title, description, images, price, platform };
+}
+
 /**
  * 解密辅助函数（与 accounts.db.js 中的 encrypt/decrypt 对应）
  */
@@ -179,37 +309,55 @@ router.post('/ai/fetch-product', async (req, res) => {
   try {
     const { url } = req.body || {};
     if (!url) {
-      return res.status(400).json({ success: false, error: 'Please provide a product URL' });
+      return res.status(400).json({ success: false, error: '请提供商品链接' });
     }
 
-    const html = await fetchUrlContent(url);
-    const product = extractProductFromHtml(html, url);
-    product.sourceUrl = url;
+    let product;
+    let imageUrls = [];
 
-    if (!product.title) {
-      return res.status(400).json({ success: false, error: 'Cannot extract product info' });
-    }
-
-    const base64Images = [];
-    const imageUrls = [];
-    for (const imgUrl of product.images.slice(0, 15)) {
-      const b64 = await downloadImageToBase64(imgUrl);
-      if (b64) {
-        base64Images.push(b64);
-        imageUrls.push(imgUrl);
+    // 1688 / 动态渲染页面 → Playwright
+    if (url.includes('1688.com') || url.includes('yiwugo.com')) {
+      product = await fetchWithPlaywright(url);
+      if (!product) {
+        return res.status(500).json({ success: false, error: '1688页面渲染失败，请确认网络环境' });
       }
+      imageUrls = product.images || [];
+    } else {
+      // 静态页面 → 普通 fetch
+      const html = await fetchUrlContent(url);
+      product = extractProductFromHtml(html, url);
+      product.sourceUrl = url;
+      imageUrls = product.images || [];
+    }
+
+    // 兜底：仍未提取到标题
+    if (!product.title) {
+      return res.status(400).json({
+        success: false,
+        error: '无法从该页面提取商品信息，可能是动态渲染页面或需要登录。请尝试直接填写商品信息，或粘贴1688商品页面。',
+        hint: '支持：1688/淘宝/天猫/京东/亚马逊/速卖通/Shein/Temu 等平台'
+      });
+    }
+
+    // 图片转 base64（最多15张）
+    const base64Images = [];
+    for (const imgUrl of imageUrls.slice(0, 15)) {
+      if (!imgUrl) continue;
+      const b64 = await downloadImageToBase64(imgUrl);
+      if (b64) base64Images.push(b64);
     }
 
     res.json({
       success: true,
       data: {
         title: product.title,
-        description: product.description,
+        description: product.description || '',
         price: product.price,
-        platform: product.platform,
+        platform: product.platform || 'unknown',
         sourceUrl: url,
         images: base64Images,
-        imageUrls: imageUrls,
+        imageUrls,
+        skuId: product.skuId || '',
       },
     });
   } catch (error) {
