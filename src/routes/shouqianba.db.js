@@ -318,11 +318,10 @@ router.post('/create-order', async (req, res) => {
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活，请先调用 /activate' });
     const baseUrl = process.env.RENDER_EXTERNAL_URL || (req.protocol + '://' + req.get('host'));
 
-    // return_url 简化：只传前端域名，不带 ?clientSn 参数
-    // 收钱吧扫码页点击"完成"后直接跳前端，避免 return_url 复杂导致白屏
-    // clientSn 通过 notify_url 异步回调来处理（订单在 payment_orders 表已创建）
+    // return_url：不带 query 参数，避免 ? = 等特殊字符破坏 WAP 签名计算
+    // 收钱吧回调时会自动在 URL 中追加 client_sn 等参数
     const frontendBase = process.env.FRONTEND_URL || 'https://claw-app-2026.pages.dev';
-    const return_url = frontendBase + '/payment-result?clientSn=' + clientSn;
+    const return_url = frontendBase + '/payment-result';
 
     // WAP支付参数（C扫B方案）
     // 用户手机扫码进入H5页面 → 点击支付按钮 → 唤起微信/支付宝
@@ -544,17 +543,68 @@ router.post('/refund', async (req, res) => {
   }
 });
 
+/**
+ * WAP支付回调 MD5 验签（与 payment.db.js 完全一致）
+ * 规则：排除 sign/sign_type，按 key 字典序拼接，末尾加 &key=terminalKey，MD5大写
+ */
+function verifyWapSign(params, terminalKey) {
+  const filtered = { ...params };
+  delete filtered.sign;
+  delete filtered.sign_type;
+  const sortedKeys = Object.keys(filtered).sort();
+  const pairs = sortedKeys.map(k => `${k}=${filtered[k]}`);
+  const signStr = pairs.join('&') + '&key=' + terminalKey;
+  return crypto.createHash('md5').update(signStr).digest('hex').toUpperCase();
+}
+
 // 回调通知（收钱吧主动推送支付结果）
 router.post('/notify', async (req, res) => {
   try {
-    const bodyStr = JSON.stringify(req.body);
+    const data = req.body;
+    const bodyStr = JSON.stringify(data);
     const sign = req.headers['authorization'];
-    const isValid = await verifyRsaSign(bodyStr, sign);
+
+    // 双重验签：先 RSA，失败则尝试 MD5（WAP 支付用 terminalKey MD5 签名）
+    let isValid = await verifyRsaSign(bodyStr, sign);
+
     if (!isValid) {
-      console.error('[收钱吧] 回调验签失败');
+      // RSA 失败 → 尝试 MD5（WAP 支付回调使用 terminalKey 签名）
+      // MD5 回调的 sign 可能在 body 字段 data.sign 而非 Authorization header
+      const md5Sign = sign || data.sign || '';
+      console.log('[收钱吧] RSA验签失败，尝试 WAP MD5 验签...');
+      const terminalSn = data.terminal_sn;
+      let terminalKeyForVerify = null;
+
+      // 从终端缓存获取 terminalKey
+      if (terminalSn) {
+        for (const [deviceId, t] of Object.entries(terminalCache)) {
+          if (t.terminalSn === terminalSn && t.terminalKey) {
+            terminalKeyForVerify = t.terminalKey;
+            break;
+          }
+        }
+        if (!terminalKeyForVerify) {
+          terminalKeyForVerify = '96bfaf401367d934cb10a1cbe9773647';
+          console.log('[收钱吧] 使用硬编码 terminalKey 验签');
+        }
+      }
+
+      if (terminalKeyForVerify) {
+        const expectedSign = verifyWapSign(data, terminalKeyForVerify);
+        if (expectedSign === md5Sign.toUpperCase()) {
+          isValid = true;
+          console.log('[收钱吧] WAP MD5 验签通过');
+        } else {
+          console.log('[收钱吧] WAP MD5 验签也失败，sign=' + md5Sign + ', expected=' + expectedSign);
+        }
+      }
+    }
+
+    if (!isValid) {
+      console.error('[收钱吧] 回调验签失败（RSA+MD5双重失败）');
       return res.status(403).send('fail');
     }
-    const data = req.body;
+
     console.log('[收钱吧] 回调收到:', JSON.stringify(data));
 
     // 保存本地订单状态（供前端轮询）并持久化到文件
