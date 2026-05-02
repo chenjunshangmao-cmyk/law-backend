@@ -260,13 +260,28 @@ router.post('/ai/fetch-product', async (req, res) => {
     let product;
     let imageUrls = [];
 
-    // 1688 / 动态渲染页面 → Playwright
+    // 1688 / 动态渲染页面 → 先尝试 Playwright，失败降级到静态抓取
     if (url.includes('1688.com') || url.includes('yiwugo.com')) {
-      product = await fetchWithPlaywright(url);
-      if (!product) {
-        return res.status(500).json({ success: false, error: '1688页面渲染失败，请确认网络环境' });
+      try {
+        product = await fetchWithPlaywright(url);
+      } catch (pwErr) {
+        console.warn('[OZON] Playwright failed, falling back to static fetch:', pwErr.message);
+        product = null;
       }
-      imageUrls = product.images || [];
+      if (!product) {
+        // 降级：静态抓取
+        console.log('[OZON] Falling back to static fetch for', url);
+        const html = await fetchUrlContent(url);
+        product = extractProductFromHtml(html, url);
+      }
+      imageUrls = product?.images || [];
+      if (!product?.title) {
+        return res.status(400).json({
+          success: false,
+          error: '无法从该1688页面提取商品信息，请手动填写商品信息。',
+          hint: '支持：1688商品链接，或手动填写商品标题/价格/图片'
+        });
+      }
     } else {
       // 静态页面 → 普通 fetch
       const html = await fetchUrlContent(url);
