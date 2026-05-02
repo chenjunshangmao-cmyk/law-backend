@@ -246,62 +246,7 @@ async function downloadImageToBase64(imageUrl) {
   }
 }
 
-/**
- * 通用网页抓取
- */
-async function fetchUrlContent(url) {
-  const resp = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,*/*',
-      'Accept-Language': 'zh-CN,zh;q=0.9',
-    },
-  });
-  return await resp.text();
-}
 
-/**
- * 从 HTML 提取产品信息
- */
-function extractProductFromHtml(html, url) {
-  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i);
-  const title = (ogTitleMatch?.[1] || titleMatch?.[1] || '').replace(/[-_|–].*$/, '').trim();
-
-  const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
-  const ogDescMatch = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i);
-  const description = (ogDescMatch?.[1] || descMatch?.[1] || '').trim();
-
-  const images = [];
-  const imgRegex = /(?:src|data-src|data-original)=["'](https?:\/\/[^"']+\.(?:jpg|jpeg|png|webp)(?:\?[^"']*)?)/gi;
-  let imgMatch;
-  while ((imgMatch = imgRegex.exec(html)) !== null && images.length < 15) {
-    const imgUrl = imgMatch[1];
-    if (imgUrl.includes('icon') || imgUrl.includes('logo') || imgUrl.includes('avatar')) continue;
-    if (imgUrl.length < 40) continue;
-    if (!images.some(i => i.replace(/\?.*$/, '') === imgUrl.replace(/\?.*$/, ''))) {
-      images.push(imgUrl);
-    }
-  }
-
-  const priceText = html.match(/(?:price| Price|价格|优惠价)["'\s:]*[>"]?\s*(?:¥|￥|\$)?\s*([\d,.]+)/i);
-  const price = priceText ? parseFloat(priceText[1].replace(/,/g, '')) : null;
-
-  let platform = 'unknown';
-  if (url.includes('1688.com')) platform = '1688';
-  else if (url.includes('taobao.com') || url.includes('tmall.com')) platform = 'taobao';
-  else if (url.includes('jd.com')) platform = 'jd';
-  else if (url.includes('pinduoduo.com') || url.includes('yangkeduo.com')) platform = 'pdd';
-  else if (url.includes('amazon.')) platform = 'amazon';
-  else if (url.includes('aliexpress.com')) platform = 'aliexpress';
-  else if (url.includes('shein.com')) platform = 'shein';
-  else if (url.includes('temu.com')) platform = 'temu';
-  else if (url.includes('etsy.com')) platform = 'etsy';
-
-  return { title, description, images, price, platform };
-}
-
-// =============================================================
 // 1. 产品链接抓取
 // POST /api/ozon-publish/ai/fetch-product
 // =============================================================
