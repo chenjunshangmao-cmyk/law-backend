@@ -76,24 +76,121 @@ const JINHUO1688_SCRIPT = `
 }
 `;
 
-// Playwright 渲染抓取（1688 等动态页面必须）
+// Playwright 渲染抓取（备用，Render 上可能不可用）
 async function fetchWithPlaywright(url) {
-  const playwright = await import('playwright');
-  let browser;
   try {
-    browser = await playwright.chromium.launch({ headless: true });
-    const page = await browser.newPage();
-    await page.setExtraHTTPHeaders({ 'Accept-Language': 'zh-CN,zh;q=0.9' });
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-    await page.waitForTimeout(3000); // 等待 JS 渲染
-    const data = await page.evaluate(JINHUO1688_SCRIPT);
-    return data;
+    const playwright = await import('playwright');
+    let browser;
+    try {
+      browser = await playwright.chromium.launch({ headless: true });
+      const page = await browser.newPage();
+      await page.setExtraHTTPHeaders({ 'Accept-Language': 'zh-CN,zh;q=0.9' });
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await page.waitForTimeout(3000);
+      const data = await page.evaluate(JINHUO1688_SCRIPT);
+      return data;
+    } finally {
+      if (browser) await browser.close();
+    }
   } catch (err) {
     console.error('[OZON] Playwright fetch error:', err.message);
     return null;
-  } finally {
-    if (browser) await browser.close();
   }
+}
+
+// 从 HTML 源码直接提取 1688 嵌入的 JSON 数据（无需浏览器，服务器端直接解析）
+async function fetch1688FromEmbeddedJson(url) {
+  const html = await fetchUrlContent(url);
+  // 1688 在 script 标签里嵌入 JSON 数据
+  // 匹配各种可能的变量名：__INIT_DATA__, __DETAIL_DATA__, data =, window.__...
+  const jsonPatterns = [
+    /window\.__INIT_DATA__\s*=\s*({[\s\S]*?})\s*;?\s*<\/script>/i,
+    /window\.__DETAIL_DATA__\s*=\s*({[\s\S]*?})\s*;?\s*<\/script>/i,
+    /var\s+data\s*=\s*({[\s\S]*?})\s*;?\s*<\/script>/i,
+    /data\s*=\s*({[\s\S]*?})\s*;?\s*<\/script>/i,
+    /"offerDetailModel"\s*:\s*({[\s\S]*?})\s*[,}]/,
+  ];
+
+  let parsedData = null;
+  for (const pattern of jsonPatterns) {
+    const match = html.match(pattern);
+    if (match) {
+      try {
+        parsedData = JSON.parse(match[1]);
+        break;
+      } catch (e) {
+        // 尝试修复不完整的 JSON
+        try {
+          // 尝试截取到第一个完整的闭合对象
+          let jsonStr = match[1];
+          let depth = 0;
+          let end = 0;
+          for (let i = 0; i < jsonStr.length; i++) {
+            if (jsonStr[i] === '{') depth++;
+            else if (jsonStr[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
+          }
+          if (end > 0) {
+            parsedData = JSON.parse(jsonStr.substring(0, end));
+            break;
+          }
+        } catch (e2) {}
+      }
+    }
+  }
+
+  if (!parsedData) {
+    // 备用：直接搜索包含价格和标题的 JSON 片段
+    const priceBlockMatch = html.match(/"(price|amount|currentPrice)"["\s:]+[\d.]+/i);
+    if (priceBlockMatch) {
+      // 尝试提取周围 2000 字符的 JSON
+      const pos = html.indexOf(priceBlockMatch[0]);
+      const snippet = html.substring(Math.max(0, pos - 500), Math.min(html.length, pos + 2000));
+      try {
+        // 找最近的 { }
+        const objMatch = snippet.match(/\{[\s\S]*"price"[\s\S]*\}/);
+        if (objMatch) parsedData = JSON.parse(objMatch[0]);
+      } catch (e) {}
+    }
+  }
+
+  if (parsedData) {
+    // 递归查找 offer / product / item
+    const findOffer = (obj) => {
+      if (!obj || typeof obj !== 'object') return null;
+      if (obj.offer || obj.product || obj.item) {
+        return obj.offer || obj.product || obj.item;
+      }
+      for (const key of Object.keys(obj)) {
+        const v = obj[key];
+        if (Array.isArray(v) && v.length > 0) {
+          const first = v[0];
+          if (first && typeof first === 'object' && (first.price || first.subject || first.title)) {
+            return first;
+          }
+        }
+        if (typeof v === 'object') {
+          const found = findOffer(v);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const offer = findOffer(parsedData) || parsedData;
+    if (offer) {
+      return {
+        title: offer.subject || offer.title || offer.name || offer.productName || '',
+        price: parseFloat(offer.price || offer.currentPrice || offer.amount || offer.salePrice || '0') || null,
+        description: offer.description || '',
+        images: (offer.imageList || offer.images || offer.picUrlList || [])
+          .map(i => typeof i === 'string' ? i : (i.url || i.src || i.originalUrl || ''))
+          .filter(Boolean),
+        skuId: offer.id || offer.offerId || offer.skuId || '',
+      };
+    }
+  }
+
+  return null;
 }
 
 // 普通 fetch（静态页面）
@@ -260,17 +357,21 @@ router.post('/ai/fetch-product', async (req, res) => {
     let product;
     let imageUrls = [];
 
-    // 1688 / 动态渲染页面 → 先尝试 Playwright，失败降级到静态抓取
+    // 1688 / 动态渲染页面 → 先从 HTML 嵌入 JSON 提取，失败再降级
     if (url.includes('1688.com') || url.includes('yiwugo.com')) {
-      try {
-        product = await fetchWithPlaywright(url);
-      } catch (pwErr) {
-        console.warn('[OZON] Playwright failed, falling back to static fetch:', pwErr.message);
-        product = null;
+      // 首选：直接解析 HTML 嵌入的 JSON 数据（无需浏览器，服务器端即可）
+      product = await fetch1688FromEmbeddedJson(url);
+      if (!product?.title) {
+        // 降级：尝试 Playwright 动态渲染
+        try {
+          const pwResult = await fetchWithPlaywright(url);
+          if (pwResult?.title) product = pwResult;
+        } catch (pwErr) {
+          console.warn('[OZON] Playwright also failed:', pwErr.message);
+        }
       }
-      if (!product) {
-        // 降级：静态抓取
-        console.log('[OZON] Falling back to static fetch for', url);
+      if (!product?.title) {
+        // 再次降级：静态 HTML 提取
         const html = await fetchUrlContent(url);
         product = extractProductFromHtml(html, url);
       }
