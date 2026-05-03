@@ -1,0 +1,59 @@
+{
+  "tasks": [
+    {
+      "id": "1",
+      "title": "收钱吧支付修复",
+      "assignedTo": "WorkBuddy",
+      "status": "blocked",
+      "statusText": "待激活码",
+      "detail": "终端100111220054389553状态异常，需联系收钱吧客服获取新激活码",
+      "createdAt": "2026-05-03T02:43:00Z",
+      "updatedAt": "2026-05-03T02:43:00Z"
+    },
+    {
+      "id": "2",
+      "title": "HermesAgent 部署",
+      "assignedTo": "WorkBuddy",
+      "status": "done",
+      "statusText": "已完成",
+      "detail": "重建venv、安装依赖、配置本地环境、创建桌面快捷方式",
+      "createdAt": "2026-05-03T10:51:00Z",
+      "updatedAt": "2026-05-03T19:41:00Z"
+    },
+    {
+      "id": "3",
+      "title": "HermesAgent 完整版启动",
+      "assignedTo": "WorkBuddy",
+      "status": "done",
+      "statusText": "已启动",
+      "detail": "18个工具全部启用，支持读文件/执行命令/浏览器操作",
+      "createdAt": "2026-05-03T19:35:00Z",
+      "updatedAt": "2026-05-03T19:39:00Z"
+    },
+    {
+      "id": "4",
+      "title": "钉钉对接设置",
+      "assignedTo": "WorkBuddy",
+      "status": "waiting",
+      "statusText": "等用户给API",
+      "detail": "等用户从钉钉开放平台取 AppKey 和 AppSecret",
+      "createdAt": "2026-05-03T19:50:00Z",
+      "updatedAt": "2026-05-03T19:50:00Z"
+    },
+    {
+      "id": "5",
+      "title": "三智能体协作看板",
+      "assignedTo": "WorkBuddy",
+      "status": "done",
+      "statusText": "已完成",
+      "detail": "可视化看板已上线 http://192.168.3.102:8802/dashboard.html，每30秒刷新",
+      "createdAt": "2026-05-03T20:04:00Z",
+      "updatedAt": "2026-05-03T20:06:00Z"
+    }
+  ],
+  "agents": [
+    {"name": "WorkBuddy", "role": "总指挥", "status": "online", "lastActive": "2026-05-03T20:04:00Z"},
+    {"name": "HermesAgent", "role": "前线干活", "status": "online", "lastActive": "2026-05-03T19:39:00Z"},
+    {"name": "OpenClaw", "role": "自动化跑腿", "status": "idle", "lastActive": "2026-05-03T03:00:00Z"}
+  ]
+}

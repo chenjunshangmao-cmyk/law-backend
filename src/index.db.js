@@ -202,6 +202,26 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/webhook', paymentRoutes);
 app.use('/api/shouqianba', shouqianbaRoutes);
 
+// AI团队协作看板（公开访问）
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const _teamDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../team');
+app.get('/team/tasks.json', (_req, res) => {
+  const tasksFile = path.join(_teamDir, 'tasks.json');
+  if (fs.existsSync(tasksFile)) {
+    res.sendFile(tasksFile);
+  } else {
+    res.status(404).json({ error: 'tasks.json not found' });
+  }
+});
+app.get('/team/dashboard', (_req, res) => {
+  res.sendFile(path.join(_teamDir, 'dashboard.html'));
+});
+app.get('/team', (_req, res) => {
+  res.redirect('/team/dashboard');
+});
+
 // 小红书
 // 小红书
 app.use('/api/xiaohongshu', xiaohongshuRoutes);

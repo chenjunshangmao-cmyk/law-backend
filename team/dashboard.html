@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI团队看板</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,system-ui,sans-serif;background:#0f172a;color:#e2e8f0;padding:16px;max-width:480px;margin:0 auto}
+h1{font-size:20px;text-align:center;margin-bottom:12px;color:#f8fafc}
+.card{background:#1e293b;border-radius:12px;padding:14px;margin-bottom:12px}
+.agent-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #334155}
+.agent-row:last-child{border:none}
+.agent-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dot-online{background:#22c55e;box-shadow:0 0 8px #22c55e}
+.dot-idle{background:#eab308}
+.dot-offline{background:#64748b}
+.agent-name{font-weight:600;flex:1}
+.agent-role{font-size:12px;color:#94a3b8}
+.task-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #334155;font-size:13px}
+.task-row:last-child{border:none}
+.badge{font-size:10px;padding:2px 6px;border-radius:6px;font-weight:600;white-space:nowrap}
+.badge-done{background:#166534;color:#22c55e}
+.badge-progress{background:#1e3a5f;color:#3b82f6}
+.badge-wait{background:#422006;color:#f59e0b}
+.badge-block{background:#450a0a;color:#ef4444}
+.task-info{flex:1;min-width:0}
+.task-title{font-weight:500}
+.task-who{font-size:10px;color:#64748b}
+.task-detail{font-size:11px;color:#94a3b8;margin-top:2px;line-height:1.4}
+.refresh{text-align:center;font-size:11px;color:#64748b;margin-top:16px}
+#loading{text-align:center;padding:20px;color:#64748b}
+.error{background:#450a0a;color:#fca5a5;padding:12px;border-radius:8px;margin-bottom:12px;font-size:13px}
+</style>
+</head>
+<body>
+<h1>🤖 AI 团队协作看板</h1>
+<div id="loading">加载中...</div>
+<div id="content" style="display:none">
+  <div class="card"><h3 style="margin-bottom:8px;font-size:14px;color:#94a3b8">在线状态</h3><div id="agents"></div></div>
+  <div class="card"><h3 style="margin-bottom:8px;font-size:14px;color:#94a3b8">任务列表</h3><div id="tasks"></div></div>
+  <div id="error" style="display:none" class="error"></div>
+</div>
+<div class="refresh">每30秒自动刷新 | 最近更新：<span id="time">--</span></div>
+<script>
+const API = '/team/tasks.json';
+const STATUS = {
+  done:'✅ 已完成', 'in-progress':'🔄 进行中', waiting:'⏳ 等待中', blocked:'🚫 阻塞', pending:'📋 待开始'
+};
+const BADGE = {
+  done:'badge-done', 'in-progress':'badge-progress', waiting:'badge-wait', blocked:'badge-block', pending:'badge-wait'
+};
+const DOT = {online:'dot-online',idle:'dot-idle',offline:'dot-offline'};
+const DOT_LABEL = {online:'在线',idle:'空闲',offline:'离线'};
+
+async function load(){
+  try{
+    const r=await fetch(API+'?t='+Date.now());
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    document.getElementById('loading').style.display='none';
+    document.getElementById('content').style.display='block';
+    document.getElementById('error').style.display='none';
+    renderAgents(d.agents||[]);
+    renderTasks(d.tasks||[]);
+    document.getElementById('time').textContent=new Date().toLocaleTimeString('zh-CN');
+  }catch(e){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('error').style.display='block';
+    document.getElementById('error').textContent='⚠️ 无法加载数据: '+e.message;
+    document.getElementById('content').style.display='block';
+  }
+}
+
+function renderAgents(agents){
+  document.getElementById('agents').innerHTML=agents.map(a=>
+    '<div class="agent-row">'+
+    '<div class="agent-dot '+(DOT[a.status]||'dot-offline')+'"></div>'+
+    '<div class="agent-name">'+a.name+' <span style="font-size:10px;color:#64748b">'+(DOT_LABEL[a.status]||'离线')+'</span></div>'+
+    '<div class="agent-role">'+a.role+'</div>'+
+    '</div>'
+  ).join('');
+}
+
+function renderTasks(tasks){
+  var html='';
+  tasks.forEach(t=>{
+    html+='<div class="task-row">'+
+    '<span class="badge '+(BADGE[t.status]||'badge-pending')+'">'+(STATUS[t.status]||t.statusText||t.status)+'</span>'+
+    '<div class="task-info">'+
+    '<div class="task-title">'+t.title+'</div>'+
+    '<div class="task-who">负责人: '+t.assignedTo+'</div>'+
+    (t.detail?'<div class="task-detail">'+t.detail+'</div>':'')+
+    '</div></div>';
+  });
+  document.getElementById('tasks').innerHTML=html||'<div style="color:#64748b;font-size:13px">暂无任务</div>';
+}
+
+load();
+setInterval(load,30000);
+</script>
+</body>
+</html>
