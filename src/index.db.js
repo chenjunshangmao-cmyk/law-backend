@@ -203,9 +203,6 @@ app.use('/api/webhook', paymentRoutes);
 app.use('/api/shouqianba', shouqianbaRoutes);
 
 // AI团队协作看板（公开访问）
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 const _teamDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../team');
 app.get('/team/tasks.json', (_req, res) => {
   const tasksFile = path.join(_teamDir, 'tasks.json');
