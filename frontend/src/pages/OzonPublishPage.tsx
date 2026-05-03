@@ -123,6 +123,24 @@ export default function OzonPublishPage() {
   // ===== 发布 =====
   const [publishing, setPublishing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  // OZON 类目（必填）
+  const [ozonCategoryId, setOzonCategoryId] = useState('');
+  const [ozonTypeId, setOzonTypeId] = useState('');
+
+  // OZON 常用类目映射（category_id → type_id）
+  const OZON_CATEGORIES = [
+    { id: '17027610', typeId: '94609139', label: '👗 服装 (Одежда)' },
+    { id: '17027963', typeId: '94609143', label: '👟 鞋类 (Обувь)' },
+    { id: '17028144', typeId: '94609151', label: '👜 配饰 (Аксессуары)' },
+    { id: '7070727',  typeId: '95256467', label: '🏠 家居用品 (Дом)' },
+    { id: '7070733',  typeId: '95256499', label: '📱 电子产品 (Электроника)' },
+    { id: '7070735',  typeId: '95256515', label: '💄 美妆健康 (Красота)' },
+    { id: '7070741',  typeId: '95256587', label: '⚽ 运动户外 (Спорт)' },
+    { id: '7070743',  typeId: '95256599', label: '👶 母婴儿童 (Дети)' },
+    { id: '7070749',  typeId: '95256627', label: '🐱 宠物用品 (Зоотовары)' },
+    { id: '17030257', typeId: '95256669', label: '🎁 礼品纪念品 (Подарки)' },
+    { id: '7070755',  typeId: '95256715', label: '📦 其他 (Другое)' },
+  ];
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -356,6 +374,7 @@ export default function OzonPublishPage() {
   async function handlePublish() {
     if (!selectedAccount) { showMsg('error', '请选择 OZON 账号'); return; }
     if (!title.trim()) { showMsg('error', '请填写商品名称'); return; }
+    if (!ozonCategoryId || !ozonTypeId) { showMsg('error', '请选择 OZON 商品类目（category_id + type_id 为必填）'); return; }
     const allImages = [...images, ...aiImages].slice(0, 15);
     setPublishing(true);
     try {
@@ -367,6 +386,8 @@ export default function OzonPublishPage() {
         old_price: variants.length > 0 && variants[0].oldPrice ? variants[0].oldPrice : (oldPrice || undefined),
         currency_code: 'RUB',
         vat: '0',
+        description_category_id: parseInt(ozonCategoryId) || 17027610,
+        type_id: parseInt(ozonTypeId) || 94609139,
         images: allImages.length > 0 ? allImages : undefined,
         primary_image: allImages[0] || undefined,
         attributes: [],
@@ -401,6 +422,7 @@ export default function OzonPublishPage() {
     setBrand(''); setManufacturer(''); setCountry(''); setWeight('200');
     setLength('20'); setWidth('15'); setHeight('5'); setVideoUrl('');
     setVariants([]); setColors([]); setSizes([]);
+    setOzonCategoryId(''); setOzonTypeId('');
   }
 
   const selectedAcc = accounts.find(a => a.id === selectedAccount);
@@ -767,12 +789,24 @@ export default function OzonPublishPage() {
               {/* 类目 + SKU */}
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">商品类目</label>
-                  <select value={category} onChange={e => setCategory(e.target.value)}
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    OZON类目 <span className="text-red-400">*</span>
+                    <span className="text-gray-400 font-normal ml-1">(cat_id/type_id)</span>
+                  </label>
+                  <select value={ozonCategoryId} onChange={e => {
+                    const cat = OZON_CATEGORIES.find(c => c.id === e.target.value);
+                    setOzonCategoryId(cat?.id || '');
+                    setOzonTypeId(cat?.typeId || '');
+                  }}
                     className="w-full p-3 border border-gray-200 rounded-xl text-sm bg-white focus:border-blue-400 outline-none">
-                    <option value="">选择类目</option>
-                    {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    <option value="">-- 选择OZON类目 --</option>
+                    {OZON_CATEGORIES.map(c => (
+                      <option key={c.id} value={c.id}>{c.label} (ID:{c.id})</option>
+                    ))}
                   </select>
+                  {ozonCategoryId && ozonTypeId && (
+                    <p className="text-xs text-gray-400 mt-1">cat={ozonCategoryId} | type={ozonTypeId}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1.5">SKU 货号</label>

@@ -813,6 +813,15 @@ router.post('/api/publish', authenticateToken, async (req, res) => {
       });
     }
 
+    // OZON API 必填：description_category_id 和 type_id
+    if (!description_category_id || !type_id) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少 OZON 必填字段：description_category_id（类目ID）和 type_id（商品类型ID）。请在发布页选择 OZON 类目。',
+        hint: '常用类目：服装 cat=17027610 type=94609139，家居 cat=7070727 type=95256467'
+      });
+    }
+
     // 如果有图片URL，先上传图片到 OZON CDN
     let uploadedImages = [];
     if (images && images.length > 0) {
