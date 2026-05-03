@@ -100,28 +100,55 @@ async function fetchWithPlaywright(url) {
 
 // 从 HTML 源码直接提取 1688 嵌入的 JSON 数据（无需浏览器，服务器端直接解析）
 async function fetch1688FromEmbeddedJson(url) {
-  const html = await fetchUrlContent(url);
+  // 第一步：先访问 1688 主页拿 cookie（反爬需要）
+  try {
+    await fetchUrlContent('https://www.1688.com/', url);
+  } catch (e) {
+    console.warn('[1688] Cookie pre-fetch failed:', e.message);
+  }
+
+  // 第二步：用 cookie 访问产品页
+  const html = await fetchUrlContentWithCookie(url);
+
+  // 检测是否被拦截（登录页/验证页）
+  const blockedMarkers = [
+    'login.1688.com', 'verify', 'captcha', '_umdata',
+    '请输入验证码', '请先登录', '/passport-login/',
+  ];
+  const isBlocked = blockedMarkers.some(m => html.includes(m));
+  if (isBlocked) {
+    console.warn('[1688] 页面被拦截（反爬），html 长度:', html.length);
+    console.warn('[1688] 页面开头 500 字符:', html.substring(0, 500));
+    // 尝试用 text/html 短片段识别
+    if (html.length < 2000) {
+      console.warn('[1688] 返回内容极短，疑似完全被拦截');
+    }
+  }
+
   // 1688 在 script 标签里嵌入 JSON 数据
   // 匹配各种可能的变量名：__INIT_DATA__, __DETAIL_DATA__, data =, window.__...
   const jsonPatterns = [
-    /window\.__INIT_DATA__\s*=\s*({[\s\S]*?})\s*;?\s*<\/script>/i,
-    /window\.__DETAIL_DATA__\s*=\s*({[\s\S]*?})\s*;?\s*<\/script>/i,
-    /var\s+data\s*=\s*({[\s\S]*?})\s*;?\s*<\/script>/i,
-    /data\s*=\s*({[\s\S]*?})\s*;?\s*<\/script>/i,
+    /window\.__INIT_DATA__\s*=\s*({[\s\S]*?})\s*(?:;|\n)\s*<\/script>/i,
+    /window\.__DETAIL_DATA__\s*=\s*({[\s\S]*?})\s*(?:;|\n)\s*<\/script>/i,
+    /window\.__offer_detail_data__\s*=\s*({[\s\S]*?})\s*(?:;|\n)\s*<\/script>/i,
     /"offerDetailModel"\s*:\s*({[\s\S]*?})\s*[,}]/,
+    /var\s+data\s*=\s*({[\s\S]*?"offer"[\s\S]*?})\s*;?\s*<\/script>/i,
+    /window\.renderData\s*=\s*({[\s\S]*?})\s*(?:;|\n)\s*<\/script>/i,
   ];
 
   let parsedData = null;
+  let matchedPattern = '';
   for (const pattern of jsonPatterns) {
     const match = html.match(pattern);
     if (match) {
       try {
         parsedData = JSON.parse(match[1]);
+        matchedPattern = pattern.toString().substring(0, 60);
+        console.log('[1688] 正则匹配成功:', matchedPattern);
         break;
       } catch (e) {
         // 尝试修复不完整的 JSON
         try {
-          // 尝试截取到第一个完整的闭合对象
           let jsonStr = match[1];
           let depth = 0;
           let end = 0;
@@ -131,77 +158,165 @@ async function fetch1688FromEmbeddedJson(url) {
           }
           if (end > 0) {
             parsedData = JSON.parse(jsonStr.substring(0, end));
+            matchedPattern = pattern.toString().substring(0, 60) + ' (truncated)';
+            console.log('[1688] 正则匹配成功(截断修复):', matchedPattern);
             break;
           }
-        } catch (e2) {}
+        } catch (e2) {
+          console.warn('[1688] 正则匹配到片段但JSON解析失败:', e.message.substring(0, 80));
+        }
       }
     }
   }
 
   if (!parsedData) {
     // 备用：直接搜索包含价格和标题的 JSON 片段
-    const priceBlockMatch = html.match(/"(price|amount|currentPrice)"["\s:]+[\d.]+/i);
+    const priceBlockMatch = html.match(/"(price|amount|currentPrice|salePrice)"["\s:]+[\d.]+/i);
     if (priceBlockMatch) {
-      // 尝试提取周围 2000 字符的 JSON
       const pos = html.indexOf(priceBlockMatch[0]);
-      const snippet = html.substring(Math.max(0, pos - 500), Math.min(html.length, pos + 2000));
+      const snippet = html.substring(Math.max(0, pos - 500), Math.min(html.length, pos + 3000));
       try {
-        // 找最近的 { }
         const objMatch = snippet.match(/\{[\s\S]*"price"[\s\S]*\}/);
-        if (objMatch) parsedData = JSON.parse(objMatch[0]);
-      } catch (e) {}
+        if (objMatch) {
+          parsedData = JSON.parse(objMatch[0]);
+          console.log('[1688] 备用JSON提取成功');
+        }
+      } catch (e) {
+        console.warn('[1688] 备用JSON解析失败');
+      }
     }
   }
 
-  if (parsedData) {
-    // 递归查找 offer / product / item
-    const findOffer = (obj) => {
-      if (!obj || typeof obj !== 'object') return null;
-      if (obj.offer || obj.product || obj.item) {
-        return obj.offer || obj.product || obj.item;
-      }
-      for (const key of Object.keys(obj)) {
-        const v = obj[key];
-        if (Array.isArray(v) && v.length > 0) {
-          const first = v[0];
-          if (first && typeof first === 'object' && (first.price || first.subject || first.title)) {
-            return first;
+  if (!parsedData) {
+    // 最后尝试：从 meta 标签提取基础信息
+    console.warn('[1688] 所有JSON解析失败，尝试 meta 标签提取');
+    console.warn('[1688] HTML前1000字符:', html.substring(0, 1000));
+    return null;
+  }
+
+  // 递归查找 offer / product / item
+  const findOffer = (obj, depth = 0) => {
+    if (!obj || typeof obj !== 'object' || depth > 15) return null;
+    // 直接匹配
+    if (obj.offer || obj.product || obj.item) {
+      const candidate = obj.offer || obj.product || obj.item;
+      if (candidate && typeof candidate === 'object') return candidate;
+    }
+    // 数组首元素
+    for (const key of Object.keys(obj)) {
+      const v = obj[key];
+      if (Array.isArray(v) && v.length > 0) {
+        const first = v[0];
+        if (first && typeof first === 'object' && (first.price || first.subject || first.title || first.offerName)) {
+          return first;
+        }
+        // 数组中的 offer 数组
+        for (const item of v) {
+          if (item && typeof item === 'object') {
+            const found = findOffer(item, depth + 1);
+            if (found) return found;
           }
         }
-        if (typeof v === 'object') {
-          const found = findOffer(v);
-          if (found) return found;
-        }
       }
-      return null;
-    };
-
-    const offer = findOffer(parsedData) || parsedData;
-    if (offer) {
-      return {
-        title: offer.subject || offer.title || offer.name || offer.productName || '',
-        price: parseFloat(offer.price || offer.currentPrice || offer.amount || offer.salePrice || '0') || null,
-        description: offer.description || '',
-        images: (offer.imageList || offer.images || offer.picUrlList || [])
-          .map(i => typeof i === 'string' ? i : (i.url || i.src || i.originalUrl || ''))
-          .filter(Boolean),
-        skuId: offer.id || offer.offerId || offer.skuId || '',
-      };
+      if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+        const found = findOffer(v, depth + 1);
+        if (found) return found;
+      }
     }
+    return null;
+  };
+
+  const offer = findOffer(parsedData) || parsedData;
+  if (offer) {
+    console.log('[1688] 找到offer数据, title:', (offer.subject || offer.title || offer.offerName || '').substring(0, 60));
+    return {
+      title: offer.subject || offer.title || offer.name || offer.productName || offer.offerName || '',
+      price: parseFloat(offer.price || offer.currentPrice || offer.amount || offer.salePrice || '0') || null,
+      description: offer.description || '',
+      images: (offer.imageList || offer.images || offer.picUrlList || [])
+        .map(i => typeof i === 'string' ? i : (i.url || i.src || i.originalUrl || ''))
+        .filter(Boolean),
+      skuId: offer.id || offer.offerId || offer.skuId || '',
+    };
   }
 
+  console.warn('[1688] 解析到JSON但未找到offer对象，顶层keys:', Object.keys(parsedData).slice(0, 10));
   return null;
 }
 
-// 普通 fetch（静态页面）
-async function fetchUrlContent(url) {
+// 模拟真实浏览器的完整请求头
+function getBrowserHeaders(referer = '') {
+  return {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"Windows"',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
+    ...(referer ? { 'Referer': referer } : {}),
+  };
+}
+
+// cookie jar: URL → Set-Cookie 列表
+const cookieJar = new Map();
+
+function getCookieHeader(url) {
+  try {
+    const { hostname } = new URL(url);
+    // 匹配域名和父域名
+    const cookies = [];
+    for (const [domain, jar] of cookieJar) {
+      if (hostname === domain || hostname.endsWith('.' + domain)) {
+        for (const c of jar) {
+          // 只取 name=value 部分，忽略过期/路径等属性
+          const nv = c.split(';')[0].trim();
+          if (nv && !nv.includes('=') === false) cookies.push(nv);
+        }
+      }
+    }
+    return cookies.join('; ');
+  } catch { return ''; }
+}
+
+function storeCookies(url, setCookieHeaders) {
+  if (!setCookieHeaders || setCookieHeaders.length === 0) return;
+  try {
+    const { hostname } = new URL(url);
+    if (!cookieJar.has(hostname)) cookieJar.set(hostname, []);
+    const jar = cookieJar.get(hostname);
+    for (const sc of setCookieHeaders) {
+      const nameVal = sc.split(';')[0].trim();
+      if (nameVal && !jar.includes(nameVal)) jar.push(nameVal);
+    }
+  } catch {}
+}
+
+// 普通 fetch（带完整浏览器头 + cookie 支持）
+async function fetchUrlContent(url, referer = '') {
   const resp = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,*/*',
-      'Accept-Language': 'zh-CN,zh;q=0.9',
-    },
+    headers: getBrowserHeaders(referer),
+    redirect: 'follow',
   });
+  // 存储 cookies
+  storeCookies(url, resp.headers.get('set-cookie')?.split('\n') || []);
+  return await resp.text();
+}
+
+// fetch（带 cookie，用于需要登录态的页面）
+async function fetchUrlContentWithCookie(url, referer = '') {
+  const cookie = getCookieHeader(url);
+  const headers = getBrowserHeaders(referer);
+  if (cookie) headers['Cookie'] = cookie;
+  const resp = await fetch(url, { headers, redirect: 'follow' });
+  storeCookies(url, resp.headers.get('set-cookie')?.split('\n') || []);
   return await resp.text();
 }
 
@@ -359,36 +474,58 @@ router.post('/ai/fetch-product', async (req, res) => {
 
     // 1688 / 动态渲染页面 → 先从 HTML 嵌入 JSON 提取，失败再降级
     if (url.includes('1688.com') || url.includes('yiwugo.com')) {
-      // 首选：直接解析 HTML 嵌入的 JSON 数据（无需浏览器，服务器端即可）
+      console.log('[OZON] 开始抓取 1688 商品:', url);
+      
+      // 首选：直接解析 HTML 嵌入的 JSON 数据（带 cookie 保持）
       product = await fetch1688FromEmbeddedJson(url);
+      
       if (!product?.title) {
+        console.warn('[OZON] HTML JSON 解析失败，尝试 Playwright...');
         // 降级：尝试 Playwright 动态渲染
         try {
           const pwResult = await fetchWithPlaywright(url);
-          if (pwResult?.title) product = pwResult;
+          if (pwResult?.title) {
+            product = pwResult;
+            console.log('[OZON] Playwright 抓取成功:', product.title.substring(0, 50));
+          }
         } catch (pwErr) {
           console.warn('[OZON] Playwright also failed:', pwErr.message);
         }
       }
+      
       if (!product?.title) {
+        console.warn('[OZON] Playwright 也失败，尝试静态 HTML 提取...');
         // 再次降级：静态 HTML 提取
-        const html = await fetchUrlContent(url);
-        product = extractProductFromHtml(html, url);
+        try {
+          const html = await fetchUrlContentWithCookie(url);
+          product = extractProductFromHtml(html, url);
+        } catch (e) {
+          console.warn('[OZON] 静态HTML提取异常:', e.message);
+        }
       }
+      
       imageUrls = product?.images || [];
+      
       if (!product?.title) {
+        console.error('[OZON] 1688抓取全部失败，URL:', url);
         return res.status(400).json({
           success: false,
-          error: '无法从该1688页面提取商品信息，请手动填写商品信息。',
-          hint: '支持：1688商品链接，或手动填写商品标题/价格/图片'
+          error: '无法从该1688页面提取商品信息。可能原因：1) 1688反爬拦截（服务器IP）；2) 页面需要登录；3) 链接已失效。请尝试手动填写商品信息，或换一个1688链接试试。',
+          hint: '支持：1688商品链接，或手动填写商品标题/价格/图片。建议使用"自上传"标签手动填写。',
         });
       }
+      
+      console.log('[OZON] 1688抓取成功:', product.title.substring(0, 50));
     } else {
       // 静态页面 → 普通 fetch
-      const html = await fetchUrlContent(url);
-      product = extractProductFromHtml(html, url);
-      product.sourceUrl = url;
-      imageUrls = product.images || [];
+      try {
+        const html = await fetchUrlContent(url);
+        product = extractProductFromHtml(html, url);
+        product.sourceUrl = url;
+        imageUrls = product.images || [];
+      } catch (e) {
+        console.error('[OZON] 静态页面抓取失败:', e.message);
+      }
     }
 
     // 兜底：仍未提取到标题
