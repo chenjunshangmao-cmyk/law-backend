@@ -215,11 +215,15 @@ app.get('/team/tasks.json', (_req, res) => {
     res.status(404).json({ error: 'tasks.json not found' });
   }
 });
-app.get('/team/dashboard', (_req, res) => {
+app.get('/team/dashboard', (req, res) => {
+  // 只有带正确 key 才能看，防止客户看到
+  if (req.query.key !== 'claw888') {
+    return res.status(403).send('<h2>无权访问</h2>');
+  }
   res.sendFile(path.join(_teamDir, 'dashboard.html'));
 });
-app.get('/team', (_req, res) => {
-  res.redirect('/team/dashboard');
+app.get('/team', (req, res) => {
+  res.redirect('/team/dashboard?key=claw888');
 });
 
 // 小红书
