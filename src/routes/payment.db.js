@@ -270,6 +270,7 @@ router.post('/create', authenticateToken, async (req, res) => {
           client_sn: orderNo,
           total_amount: String(orderAmount),
           subject: subject,
+          operator: 'claw_admin',
           return_url: returnUrlFull,
           notify_url: notifyUrl
         };

@@ -320,12 +320,13 @@ router.post('/create-order', async (req, res) => {
     const frontendBase = process.env.FRONTEND_URL || 'https://claw-app-2026.pages.dev';
     const amountFen = String(Math.round(Number(totalAmount) * 100));
 
-    // 构建请求参数
+    // 构建请求参数（operator 是必填参数！官方文档要求）
     const requestParams = {
       terminal_sn: terminal.terminalSn,
       client_sn: clientSn,
       total_amount: amountFen,
       subject: subject || 'Claw会员',
+      operator: 'claw_admin',
       return_url: frontendBase + '/payment-result',
       notify_url: baseUrl + '/api/shouqianba/notify'
     };
