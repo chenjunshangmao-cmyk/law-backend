@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { path: '/youtube',    icon: '📹', label: 'YouTube' },
   { path: '/xiaohongshu', icon: '📕', label: '小红书' },
   { path: '/avatar',    icon: '🤖', label: 'AI数字人' },
+  { path: '/whatsapp',   icon: '💬', label: 'WhatsApp' },
 ];
 
 export default function MainLayout() {

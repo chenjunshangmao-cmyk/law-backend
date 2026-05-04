@@ -193,6 +193,117 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+
+    // 小红书扫码登录
+    xiaohongshuQrcode: (accountId?: string) => authFetch('/api/accounts/xiaohongshu-login/qrcode', {
+      method: 'POST',
+      body: JSON.stringify({ accountId }),
+    }),
+    xiaohongshuWait: (accountId?: string, timeout?: number) => authFetch('/api/accounts/xiaohongshu-login/wait', {
+      method: 'POST',
+      body: JSON.stringify({ accountId, timeout: timeout || 120000 }),
+    }),
+    xiaohongshuStatus: (accountId?: string) =>
+      authFetch(`/api/accounts/xiaohongshu-login/status${accountId ? `?accountId=${accountId}` : ''}`),
+
+    // Chrome 扩展同步 cookie
+    extensionSync: (data: { platform: string; cookies?: any; connectedAt?: string }) =>
+      authFetch('/api/accounts/extension-sync', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    // 检测 Chrome 扩展是否安装（通过 DOM 桥接元素 + MutationObserver）
+    extensionCheck: () => {
+      return new Promise<{ installed: boolean; version?: string }>((resolve) => {
+        // 方法1：直接检查桥接元素是否存在（扩展安装后会创建 #claw-bridge 元素）
+        const existingBridge = document.getElementById('claw-bridge');
+        if (existingBridge) {
+          const version = existingBridge.getAttribute('data-extension-version') || undefined;
+          resolve({ installed: true, version });
+          return;
+        }
+
+        // 方法2：等一小段时间，扩展可能还没注入完
+        let resolved = false;
+        const checkInterval = setInterval(() => {
+          const bridge = document.getElementById('claw-bridge');
+          if (bridge) {
+            clearInterval(checkInterval);
+            clearTimeout(timeout);
+            if (!resolved) {
+              resolved = true;
+              const version = bridge.getAttribute('data-extension-version') || undefined;
+              resolve({ installed: true, version });
+            }
+          }
+        }, 200);
+
+        const timeout = setTimeout(() => {
+          clearInterval(checkInterval);
+          if (!resolved) {
+            resolved = true;
+            resolve({ installed: false });
+          }
+        }, 3000);
+      });
+    },
+
+    // 通过 DOM 桥接与 Chrome 扩展通信
+    extensionRequest: (action: string, data: Record<string, any> = {}) => {
+      return new Promise<any>((resolve, reject) => {
+        // 确保桥接元素存在
+        let bridge = document.getElementById('claw-bridge');
+        if (!bridge) {
+          reject(new Error('Chrome 扩展未安装'));
+          return;
+        }
+
+        const requestId = action + '-' + Date.now();
+        const requestData = { action, requestId, ...data };
+
+        // 监听 data-response 变化
+        let resolved = false;
+        const observer = new MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            if (mutation.attributeName === 'data-response') {
+              const responseStr = bridge!.getAttribute('data-response');
+              if (responseStr) {
+                try {
+                  const response = JSON.parse(responseStr);
+                  if (response.requestId === requestId) {
+                    observer.disconnect();
+                    clearTimeout(timeout);
+                    if (!resolved) {
+                      resolved = true;
+                      // 清空响应
+                      bridge!.setAttribute('data-response', '');
+                      resolve(response);
+                    }
+                  }
+                } catch (e) {
+                  console.error('[Claw] 解析扩展响应失败:', e);
+                }
+              }
+            }
+          }
+        });
+
+        observer.observe(bridge, { attributes: true, attributeFilter: ['data-response'] });
+
+        // 超时
+        const timeout = setTimeout(() => {
+          observer.disconnect();
+          if (!resolved) {
+            resolved = true;
+            reject(new Error('扩展通信超时'));
+          }
+        }, 10000);
+
+        // 写入请求
+        bridge.setAttribute('data-request', JSON.stringify(requestData));
+      });
+    },
   },
 
   // ============================================================
@@ -513,7 +624,16 @@ export const api = {
   // 小红书 API
   xiaohongshu: {
     listAccounts: () => authFetch('/api/xiaohongshu/accounts'),
-    loginQrcode: () => authFetch('/api/xiaohongshu/login/qrcode', { method: 'POST' }),
+    loginQrcode: (accountId?: string) => authFetch('/api/xiaohongshu/login/qrcode', {
+      method: 'POST',
+      body: JSON.stringify({ accountId }),
+    }),
+    loginWait: (accountId?: string, timeout?: number) => authFetch('/api/xiaohongshu/login/wait', {
+      method: 'POST',
+      body: JSON.stringify({ accountId, timeout: timeout || 120000 }),
+    }),
+    loginStatus: (accountId?: string) => authFetch(`/api/xiaohongshu/login/status${accountId ? `?accountId=${accountId}` : ''}`),
+    deleteAccount: (accountId: string) => authFetch(`/api/xiaohongshu/accounts/${accountId}`, { method: 'DELETE' }),
     publishNote: (data: any) => authFetch('/api/xiaohongshu/publish/note', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -524,6 +644,241 @@ export const api = {
     }),
     shopInfo: () => authFetch('/api/xiaohongshu/shop/info'),
     status: () => authFetch('/api/xiaohongshu/status'),
+
+    // AI 功能
+    ai: {
+      /** 识别图片 → 返回产品名称/类目/特点 */
+      analyzeImage: (imageBase64: string) =>
+        authFetch('/api/xiaohongshu/ai/analyze-image', {
+          method: 'POST',
+          body: JSON.stringify({ imageBase64 }),
+        }),
+
+      /** 生成小红书文案（标题/正文/标签） */
+      generateContent: (data: {
+        imageDescription?: string;
+        productName?: string;
+        style?: '种草' | '测评' | '日常' | '带货';
+        extraInfo?: string;
+      }) =>
+        authFetch('/api/xiaohongshu/ai/generate-content', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** 批量生成4种风格的文案 */
+      generateMultiContent: (data: {
+        imageDescription?: string;
+        productName?: string;
+        extraInfo?: string;
+      }) =>
+        authFetch('/api/xiaohongshu/ai/generate-multi-content', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** 图生图 - Wanx 风格迁移 */
+      imageToImage: (data: {
+        imageBase64: string;
+        style?: 'anime' | 'oil' | 'watercolor' | 'sketch' | 'flat' | 'pop';
+        prompt?: string;
+      }) =>
+        authFetch('/api/xiaohongshu/ai/image-to-image', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** 文生图 - Wanx */
+      textToImage: (data: { prompt: string; style?: string }) =>
+        authFetch('/api/xiaohongshu/ai/text-to-image', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** 产品链接抓取 → 图片+详情 */
+      fetchProduct: (data: { url: string }) =>
+        authFetch('/api/xiaohongshu/ai/fetch-product', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** 竞品分析 + 生成全套高竞争力发布资料 */
+      competitiveAnalysis: (data: { productData: any }) =>
+        authFetch('/api/xiaohongshu/ai/competitive-analysis', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** 基于竞品分析生成有竞争力的产品图 */
+      competitiveImages: (data: {
+        imageBase64: string;
+        productTitle?: string;
+        sellingPoints?: string[];
+        style?: string;
+      }) =>
+        authFetch('/api/xiaohongshu/ai/competitive-images', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+    },
+  },
+
+  // TikTok Shop AI 发布 API（复用小红书抓取逻辑，英文文案）
+  tiktokPublish: {
+    ai: {
+      /** 产品链接抓取（复用通用抓取） */
+      fetchProduct: (data: { url: string }) =>
+        authFetch('/api/tiktok-publish/ai/fetch-product', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** AI 竞品分析 + 英文 TikTok listing 生成 */
+      competitiveAnalysis: (data: { productData: any }) =>
+        authFetch('/api/tiktok-publish/ai/competitive-analysis', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** AI 生成 TikTok 文案 */
+      generateContent: (data: {
+        productName?: string;
+        productDescription?: string;
+        style?: string;
+        category?: string;
+      }) =>
+        authFetch('/api/tiktok-publish/ai/generate-content', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+    },
+  },
+
+  // OZON AI 发布 API（复用抓取逻辑，俄文文案）
+  ozonPublish: {
+    ai: {
+      /** 产品链接抓取 */
+      fetchProduct: (data: { url: string }) =>
+        authFetch('/api/ozon-publish/ai/fetch-product', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** AI 竞品分析 + 俄语 OZON listing 生成 */
+      competitiveAnalysis: (data: { productData: any }) =>
+        authFetch('/api/ozon-publish/ai/competitive-analysis', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** AI 生成 OZON 文案 */
+      generateContent: (data: {
+        productName?: string;
+        productDescription?: string;
+        style?: string;
+        category?: string;
+      }) =>
+        authFetch('/api/ozon-publish/ai/generate-content', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+    },
+
+    /** OZON Seller API 直接发布商品 */
+    api: {
+      /** 通过 API 直接发布商品到 OZON（支持 accountId 或 clientId+apiKey） */
+      publish: (data: {
+        accountId?: string;
+        clientId?: string;
+        apiKey?: string;
+        name: string;
+        offer_id: string;
+        price: string;
+        old_price?: string;
+        currency_code?: string;
+        vat?: string;
+        barcode?: string;
+        description_category_id?: number;
+        type_id?: number;
+        images?: string[];
+        primary_image?: string;
+        attributes?: any[];
+        weight?: number;
+        weight_unit?: string;
+        height?: number;
+        width?: number;
+        depth?: number;
+        dimension_unit?: string;
+      }) =>
+        authFetch('/api/ozon-publish/api/publish', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** 查询商品发布任务状态 */
+      publishStatus: (data: { accountId?: string; clientId?: string; apiKey?: string; taskId: number }) =>
+        authFetch('/api/ozon-publish/api/publish-status', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** 获取 OZON 商品类目树 */
+      categories: (params: { accountId?: string; clientId?: string; apiKey?: string; categoryId?: number; language?: string }) => {
+        const qp = new URLSearchParams();
+        if (params.accountId) qp.set('accountId', params.accountId);
+        if (params.clientId) qp.set('clientId', params.clientId);
+        if (params.apiKey) qp.set('apiKey', params.apiKey);
+        if (params.categoryId) qp.set('categoryId', String(params.categoryId));
+        if (params.language) qp.set('language', params.language);
+        return authFetch(`/api/ozon-publish/api/categories?${qp.toString()}`);
+      },
+
+      /** 更新商品价格 */
+      updatePrices: (data: { accountId?: string; clientId?: string; apiKey?: string; prices: Array<{ offer_id: string; price: string; old_price?: string; currency_code?: string }> }) =>
+        authFetch('/api/ozon-publish/api/update-prices', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+
+      /** 更新商品库存 */
+      updateStocks: (data: { accountId?: string; clientId?: string; apiKey?: string; stocks: Array<{ offer_id: string; stock: number }> }) =>
+        authFetch('/api/ozon-publish/api/update-stocks', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+    },
+  },
+
+  // 发布任务队列（OpenClaw 客服自动执行）
+  publishQueue: {
+    /** 创建发布任务 → 客服自动领取执行 */
+    create: (data: { platform: string; accountId: string; title: string; content: string; tags: string[]; images: string[] }) =>
+      authFetch('/api/publish-queue/tasks', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    /** 查询任务状态 */
+    getStatus: (taskId: number) => authFetch(`/api/publish-queue/tasks/${taskId}`),
+    /** 查询所有任务 */
+    list: (platform?: string) => authFetch(`/api/publish-queue/tasks${platform ? `?platform=${platform}` : ''}`),
+    /** SSE 实时监控任务进度（返回 EventSource + cleanup 函数） */
+    stream: (taskId: number, onProgress: (event: any) => void) => {
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const baseUrl = apiUrl.replace(/\/$/, '');
+      const url = `${baseUrl}/api/publish-queue/tasks/${taskId}/stream?token=${encodeURIComponent(token || '')}`;
+      const es = new EventSource(url);
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          onProgress(data);
+        } catch {}
+      };
+      return {
+        close: () => es.close(),
+        eventSource: es,
+      };
+    },
   },
 };
 

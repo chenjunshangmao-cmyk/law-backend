@@ -19,6 +19,7 @@ import { api } from '../services/api';
 type Platform = 'tiktok_shop' | 'tiktok_web' | 'youtube' | 'ozon' | 'xiaohongshu';
 type PublishMode = 'manual' | 'semiauto' | 'fullauto' | 'oauth';
 type AccountStatus = 'logged_in' | 'not_logged_in' | 'checking' | 'expired';
+type XiaohongshuType = 'note' | 'video' | 'product';
 
 interface Account {
   id: string;
@@ -199,7 +200,7 @@ function PlatformCard({
         borderRadius: 12,
         cursor: 'pointer', minWidth: 110,
         transition: 'all 0.2s ease',
-        boxShadow: active ? `0 4px 20px ${cfg.color}40` : 'none',
+        boxShadow: active ? '0 4px 20px ' + cfg.color + '40' : 'none',
       }}
     >
       <Icon size={22} color={active ? '#fff' : '#64748b'} />
@@ -389,6 +390,7 @@ export default function PublishPage() {
   // 平台 & 模式
   const [platform, setPlatform] = useState<Platform>('tiktok_shop');
   const [mode, setMode] = useState<PublishMode>('manual');
+  const [xiaohongshuType, setXiaohongshuType] = useState<XiaohongshuType>('note');
 
   // 账号
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -432,17 +434,23 @@ export default function PublishPage() {
       const res = await api.accounts.list();
       const data = Array.isArray(res) ? res : (res?.data || []);
       const mapped: Account[] = data
-        .filter((a: any) => ['tiktok_shop', 'tiktok_web', 'youtube', 'ozon', 'xiaohongshu'].includes(a.platform))
-        .map((a: any) => ({
-          id: a.id,
-          platform: a.platform,
-          name: a.name || a.username || a.email || '未命名账号',
-          email: a.email || a.username || '',
-          status: a.status === 'active' || a.status === 'connected' ? 'logged_in' : 'not_logged_in',
-          sessionValid: a.sessionValid,
-          lastLogin: a.lastLogin,
-          channelTitle: a.channelTitle,
-        }));
+        .filter((a: any) => ['tiktok', 'tiktok_shop', 'tiktok_web', 'youtube', 'ozon', 'xiaohongshu'].includes(a.platform))
+        .map((a: any) => {
+          // 统一 platform 映射：数据库存 tiktok → UI 显示 tiktok_shop
+          let normalizedPlatform = a.platform;
+          if (a.platform === 'tiktok') normalizedPlatform = 'tiktok_shop';
+          
+          return {
+            id: a.id,
+            platform: normalizedPlatform,
+            name: a.name || a.username || a.email || '未命名账号',
+            email: a.email || a.username || '',
+            status: a.status === 'active' || a.status === 'connected' ? 'logged_in' : 'not_logged_in',
+            sessionValid: a.sessionValid,
+            lastLogin: a.lastLogin,
+            channelTitle: a.channelTitle,
+          };
+        });
       setAccounts(mapped);
       // 自动选第一个
       if (mapped.length > 0 && !activeAccount) {
@@ -506,6 +514,7 @@ export default function PublishPage() {
   // 平台切换时重置模式
   const handlePlatformChange = (p: Platform) => {
     setPlatform(p);
+    setXiaohongshuType('note');
     setActiveAccount(null);
     const cfg = PLATFORM_CONFIG[p];
     if (!cfg.modes.includes(mode)) {
@@ -661,17 +670,37 @@ export default function PublishPage() {
         setPublishMsg({ type: 'success', text: '🎉 OZON 商品发布成功！' });
       } else if (platform === 'xiaohongshu') {
         // 小红书
-        const res = await api.xiaohongshu?.publishNote?.({
-          accountId: activeAccount.id,
-          title: form.title,
-          content: form.description,
-          images: form.images,
-          tags: form.tags ? form.tags.split(/[,，\s]+/).filter((t: string) => t.trim()) : [],
-        });
+        let res;
+        if (xiaohongshuType === 'note') {
+          res = await api.xiaohongshu?.publishNote?.({
+            accountId: activeAccount.id,
+            title: form.title,
+            content: form.description,
+            images: form.images,
+            tags: form.tags ? form.tags.split(/[,，\s]+/).filter((t: string) => t.trim()) : [],
+          });
+          setPublishMsg({ type: 'success', text: '🎉 小红书图文发布成功！' });
+        } else if (xiaohongshuType === 'video') {
+          res = await api.xiaohongshu?.publishVideo?.({
+            accountId: activeAccount.id,
+            title: form.title,
+            content: form.description,
+            videoBase64: form.videoPath,
+          });
+          setPublishMsg({ type: 'success', text: '🎉 小红书视频发布成功！' });
+        } else {
+          res = await api.xiaohongshu?.publishNote?.({
+            accountId: activeAccount.id,
+            title: form.title || '产品推荐',
+            content: form.description || form.shopLink || '推荐好物',
+            images: [],
+            tags: ['好物推荐', '产品分享'],
+          });
+          setPublishMsg({ type: 'success', text: '🎉 小红书链接发布成功！' });
+        }
         setTasks(prev => prev.map(t => t.id === task.id ? {
           ...t, status: 'success', result: '发布成功'
         } : t));
-        setPublishMsg({ type: 'success', text: '🎉 小红书笔记发布成功！' });
       } else {
         // TikTok Shop / Web
         const res = await api.browser.tiktok.publish({
@@ -911,7 +940,7 @@ export default function PublishPage() {
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '10px 14px', marginBottom: 20,
-                  background: `${cfg.color}15`, border: `1px solid ${cfg.color}40`,
+                  background: cfg.color + '15', border: '1px solid ' + cfg.color + '40',
                   borderRadius: 10,
                 }}>
                   <Icon1 platform={activeAccount.platform} />
@@ -943,8 +972,8 @@ export default function PublishPage() {
                   />
                 </FormField>
 
-                {/* 价格 + 利润计算（非YouTube平台） */}
-                {platform !== 'youtube' && (
+                {/* 价格 + 利润计算（非YouTube；小红书仅在「发布链接」模式显示） */}
+                {platform !== 'youtube' && (platform !== 'xiaohongshu' || xiaohongshuType === 'product') && (
                   <div style={{ gridColumn: '1 / -1' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 8 }}>
                       <FormField label="售价 (USD)" required>
@@ -1032,7 +1061,7 @@ export default function PublishPage() {
                               flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                               padding: '8px 6px',
                               background: form.privacy === opt.value ? '#EF444420' : 'transparent',
-                              border: `1.5px solid ${form.privacy === opt.value ? '#EF4444' : '#e2e8f0'}`,
+                              border: '1.5px solid ' + (form.privacy === opt.value ? '#EF4444' : '#e2e8f0'),
                               borderRadius: 8, color: form.privacy === opt.value ? '#EF4444' : '#64748b',
                               fontSize: 12, fontWeight: 600, cursor: 'pointer',
                             }}
@@ -1046,7 +1075,7 @@ export default function PublishPage() {
                 )}
 
                 {/* 分类 */}
-                {platform !== 'youtube' && (
+                {platform !== 'youtube' && platform !== 'xiaohongshu' && (
                   <FormField label="商品分类">
                     <Select
                       value={form.category}
@@ -1122,6 +1151,77 @@ export default function PublishPage() {
                   </FormField>
                 )}
               </div>
+
+              {/* 小红书发布类型切换 */}
+              {platform === 'xiaohongshu' && (
+                <div>
+                  <FormField label="发布类型">
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => setXiaohongshuType('note')}
+                        style={{
+                          flex: 1, padding: '10px 8px', borderRadius: 8,
+                          background: xiaohongshuType === 'note' ? '#E6002340' : '#fff',
+                          border: `2px solid ${xiaohongshuType === 'note' ? '#E60023' : '#e2e8f0'}`,
+                          color: xiaohongshuType === 'note' ? '#E60023' : '#64748b',
+                          fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}
+                      >
+                        📝 发布图文
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setXiaohongshuType('video')}
+                        style={{
+                          flex: 1, padding: '10px 8px', borderRadius: 8,
+                          background: xiaohongshuType === 'video' ? '#E6002340' : '#fff',
+                          border: `2px solid ${xiaohongshuType === 'video' ? '#E60023' : '#e2e8f0'}`,
+                          color: xiaohongshuType === 'video' ? '#E60023' : '#64748b',
+                          fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}
+                      >
+                        🎬 发布视频
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setXiaohongshuType('product')}
+                        style={{
+                          flex: 1, padding: '10px 8px', borderRadius: 8,
+                          background: xiaohongshuType === 'product' ? '#E6002340' : '#fff',
+                          border: `2px solid ${xiaohongshuType === 'product' ? '#E60023' : '#e2e8f0'}`,
+                          color: xiaohongshuType === 'product' ? '#E60023' : '#64748b',
+                          fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}
+                      >
+                        🔗 发布链接
+                      </button>
+                    </div>
+                  </FormField>
+                </div>
+              )}
+
+              {/* 小红书「发布链接」：产品链接字段 */}
+              {platform === 'xiaohongshu' && xiaohongshuType === 'product' && (
+                <FormField label="产品链接" required style={{ marginTop: 16 }}>
+                  <div style={{ position: 'relative' }}>
+                    <Link size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
+                    <input
+                      value={form.shopLink}
+                      onChange={e => setForm(f => ({ ...f, shopLink: e.target.value }))}
+                      placeholder="粘贴产品链接（淘宝 / 京东 / 拼多多等）"
+                      style={{
+                        width: '100%', padding: '10px 12px 10px 30px',
+                        background: '#f8fafc', border: '1.5px solid #e2e8f0',
+                        borderRadius: 8, color: '#1e293b', fontSize: 13,
+                        outline: 'none', boxSizing: 'border-box' as const,
+                      }}
+                      onFocus={e => e.target.style.borderColor = '#E60023'}
+                      onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                    />
+                  </div>
+                </FormField>
+              )}
 
               {/* 描述 */}
               <FormField label="描述 / 简介" style={{ marginTop: 16 }}>
@@ -1224,11 +1324,15 @@ export default function PublishPage() {
                     color: '#fff', fontSize: 14, fontWeight: 800,
                     cursor: (publishing || !activeAccount) ? 'not-allowed' : 'pointer',
                     opacity: (publishing || !activeAccount) ? 0.6 : 1,
-                    boxShadow: activeAccount ? `0 4px 20px ${cfg.color}40` : 'none',
+                    boxShadow: activeAccount ? '0 4px 20px ' + cfg.color + '40' : 'none',
                   }}
                 >
                   {publishing ? <Loader2 size={16} className="spin" /> : <Play size={16} />}
-                  {publishing ? '发布中...' : `▶ 发布到 ${cfg.label}`}
+                  {publishing ? '发布中...' : platform === 'xiaohongshu'
+                    ? xiaohongshuType === 'note' ? '▶ 发布图文到小红书'
+                    : xiaohongshuType === 'video' ? '▶ 发布视频到小红书'
+                    : '▶ 发布链接到小红书'
+                    : `▶ 发布到 ${cfg.label}`}
                 </button>
               </div>
 

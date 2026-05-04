@@ -1,9 +1,9 @@
 /**
- * SmartPublishPage - 智能发布页
- * - 多语言文案生成（中/英/俄/日）
- * - 按平台自动匹配目标语言
- * - OZON 走 API 发布
- * - 多语言预览和翻译
+ * SmartPublishPage - 智能发布页（统一入口）
+ * - 全部平台通过下拉菜单切换
+ * - 多语言文案生成
+ * - Amazon/Shopee/Lazada → 通用保存发布
+ * - TikTok/OZON/YouTube → 提示前往独立页面
  */
 import React, { useState, useRef } from 'react';
 import { api } from '../services/api';
@@ -40,25 +40,26 @@ interface MultiLangContent {
 }
 
 const CATEGORIES = ['服装', '鞋类', '箱包', '配饰', '家居', '美妆', '母婴', '玩具', '户外', '其他'];
+// ★ 全部平台统一下拉
 const PLATFORMS = [
-  { value: 'tiktok', label: 'TikTok Shop' },
-  { value: 'ozon', label: 'OZON' },
-  { value: 'amazon', label: 'Amazon' },
-  { value: 'shopee', label: 'Shopee' },
-  { value: 'youtube', label: 'YouTube' },
-  { value: 'lazada', label: 'Lazada' },
+  { value: 'tiktok', label: 'TikTok Shop', standalone: true },
+  { value: 'ozon', label: 'OZON', standalone: true },
+  { value: 'youtube', label: 'YouTube', standalone: true },
+  { value: 'amazon', label: 'Amazon', standalone: false },
+  { value: 'shopee', label: 'Shopee', standalone: false },
+  { value: 'lazada', label: 'Lazada', standalone: false },
 ];
 
 // 语言/平台映射
 const LANG_PLATFORM_MAP: Record<string, string> = {
-  tiktok: 'en', amazon: 'en', shopee: 'en', lazada: 'en', youtube: 'en',
-  ozon: 'ru',
+  amazon: 'en', shopee: 'en', lazada: 'en',
   '1688': 'zh', taobao: 'zh', pdd: 'zh',
+  tiktok: 'en', ozon: 'ru', youtube: 'en', // 保留映射供其他页面参考
 };
 
 // 支持的语言
 const LANGUAGES: LanguageOption[] = [
-  { code: 'zh', name: '中文', locale: 'zh-CN', defaultPlatforms: ['1688', 'taobao', 'pdd'] },
+  { code: 'zh', name: '中文', locale: 'zh-CN', defaultPlatforms: ['amazon'] },
   { code: 'en', name: 'English', locale: 'en-US', defaultPlatforms: ['tiktok', 'amazon', 'shopee', 'lazada', 'youtube'] },
   { code: 'ru', name: 'Русский', locale: 'ru-RU', defaultPlatforms: ['ozon'] },
   { code: 'ja', name: '日本語', locale: 'ja-JP', defaultPlatforms: [] },
@@ -67,7 +68,7 @@ const LANGUAGES: LanguageOption[] = [
 export default function SmartPublishPage() {
   const [form, setForm] = useState<PublishForm>({
     title: '', description: '', price: '', cost: '', profit: '', stock: '100',
-    category: '服装', tags: '', images: [], platform: 'tiktok', accountId: '', language: 'en',
+    category: '服装', tags: '', images: [], platform: 'amazon', accountId: '', language: 'en',
   });
   const [generating, setGenerating] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -234,44 +235,22 @@ export default function SmartPublishPage() {
 
       const account = accounts.find(a => a.id === form.accountId);
 
-      if (form.platform === 'ozon') {
-        // OZON 走 API 发布
-        const result = await api.browser.ozon.publish({
-          email: account?.account_data?.email || account?.name || '',
-          title: form.title,
-          description: form.description,
-          price: parseFloat(form.price),
-          stock: parseInt(form.stock) || 100,
-          category: form.category,
-          images: form.images.map(f => f.name),
-          accountId: form.accountId,
+      // 有独立页面的平台 → 提示跳转
+      const standalonePlatform = PLATFORMS.find(p => p.value === form.platform);
+      if (standalonePlatform?.standalone) {
+        const routes: Record<string, string> = {
+          tiktok: '/tiktok-publish',
+          ozon: '/ozon-publish',
+          youtube: '/youtube',
+        };
+        const route = routes[form.platform];
+        setMessage({
+          type: 'success',
+          text: `产品已保存。${standalonePlatform.label} 有独立发布页面，${route ? `请前往 ${route} 使用完整功能` : '请从导航栏进入'}`,
         });
-        if (result.success) {
-          setMessage({ type: 'success', text: '🚀 OZON 发布成功！产品已通过 API 推送到店铺' });
-        } else if (result.needLogin) {
-          setMessage({ type: 'error', text: 'OZON 账号未登录，请先在"店铺账号"页面配置 API 密钥' });
-        } else {
-          setMessage({ type: 'error', text: result.error || 'OZON 发布失败' });
-        }
-      } else if (form.platform === 'tiktok' && account?.account_data?.email) {
-        const result = await api.browser.tiktok.publish({
-          email: account.account_data.email,
-          title: form.title,
-          description: form.description,
-          price: parseFloat(form.price),
-          stock: parseInt(form.stock) || 100,
-          images: form.images.map(f => f.name),
-          accountId: form.accountId,
-        });
-        if (result.success) {
-          setMessage({ type: 'success', text: '🚀 TikTok 发布成功！' });
-        } else if (result.needLogin) {
-          setMessage({ type: 'error', text: 'TikTok 账号未登录，请先在"店铺账号"页面添加并登录' });
-        } else {
-          setMessage({ type: 'error', text: result.error || '发布失败' });
-        }
       } else {
-        setMessage({ type: 'success', text: `产品已保存（ID: ${product?.id || product?.data?.id}），请前往店铺账号页面手动发布` });
+        // 通用平台：保存到数据库
+        setMessage({ type: 'success', text: `产品已保存（ID: ${product?.id || product?.data?.id}）${account ? `，关联: ${account.name}` : ''}` });
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || '发布失败，请重试' });
@@ -453,11 +432,6 @@ export default function SmartPublishPage() {
             </select>
           </FormField>
         </div>
-        {form.platform === 'ozon' && (
-          <div style={{ marginTop: 12, padding: '10px 14px', background: '#eff6ff', borderRadius: 8, color: '#1d4ed8', fontSize: 13 }}>
-            💡 OZON 将使用 API 直连发布，自动适配俄文文案
-          </div>
-        )}
       </div>
 
       {/* 发布按钮 */}

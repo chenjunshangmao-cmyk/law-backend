@@ -45,11 +45,10 @@ export default function AIChatWidget() {
         })
       });
 
-      // publicFetch 返回 data.data || data
       const data = res.data || res;
       if (data.sessionId) setSessionId(data.sessionId);
       
-      const reply = data.reply || data.message || '(无回复)';
+      const reply = data.response || data.reply || data.message || '(无回复)';
       setMessages(prev => [...prev, { role: 'assistant', content: reply, time: new Date() }]);
     } catch (err: any) {
       setMessages(prev => [...prev, { role: 'assistant', content: `❌ ${err.message || '请求失败'}`, time: new Date() }]);

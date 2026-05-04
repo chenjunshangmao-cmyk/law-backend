@@ -78,8 +78,8 @@ export default function CalculatorPage() {
       api.calculate.logistics().catch(() => ({ data: [] })),
       api.calculate.platforms().catch(() => ({ data: [] }))
     ]).then(([logi, plat]) => {
-      setLogisticsOptions(logi?.data || []);
-      setPlatformOptions(plat?.data || []);
+      setLogisticsOptions(Array.isArray(logi?.data?.logistics) ? logi.data.logistics : (Array.isArray(logi?.data) ? logi.data : []));
+      setPlatformOptions(Array.isArray(plat?.data?.platforms) ? plat.data.platforms : (Array.isArray(plat?.data) ? plat.data : []));
     });
   }, []);
 
@@ -207,7 +207,7 @@ export default function CalculatorPage() {
             <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>🚚 物流渠道</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {logisticsOptions.map(logi => (
-                <label key={logi.code} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: `2px solid ${form.logisticsProvider === logi.code ? '#6366f1' : '#e5e7eb'}`, background: form.logisticsProvider === logi.code ? '#eef2ff' : '#fff', cursor: 'pointer' }}>
+                <label key={logi.code} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: '2px solid ' + (form.logisticsProvider === logi.code ? '#6366f1' : '#e5e7eb'), background: form.logisticsProvider === logi.code ? '#eef2ff' : '#fff', cursor: 'pointer' }}>
                   <input type="radio" name="logistics" value={logi.code} checked={form.logisticsProvider === logi.code} onChange={() => setForm(f => ({...f, logisticsProvider: logi.code}))} style={{ accentColor: '#6366f1' }} />
                   <div style={{ fontSize: 13 }}><strong>{logi.name}</strong> · {logi.deliveryTime} · ¥{logi.basePrice}</div>
                 </label>
@@ -221,7 +221,7 @@ export default function CalculatorPage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {platformOptions.map(p => (
                 <button key={p.key} onClick={() => togglePlatform(p.key)}
-                  style={{ padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: `2px solid ${form.selectedPlatforms.includes(p.key) ? '#6366f1' : '#e5e7eb'}`, background: form.selectedPlatforms.includes(p.key) ? '#eef2ff' : '#fff', color: form.selectedPlatforms.includes(p.key) ? '#4338ca' : '#374151', cursor: 'pointer' }}
+                  style={{ padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: '2px solid ' + (form.selectedPlatforms.includes(p.key) ? '#6366f1' : '#e5e7eb'), background: form.selectedPlatforms.includes(p.key) ? '#eef2ff' : '#fff', color: form.selectedPlatforms.includes(p.key) ? '#4338ca' : '#374151', cursor: 'pointer' }}
                 >{platformIcons[p.key] || '🌐'} {p.name}</button>
               ))}
             </div>

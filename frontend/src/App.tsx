@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useEffect } from 'react';
+import ErrorBoundary from './components/ErrorBoundary';
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ModernLayout from './components/ModernLayout';
@@ -19,9 +20,13 @@ const SettingsPage       = lazy(() => import('./pages/SettingsPage'));
 const TikTokPage          = lazy(() => import('./pages/TikTokPage'));
 const YouTubePage          = lazy(() => import('./pages/YouTubePage'));
 const XiaohongshuPage       = lazy(() => import('./pages/XiaohongshuPage'));
+const AiContentPage         = lazy(() => import('./pages/AiContentPage'));
+const TikTokPublishPage     = lazy(() => import('./pages/TikTokPublishPage'));
+const OzonPublishPage       = lazy(() => import('./pages/OzonPublishPage'));
 const AvatarPage           = lazy(() => import('./pages/AvatarPage'));
 const OrdersPage           = lazy(() => import('./pages/OrdersPage'));
 const PaymentResultPage    = lazy(() => import('./pages/PaymentResultPage'));
+const WhatsAppPage          = lazy(() => import('./pages/WhatsAppPage'));
 
 // Google OAuth 回调处理组件（处理 google_token + google_user URL参数）
 function GoogleCallbackHandler({ children }: { children: React.ReactNode }) {
@@ -117,13 +122,17 @@ function AppRoutes() {
         <Route path="accounts"       element={<Suspense fallback={<PageLoading />}><AccountsPage /></Suspense>} />
         <Route path="membership"     element={<Suspense fallback={<PageLoading />}><MembershipPage /></Suspense>} />
         <Route path="services"       element={<Suspense fallback={<PageLoading />}><ServicesPage /></Suspense>} />
-        <Route path="calculator"     element={<Suspense fallback={<PageLoading />}><CalculatorPage /></Suspense>} />
+        <Route path="calculator"     element={<Suspense fallback={<PageLoading />}><ErrorBoundary><CalculatorPage /></ErrorBoundary></Suspense>} />
         <Route path="settings"       element={<Suspense fallback={<PageLoading />}><SettingsPage /></Suspense>} />
         <Route path="tiktok"         element={<Suspense fallback={<PageLoading />}><TikTokPage /></Suspense>} />
+        <Route path="tiktok-publish" element={<Suspense fallback={<PageLoading />}><TikTokPublishPage /></Suspense>} />
+        <Route path="ozon-publish"   element={<Suspense fallback={<PageLoading />}><OzonPublishPage /></Suspense>} />
         <Route path="youtube"        element={<Suspense fallback={<PageLoading />}><YouTubePage /></Suspense>} />
-        <Route path="xiaohongshu"    element={<Suspense fallback={<PageLoading />}><XiaohongshuPage /></Suspense>} />
+        <Route path="xiaohongshu"    element={<Suspense fallback={<PageLoading />}><ErrorBoundary><XiaohongshuPage /></ErrorBoundary></Suspense>} />
+        <Route path="ai-content"     element={<Suspense fallback={<PageLoading />}><AiContentPage /></Suspense>} />
         <Route path="avatar"         element={<Suspense fallback={<PageLoading />}><AvatarPage /></Suspense>} />
         <Route path="orders"        element={<Suspense fallback={<PageLoading />}><OrdersPage /></Suspense>} />
+        <Route path="whatsapp"       element={<Suspense fallback={<PageLoading />}><WhatsAppPage /></Suspense>} />
       </Route>
 
       {/* 兜底 */}

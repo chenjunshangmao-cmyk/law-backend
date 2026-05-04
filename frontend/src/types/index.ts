@@ -38,6 +38,18 @@ export interface Account {
   createdAt?: string;
   updatedAt?: string;
   last_sync?: string;
+  // OZON 专用字段
+  clientId?: string;
+  hasApiKey?: boolean;
+  productsCount?: number;
+  ordersCount?: number;
+  sellerInfo?: {
+    company_name?: string;
+    email?: string;
+    login?: string;
+  } | null;
+  authMethod?: string | null;
+  // 通用
   account_data?: {
     username?: string;
     status?: string;
@@ -88,7 +100,7 @@ export interface Quota {
 }
 
 // 平台类型
-export type Platform = 'tiktok' | 'youtube' | 'ozon' | 'amazon' | '1688' | 'lazada' | 'shopee' | 'taobao' | 'pdd';
+export type Platform = 'tiktok' | 'youtube' | 'ozon' | 'amazon' | '1688' | 'lazada' | 'shopee' | 'taobao' | 'pdd' | 'xiaohongshu';
 
 // 平台配置
 export const PLATFORM_CONFIG: Record<string, { name: string; color: string; icon: string }> = {
@@ -101,4 +113,5 @@ export const PLATFORM_CONFIG: Record<string, { name: string; color: string; icon
   shopee: { name: 'Shopee', color: '#EE4D2D', icon: '🛒' },
   taobao: { name: '淘宝', color: '#FF4400', icon: '🏮' },
   pdd: { name: '拼多多', color: '#E02020', icon: '🎯' },
+  xiaohongshu: { name: '小红书', color: '#FE2C55', icon: '📕' },
 };

@@ -246,9 +246,6 @@ export default function ServicesPage() {
               <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">收钱吧</span>
             </div>
 
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-sm text-green-800">
-              请用 <b>微信</b> 或 <b>支付宝</b> 扫码支付
-            </div>
 
             {sqOrder.payUrl && (
               <div className="text-center mb-4">
@@ -258,16 +255,10 @@ export default function ServicesPage() {
                   className="mx-auto rounded-lg border border-gray-200"
                   style={{ width: 200, height: 200 }}
                 />
-                <p className="text-xs text-gray-500 mt-2">扫码 → 打开微信/支付宝支付</p>
               </div>
             )}
 
-            {sqPolling && (
-              <div className="flex items-center justify-center gap-2 text-sm text-green-600 mb-4">
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                等待支付确认（支付后页面自动更新）...
-              </div>
-            )}
+
 
             <button
               onClick={cancelPayment}
@@ -382,7 +373,7 @@ export default function ServicesPage() {
                 ))}
               </ul>
 
-              {/* 微信/支付宝支付 */}
+              {/* 微信/支付宝支付（收钱吧直连） */}
               <button
                 onClick={() => handleShouqianbaPay(service.id, service.price)}
                 disabled={isProcessing}

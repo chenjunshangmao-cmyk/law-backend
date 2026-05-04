@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AIChatWidget from './AIChatWidget';
-import { 
+import {
   LayoutDashboard, 
   TrendingUp, 
   Rocket, 
@@ -18,18 +18,20 @@ import {
   X,
   LogOut,
   User,
-  ChevronRight,
   Globe,
   Zap,
   DollarSign,
   Receipt,
-  BookOpen
+  BookOpen,
+  Sparkles,
+  ChevronRight,
+  MessageCircle
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { path: '/dashboard',   icon: LayoutDashboard, label: '工作台', color: 'text-blue-500' },
   { path: '/trending',    icon: TrendingUp,      label: '爆款选品', color: 'text-red-500' },
-  { path: '/publish',     icon: Rocket,          label: '智能发布', color: 'text-purple-500' },
+  // { path: '/publish',     icon: Rocket,          label: '智能发布', color: 'text-purple-500' },  // 暂时隐藏，功能已拆分到小红书/OZON独立页
   { path: '/ads',         icon: Megaphone,       label: '广告采集', color: 'text-amber-500' },
   { path: '/products',    icon: Package,         label: '产品管理', color: 'text-emerald-500' },
   { path: '/accounts',    icon: Store,           label: '店铺账号', color: 'text-indigo-500' },
@@ -38,7 +40,10 @@ const NAV_ITEMS = [
   { path: '/membership',  icon: Crown,           label: '会员中心', color: 'text-yellow-500' },
   { path: '/orders',     icon: Receipt,         label: '订单', color: 'text-orange-500' },
   { path: '/xiaohongshu', icon: BookOpen,        label: '小红书', color: 'text-red-500' },
+  { path: '/ozon-publish', icon: Globe,          label: 'OZON发布', color: 'text-blue-600' },
+  { path: '/ai-content',  icon: Sparkles,        label: 'AI智能图文', color: 'text-fuchsia-500' },
   { path: '/avatar',      icon: Bot,             label: 'AI数字人', color: 'text-violet-500' },
+  { path: '/whatsapp',    icon: MessageCircle,    label: 'WhatsApp中继', color: 'text-green-500' },
   { path: '/settings',    icon: Settings,        label: '设置', color: 'text-gray-500' },
 ];
 
@@ -275,6 +280,51 @@ export default function ModernLayout() {
               <div className="space-y-1">
                 {NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
+                  if (item.path === '/publish') {
+                    return (
+                      <div key={item.path}>
+                        <NavLink
+                          to={item.path}
+                          onClick={() => setPlatformsExpanded(!platformsExpanded)}
+                          className={({ isActive }) => `
+                            flex items-center gap-3 px-3 py-2.5 rounded-xl
+                            ${isActive || platformsExpanded
+                              ? 'bg-purple-50 text-purple-700 border border-purple-100' 
+                              : 'text-gray-700 hover:bg-gray-100'
+                            }
+                          `}
+                        >
+                          <Icon size={20} className={item.color} />
+                          <span className="font-medium text-sm flex-1">{item.label}</span>
+                          <ChevronRight className={`w-4 h-4 transition-transform ${platformsExpanded ? 'rotate-90' : ''}`} />
+                        </NavLink>
+                        {platformsExpanded && (
+                          <div className="ml-6 mt-1 space-y-1 border-l-2 border-purple-100 pl-3">
+                            {PLATFORM_PAGES.map((p) => {
+                              const PIcon = p.icon;
+                              return (
+                                <NavLink
+                                  key={p.path}
+                                  to={p.path}
+                                  onClick={() => setMobileMenuOpen(false)}
+                                  className={({ isActive }) => `
+                                    flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm
+                                    ${isActive 
+                                      ? 'bg-purple-50 text-purple-700 font-medium' 
+                                      : 'text-gray-600 hover:bg-gray-50'
+                                    }
+                                  `}
+                                >
+                                  <PIcon size={16} className={p.color} />
+                                  <span>{p.label}</span>
+                                </NavLink>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
                   return (
                     <NavLink
                       key={item.path}

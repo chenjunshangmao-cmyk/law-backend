@@ -42,7 +42,27 @@ export default function AccountsPage() {
     setError('');
     try {
       const res = await api.accounts.list();
-      setAccounts(res.data || []);
+      const backendAccounts: Account[] = res.data || [];
+      
+      // 同时加载小红书账号（仅从 localStorage 读取，不查桥接状态避免触发浏览器导航）
+      const xhsAccounts: Account[] = [];
+      try {
+        const saved = localStorage.getItem('xhs_mcp_accounts');
+        const ids: string[] = saved ? JSON.parse(saved) : [];
+        if (!ids.includes('default')) ids.unshift('default');
+        for (const id of ids) {
+          xhsAccounts.push({
+            id: `xhs-${id}`,
+            platform: 'xiaohongshu',
+            name: id === 'default' ? '小红书默认账号' : id,
+            username: id,
+            status: 'unknown' as Account['status'],
+            createdAt: new Date().toISOString(),
+          });
+        }
+      } catch { /* localStorage 读取失败 */ }
+      
+      setAccounts([...backendAccounts, ...xhsAccounts]);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -53,6 +73,7 @@ export default function AccountsPage() {
   // 判断当前选择平台类型
   const isOzonPlatform = form.platform === 'ozon';
   const isYouTubePlatform = form.platform === 'youtube';
+  const isXhsPlatform = form.platform === 'xiaohongshu';
 
   // YouTube OAuth 授权（弹窗方式）
   const handleYouTubeAuth = async () => {
@@ -136,6 +157,13 @@ export default function AccountsPage() {
       return;
     }
 
+    // 小红书：跳转到小红书页面进行扫码登录
+    if (isXhsPlatform) {
+      setShowAdd(false);
+      window.location.href = '/xiaohongshu';
+      return;
+    }
+
     // 其他平台走原有逻辑
     if (!form.name) {
       setAddError('请输入账号名称');
@@ -168,6 +196,24 @@ export default function AccountsPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('确定删除此账号？')) return;
+    
+    // 小红书账号：从 localStorage 删除
+    if (id.startsWith('xhs-')) {
+      const accountId = id.replace('xhs-', '');
+      try {
+        const saved = localStorage.getItem('xhs_mcp_accounts');
+        if (saved) {
+          const ids: string[] = JSON.parse(saved);
+          const updated = ids.filter(i => i !== accountId);
+          localStorage.setItem('xhs_mcp_accounts', JSON.stringify(updated));
+        }
+        await loadAccounts();
+      } catch (e: any) {
+        alert(e.message);
+      }
+      return;
+    }
+    
     try {
       await api.accounts.delete(id);
       await loadAccounts();
@@ -387,7 +433,28 @@ export default function AccountsPage() {
                 )}
                 
                 <div className="flex flex-wrap gap-1.5 mt-3">
-                  {/* 登录按钮（TikTok/YouTube/OZON 平台） */}
+                  {/* 小红书：跳转到发布管理页 */}
+                  {account.platform === 'xiaohongshu' && (
+                    <a
+                      href="/xiaohongshu"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        // 设置选中的小红书账号
+                        const xhsId = account.id.replace('xhs-', '');
+                        try {
+                          const saved = localStorage.getItem('xhs_selected_account');
+                          if (saved !== xhsId) localStorage.setItem('xhs_selected_account', xhsId);
+                        } catch {}
+                        window.location.href = '/xiaohongshu';
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      发布管理
+                    </a>
+                  )}
+                  
+                  {/* 登录按钮（TikTok/YouTube/OZON 平台，排除小红书） */}
                   {['tiktok', 'youtube', 'ozon'].includes(account.platform) && (
                     <button
                       onClick={() => handleLogin(account)}
@@ -398,14 +465,17 @@ export default function AccountsPage() {
                     </button>
                   )}
                   
-                  <button
-                    onClick={() => handleTest(account.id)}
-                    disabled={testingId === account.id}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-green-600 border border-green-200 rounded-lg hover:bg-green-50 disabled:opacity-50"
-                  >
-                    <TestTube2 className="w-3 h-3" />
-                    {testingId === account.id ? '测试中...' : '测试'}
-                  </button>
+                  {/* 测试按钮（排除小红书） */}
+                  {account.platform !== 'xiaohongshu' && (
+                    <button
+                      onClick={() => handleTest(account.id)}
+                      disabled={testingId === account.id}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-green-600 border border-green-200 rounded-lg hover:bg-green-50 disabled:opacity-50"
+                    >
+                      <TestTube2 className="w-3 h-3" />
+                      {testingId === account.id ? '测试中...' : '测试'}
+                    </button>
+                  )}
                   
                   {account.platform === 'ozon' && (
                     <button
@@ -557,6 +627,19 @@ export default function AccountsPage() {
                     </p>
                   </div>
                 </>
+              ) : isXhsPlatform ? (
+                <>
+              {/* ===== 小红书：扫码登录 ===== */}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="text-sm font-medium text-red-800 mb-2">📕 小红书扫码登录</div>
+                <p className="text-xs text-red-600 mb-3">
+                  小红书账号通过扫码方式登录，请在「小红书发布管理」页面完成。
+                </p>
+                <p className="text-xs text-red-500">
+                  点击下方按钮将跳转到小红书管理页面进行扫码添加。
+                </p>
+              </div>
+                </>
               ) : isYouTubePlatform ? (
                 <>
               {/* ===== YouTube 平台：OAuth 授权 ===== */}
@@ -637,8 +720,8 @@ export default function AccountsPage() {
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {addLoading
-                    ? (isOzonPlatform ? '验证中...' : isYouTubePlatform ? '跳转中...' : '添加中...')
-                    : (isOzonPlatform ? '🔗 授权并添加' : isYouTubePlatform ? '🔵 Google 授权' : '确认添加')
+                    ? (isXhsPlatform ? '跳转中...' : isOzonPlatform ? '验证中...' : isYouTubePlatform ? '跳转中...' : '添加中...')
+                    : (isXhsPlatform ? '📕 去小红书扫码' : isOzonPlatform ? '🔗 授权并添加' : isYouTubePlatform ? '🔵 Google 授权' : '确认添加')
                   }
                 </button>
               </div>

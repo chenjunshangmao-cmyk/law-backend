@@ -259,9 +259,7 @@ export default function MembershipPage() {
               <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">收钱吧</span>
             </div>
 
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-sm text-green-800">
-              请用 <b>微信</b> 或 <b>支付宝</b> 扫码支付
-            </div>
+
 
             {sqOrder.payUrl && (
               <div className="text-center mb-4">
@@ -271,17 +269,6 @@ export default function MembershipPage() {
                   className="mx-auto rounded-lg border border-gray-200"
                   style={{ width: 200, height: 200 }}
                 />
-                <p className="text-xs text-gray-500 mt-2">请用支付宝扫码支付</p>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(sqOrder.payUrl).then(() => {
-                      alert('支付链接已复制，请在微信/支付宝中粘贴访问，或截图发给自己打开');
-                    });
-                  }}
-                  className="mt-3 text-xs text-blue-600 underline hover:text-blue-800"
-                >
-                  微信支付 → 复制链接后在微信打开
-                </button>
                 <p className="text-xs text-gray-400 mt-1">订单号：{sqOrder.clientSn}</p>
               </div>
             )}
@@ -323,8 +310,6 @@ export default function MembershipPage() {
                     className="w-48 h-48 mx-auto mb-2"
                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
-                  <p className="text-sm text-gray-600">用微信或支付宝扫码付款</p>
-                  <p className="text-xs text-gray-400 mt-1">扫码后自动识别支付方式</p>
                 </div>
               </div>
             ) : (
@@ -388,10 +373,9 @@ export default function MembershipPage() {
                 ))}
               </ul>
               
-              
               {!isCurrentPlan && (
                 <button
-                  onClick={() => handlePay(plan.id)}
+                  onClick={() => handleShouqianbaPay(plan.id, plan.price)}
                   disabled={loading && selectedPlan !== plan.id}
                   className="w-full py-2.5 rounded-xl font-medium transition-colors text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >

@@ -217,7 +217,7 @@ export default function ModernDashboard() {
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
                       className={`h-2 rounded-full ${platform.color}`}
-                      style={{ width: `${platform.value}%` }}
+                      style={{ width: platform.value + '%' }}
                     ></div>
                   </div>
                 </div>
