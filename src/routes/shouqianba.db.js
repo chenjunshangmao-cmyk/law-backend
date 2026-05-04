@@ -334,11 +334,11 @@ router.post('/create-order', async (req, res) => {
     const sign = wapSign(requestParams, terminal.terminalKey);
     const body = { ...requestParams, sign, sign_type: 'MD5' };
 
-    console.log('[收钱吧] 调用 /upay/v2/wap2:', JSON.stringify(body));
+    console.log('[收钱吧] 调用 /v2/wap2:', JSON.stringify(body));
 
     // POST 到收钱吧 REST API 获取支付链接
     const { default: axios } = await import('axios');
-    const apiResp = await axios.post(config.apiBase + '/upay/v2/wap2', JSON.stringify(body), {
+    const apiResp = await axios.post(config.apiBase + '/v2/wap2', JSON.stringify(body), {
       headers: { 'Content-Type': 'application/json' },
       timeout: 30000
     });
