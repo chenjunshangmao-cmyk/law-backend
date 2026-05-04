@@ -356,29 +356,34 @@ router.post('/create-order', async (req, res) => {
       return res.status(500).json({ success: false, error: '收钱吧未返回支付链接' });
     }
 
-    // 持久化订单（本地文件）
+    // 持久化订单（本地文件，含 userId + planType 用于回调恢复）
     saveOrder({
       clientSn, sn: result.sn || clientSn,
       orderStatus: 'CREATED', status: 'CREATED',
       totalAmount: Number(totalAmount),
       subject, payUrl,
+      userId: userId || null,
+      planType: planType || null,
       createdAt: Date.now()
     });
 
-    // 写入 payment_orders 表
-    if (userId && planType) {
-      try {
-        await pool.query(`
-          INSERT INTO payment_orders (order_no, user_id, amount, plan_type, status, created_at)
-          VALUES ($1, $2, $3, $4, 'pending', NOW())
-          ON CONFLICT (order_no) DO UPDATE SET
-            user_id = EXCLUDED.user_id,
-            plan_type = EXCLUDED.plan_type,
-            status = 'pending'
-        `, [clientSn, userId, parseInt(amountFen), planType]);
-      } catch (dbErr) {
-        console.error('[收钱吧] 写入 payment_orders 表失败:', dbErr.message);
-      }
+    // 写入 payment_orders 表（无条件写入，即使 userId 暂缺）
+    // 回调时根据 order_no 找到此记录，再升级会员
+    try {
+      const effectiveUserId = userId || null;
+      const effectivePlan = planType || 'unknown';
+      console.log('[收钱吧] 写入 payment_orders: order_no=' + clientSn + ', userId=' + effectiveUserId + ', plan=' + effectivePlan);
+      await pool.query(`
+        INSERT INTO payment_orders (order_no, user_id, amount, plan_type, status, created_at)
+        VALUES ($1, $2, $3, $4, 'pending', NOW())
+        ON CONFLICT (order_no) DO UPDATE SET
+          user_id = COALESCE($2, payment_orders.user_id),
+          plan_type = EXCLUDED.plan_type,
+          amount = EXCLUDED.amount,
+          status = 'pending'
+      `, [clientSn, effectiveUserId, parseInt(amountFen), effectivePlan]);
+    } catch (dbErr) {
+      console.error('[收钱吧] 写入 payment_orders 表失败:', dbErr.message);
     }
 
     console.log('[收钱吧] ✅ 支付链接生成:', payUrl);
@@ -655,23 +660,64 @@ router.post('/notify', async (req, res) => {
               [data.payway || null, clientSn]
             );
 
-            // 升级会员
-            await upgradeMembershipDirect(order.user_id, order.plan_type);
-            console.log('[收钱吧] 会员已升级: user=' + order.user_id + ', plan=' + order.plan_type);
+            // 升级会员（即使 userId 为空也尝试从本地文件恢复）
+            let upgradeUserId = order.user_id;
+            if (!upgradeUserId) {
+              const savedOrder = getOrder(clientSn);
+              if (savedOrder && savedOrder.userId) {
+                upgradeUserId = savedOrder.userId;
+                // 补写 user_id 到 payment_orders
+                await pool.query('UPDATE payment_orders SET user_id = $1 WHERE order_no = $2', [upgradeUserId, clientSn]);
+                console.log('[收钱吧] 从本地文件恢复 userId: ' + upgradeUserId);
+              }
+            }
+
+            if (upgradeUserId) {
+              await upgradeMembershipDirect(upgradeUserId, order.plan_type);
+              console.log('[收钱吧] 会员已升级: user=' + upgradeUserId + ', plan=' + order.plan_type);
+            } else {
+              console.log('[收钱吧] ⚠️ 订单已支付但无关联用户: clientSn=' + clientSn + ', plan=' + order.plan_type);
+            }
           } else {
             console.log('[收钱吧] 订单 ' + clientSn + ' 已处理过（paid），跳过');
           }
         } else {
-          // 2. 如果是 shouqianba.createOrder 创建的（clientSn=claw-plantype-timestamp 格式）
-          // 尝试从 clientSn 解析 planType
-          const planMatch = clientSn.match(/^claw-(\w+)-/);
-          if (planMatch) {
-            const planType = planMatch[1];
-            console.log('[收钱吧] shouqianba.createOrder 订单，解析plan=' + planType + '，但缺少userId，无法升级会员');
-            // 这种格式缺少 userId，需要在 create-order 时也写入 payment_orders
-            // 此处仅记录日志，后续增强 create-order 路由
+          // 2. payment_orders 表里没找到 → 尝试从 create-order 写入的本地文件恢复
+          const savedOrder = getOrder(clientSn);
+          let recoveredUserId = null;
+          let recoveredPlan = planMatch ? planMatch[1] : null;
+
+          // 从本地文件或 clientSn 中恢复尽可能多的信息
+          if (savedOrder && savedOrder.userId) {
+            recoveredUserId = savedOrder.userId;
+          }
+          if (savedOrder && savedOrder.planType) {
+            recoveredPlan = savedOrder.planType;
+          }
+
+          if (recoveredUserId && recoveredPlan) {
+            // 补写 payment_orders 表（这次有完整信息了）
+            console.log('[收钱吧] 从本地文件恢复订单: userId=' + recoveredUserId + ', plan=' + recoveredPlan);
+            await pool.query(`
+              INSERT INTO payment_orders (order_no, user_id, amount, plan_type, status, created_at)
+              VALUES ($1, $2, $3, $4, 'paid', NOW())
+              ON CONFLICT (order_no) DO UPDATE SET
+                user_id = EXCLUDED.user_id, status = 'paid', paid_at = NOW()
+            `, [clientSn, recoveredUserId, data.total_amount ? parseInt(data.total_amount) : 0, recoveredPlan]);
+
+            await upgradeMembershipDirect(recoveredUserId, recoveredPlan);
+            console.log('[收钱吧] 会员已升级(恢复模式): user=' + recoveredUserId + ', plan=' + recoveredPlan);
+          } else if (recoveredPlan) {
+            // 知道套餐但不知道用户 → 标记为待关联
+            console.log('[收钱吧] ⚠️ 订单已支付但缺少userId，标记为待关联: plan=' + recoveredPlan + ', clientSn=' + clientSn);
+            await pool.query(`
+              INSERT INTO payment_orders (order_no, user_id, amount, plan_type, status, created_at, paid_at)
+              VALUES ($1, NULL, $2, $3, 'paid', NOW(), NOW())
+              ON CONFLICT (order_no) DO UPDATE SET
+                status = 'paid', paid_at = NOW()
+            `, [clientSn, data.total_amount ? parseInt(data.total_amount) : 0, recoveredPlan]);
           } else {
-            console.log('[收钱吧] 未知订单格式: ' + clientSn);
+            console.log('[收钱吧] ⚠️ 无法解析订单信息: clientSn=' + clientSn);
           }
         }
       } catch (dbErr) {
@@ -738,6 +784,47 @@ router.get('/status', (req, res) => {
   const { deviceId = config.defaultDeviceId } = req.query;
   const terminal = getTerminal(deviceId || config.defaultDeviceId);
   res.json({ success: true, data: { activated: !!terminal, deviceId: deviceId || config.defaultDeviceId, terminalSn: terminal?.terminalSn || null } });
+});
+
+// 查询所有已支付但未关联用户的订单（孤儿订单，供AI客服手动关联）
+router.get('/orphan-orders', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT order_no, amount, plan_type, status, created_at, paid_at
+       FROM payment_orders
+       WHERE status = 'paid' AND user_id IS NULL
+       ORDER BY created_at DESC LIMIT 20`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 手动关联孤儿订单到用户（AI客服操作）
+router.post('/link-order', async (req, res) => {
+  try {
+    const { orderNo, userId } = req.body;
+    if (!orderNo || !userId) {
+      return res.status(400).json({ success: false, error: '缺少 orderNo 或 userId' });
+    }
+    const orderResult = await pool.query(
+      'SELECT * FROM payment_orders WHERE order_no = $1', [orderNo]
+    );
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '订单不存在' });
+    }
+    const order = orderResult.rows[0];
+    await pool.query(
+      'UPDATE payment_orders SET user_id = $1 WHERE order_no = $2',
+      [userId, orderNo]
+    );
+    // 立即升级会员
+    await upgradeMembershipDirect(userId, order.plan_type);
+    res.json({ success: true, message: `订单 ${orderNo} 已关联用户 ${userId}，会员已升级为 ${order.plan_type}` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 export default router;
