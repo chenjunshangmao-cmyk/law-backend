@@ -24,6 +24,7 @@ import publishRoutes from './routes/publish.js';
 import customerServiceRoutes from './routes/customerService.js';
 import shouqianbaRoutes from './routes/shouqianba.db.js';
 import paymentRoutes from './routes/payment.db.js';
+import whatsappRoutes from './routes/whatsapp.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -133,6 +134,10 @@ app.use('/api/ozon-publish', ozonPublishRoutes); // OZON AI发布
 app.use('/api/customer-service', customerServiceRoutes); // AI客服
 app.use('/api/shouqianba', shouqianbaRoutes); // 收钱吧支付
 app.use('/api/webhook', paymentRoutes); // 收钱吧支付回调（webhook）
+
+// WhatsApp 中继引流模块
+app.use('/api/whatsapp', whatsappRoutes);
+app.use('/go', whatsappRoutes); // 公共跳转页
 
 // 404处理
 app.use(notFoundHandler);

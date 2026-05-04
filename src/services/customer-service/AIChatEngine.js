@@ -109,7 +109,7 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
 → 如果持续报错，请联系技术支持
 
 <b>📞 如果以上都无法解决：</b>
-联系人工客服（页面右下角或微信 claw_support）`
+联系人工客服（页面右下角联系）`
     });
 
     this.knowledgeBase.set('OZON店铺', {
@@ -190,7 +190,6 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
 <b>🔐 安全说明</b>
 • API信息加密存储，不会泄露
 • 一个会员账号可以绑定多个店铺
-• 会员等级决定可绑定的店铺数量上限
 • 支持随时解绑和切换
 
 <b>当前您的店铺：</b>
@@ -232,7 +231,9 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
     });
 
     this.knowledgeBase.set('功能介绍', {
-      keywords: ['功能', '有什么功能', '能干什么', '用途', '特色', '优势', '能用'],
+      keywords: ['功能', '有什么功能', '能干什么', '用途', '特色', '优势', '能用',
+                  '做什么的', '是做什么', '干什么的', 'about', 'who are you',
+                  '你是什么', '你是谁', '你们是什么', '这是个什么', '这是什么平台'],
       response: `🚀 <b>Claw 跨境智造 — 核心功能</b>
 
 <b>🤖 AI智能铺货</b>
@@ -295,17 +296,8 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
 • 周末：10:00 - 18:00
 
 <b>📱 联系方式</b>
-• 微信：claw_support
-• 邮箱：support@claw.ai
-
-<b>⚡ 紧急问题</b>
-系统故障或账号异常 → 建议立即微信联系
-
-<b>💬 转接人工</b>
-· 您可以直接描述问题，我先尝试帮您解决
-· 如果解决不了，再帮您转接人工客服
-
-有什么问题我可以先帮您看看？`
+• 微信：ailaopojun0416
+• 邮箱：chenjunshangmao@163.com`
     });
   }
 
@@ -457,7 +449,7 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
     let response;
     let source = 'knowledge';
 
-    // 1. 先尝试知识库匹配
+    // 1. 先尝试知识库匹配（快、稳）
     const knowledgeResponse = this.matchKnowledgeBase(message);
     
     if (knowledgeResponse) {
@@ -468,7 +460,7 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
       try {
         response = await this.callAIModel(message, session.messages, context);
       } catch (error) {
-        console.error('AI模型调用失败:', error);
+        console.error('[AI客服] AI模型调用失败:', error.message);
         response = '抱歉，我暂时无法处理这个问题。请稍后再试，或联系人工客服。';
         source = 'error';
       }
@@ -514,7 +506,7 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
 - 结构化：用分段、要点让回复清晰易读（纯文本，不要用HTML标签）
 - 实用导向：给出可操作的具体建议，而不是泛泛而谈
 - 有温度：适当使用emoji，表达理解和共情
-- 坦诚：不确定或超出能力的，诚实告知并引导联系人工客服
+- 坦诚：不确定或超出能力的，诚实告知并引导联系人工客服（页面右下角）
 
 用户上下文信息：
 - 当前页面：${context.page || '客户中心'}
@@ -609,7 +601,8 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
-        timeout: 30000
+        timeout: 60000,
+        proxy: false
       }
     );
 
