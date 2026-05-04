@@ -1,4 +1,4 @@
-# Claw 团队运转协议 v2.1
+# Claw 团队运转协议 v3.0
 
 ## 团队成员（实时运行中）
 
@@ -107,6 +107,103 @@
 
 ---
 
+## 部署规范 v3.0（2026-05-04 生效）
+
+> **重要：之前因部署流程不规范，已造成代码被覆盖、旧版本覆盖新版本、反复折腾一个多月。以下规则必须100%遵守。**
+
+### 版本管理体系
+
+项目根目录有 **VERSION.md**，记录每次部署的版本号、构建者、变更内容。
+
+| 文件 | 作用 |
+|------|------|
+| `VERSION.md` | 版本记录本，查当前版本和历史 |
+| `deploy.bat` | 一键部署脚本（pull → build → 验证 → 部署） |
+| `complete-deploy/` | **唯一**构建输出目录（Vite 直接输出） |
+
+**版本号格式**：`YYYY.MM.DD.NNN`（如 `2026.05.04.003`）
+
+**查版本**：打开网站看左侧栏底部，或 `cat VERSION.md`
+
+### 部署铁律（5 条，缺一不可）
+
+1. **必须先 `git pull`** — 确保本地代码是最新的，否则会覆盖别人的更新
+2. **必须重新 `vite build`** — 从源码构建，绝不能用旧的 `complete-deploy/` 文件
+3. **必须验证 chunk hash** — `app.js` 引用的所有文件名必须存在于 `complete-deploy/assets/`
+4. **必须更新 VERSION.md** — 版本号 +1，填写「构建者」和「变更内容」
+5. **部署后必须 `git push`** — 让其他 AI 能拉到最新版本
+
+### 一键部署（推荐）
+
+```cmd
+deploy.bat [构建者名称]
+```
+
+脚本自动完成全部 5 步，不需要手动操作。
+
+### 手动部署步骤
+
+```cmd
+# 1. 拉最新代码
+git pull gitee master
+
+# 2. 清理 + 重新构建
+cd frontend
+npx vite build
+cd ..
+
+# 3. 验证 chunk hash
+grep -oP "assets/[A-Za-z]+-[A-Za-z0-9_\-]+\.js" complete-deploy/assets/app.js | while read f; do
+  if [ ! -f "complete-deploy/$f" ]; then echo "MISSING: $f"; fi
+done
+
+# 4. 更新版本号（编辑 VERSION.md，版本号 +1）
+
+# 5. 部署
+npx wrangler pages deploy complete-deploy --project-name=claw-app-2026 --branch=master
+
+# 6. 提交
+git add -A
+git commit -m "deploy: [版本号] - [构建者] - [变更摘要]"
+git push gitee master
+```
+
+### 严禁行为（发生过，绝对不要再犯）
+
+| # | 禁止行为 | 后果 | 真实案例 |
+|---|---------|------|---------|
+| 1 | **用旧 `deploy-package/` 直接部署** | 旧代码覆盖新代码 | 4/25 旧版覆盖了 OZON 修复 |
+| 2 | **不 pull 直接 push** | 覆盖别人的提交 | 多次发生 |
+| 3 | **不重新构建就部署** | chunk hash 不匹配，全站白屏 | 五一期间白屏事故 |
+| 4 | **修改源码后不构建不部署** | 线上代码和源码不一致 | — |
+| 5 | **不更新 VERSION.md** | 无法追踪是谁部署的什么版本 | — |
+
+### `deploy-package/` 已废弃
+
+`deploy-package/` 是旧的构建脚本输出目录，**不要再使用**。唯一合法的构建输出是 `complete-deploy/`（Vite 直接输出）。
+
+如果看到 `deploy-package/` 目录存在，说明有人用了旧流程，请删除并提醒。
+
+### 构建输出目录说明
+
+- `frontend/dist/` — Vite 中间输出（不要用）
+- **`complete-deploy/`** — 最终部署目录（只用这个）✅
+- ~~`deploy-package/`~~ — 已废弃，不要用 ❌
+
+### AI 之间通信规范
+
+当任何 AI 完成部署后，必须在团队消息中报告：
+```
+[部署通知] 版本 2026.05.04.005 已上线
+构建者: [AI名称]
+变更: [简要说明]
+URL: https://xxx.claw-app-2026.pages.dev
+```
+
+其他 AI 收到通知后，下次操作前先 `git pull` 获取最新版本。
+
+---
+
 ## 文件命名规范
 - Handoff：`.team/shared/handoffs/TASK-YYYY-MM-DD-NNN-[BACKEND|FRONTEND]-HANDOFF.md`
 - QA报告：`.team/shared/reviews/TASK-YYYY-MM-DD-NNN-QA-REPORT.md`
@@ -117,5 +214,11 @@
 
 ## 团队状态
 - 创建时间：2026-04-20 20:40
+- 协议版本：v3.0（2026-05-04 更新）
+- 新增：部署规范 + 版本管理系统
 - Team平台：claw-team（异步运行中）
 - 成员：backend、frontend、qa、final-review（全部在线待命）
+
+## 外部AI协作方
+- 欧可乐（独立AI）— 广告采集模块、WhatsApp中继等
+- 其他AI — 需遵守本协议部署规范
