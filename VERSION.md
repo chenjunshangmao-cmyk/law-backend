@@ -10,21 +10,33 @@
 | 字段 | 值 |
 |------|-----|
 | 版本号 | **2026.05.04.005** |
-| 构建时间 | 2026-05-04 12:30 CST |
+| 构建时间 | 2026-05-04 12:50 CST |
 | 构建者 | WorkBuddy AI |
-| Git 提交 | 待提交 |
-| 前端地址 | https://claw-app-2026.pages.dev |
-| 后端状态 | 🔄 待 GitHub push → Render 自动部署 |
+| Git 提交 | c6b412c (后端) / 本地 (前端) |
+| 前端地址 | https://93ff2356.claw-app-2026.pages.dev |
+| 后端状态 | ✅ Render 已部署 (c6b412c) |
 
 ### 本次变更
 
-**🔴 收钱吧支付修复（根因：终端切换错误）：**
-- **根因**：调试时将终端从 claw-web-new3 错误切换到 claw-web-new1（后者在3份文档中均标记为"废弃"）
-- claw-web-new1 → WAP网关返回错误页 ❌
-- claw-web-new3 → WAP网关返回302重定向 ✅
-- 回切到 claw-web-new3（SN: 100111220054389553, Key: 96bfaf401367d934cb10a1cbe9773647）
-- 统一所有硬编码密钥为 claw-web-new3 的 terminalKey
-- 更新文件：shouqianba.js ×2, shouqianba.db.js ×2, payment.db.js ×2
+**🔴 收钱吧支付修复（根因分析 + 代码修复）：**
+
+**发现的问题：**
+1. **终端错误切换**：调试时将终端从 claw-web-new3 错切到 claw-web-new1
+   - claw-web-new1 在3份文档中均标记为"废弃"
+   - WAP网关实测：claw-web-new1→错误页 / claw-web-new3→302成功
+2. **缺少必填参数 operator**：官方文档明确要求 operator 参数
+3. **密钥不一致**：多个文件中 terminalKey 各不相同
+
+**已应用的修复：**
+- ✅ 切回 claw-web-new3（SN: 100111220054389553）
+- ✅ 添加 operator='claw_admin' 参数
+- ✅ 统一所有文件 terminalKey 为 96bfaf401367d934cb10a1cbe9773647
+- ✅ 更新文件：shouqianba.js ×2, shouqianba.db.js ×2, payment.db.js ×2
+
+**⚠️ 仍需处理：**
+- terminalKey `96bfaf401367d934cb10a1cbe9773647` 已被轮换，当前返回 ILLEGAL_SIGN
+- 两个激活码均失效（66172491=EJ05已使用，81119079=EJ06已过期）
+- **需要联系方健平获取新激活码或当前正确的terminalKey**
 
 ---
 
