@@ -163,40 +163,36 @@ loadTerminals();
 
 // Render环境：从环境变量读取种子终端数据（base64编码的JSON）
 // ⚠️ 终端凭证只允许通过环境变量传入，禁止硬编码！
-// 如果环境变量和文件都没有，从 config.storeDevices 预置数据（claw-web-new3 已激活）
-if (Object.keys(terminalCache).length === 0) {
-  if (process.env.SHOUQIANBA_SEED_TERMINAL) {
-    try {
-      const seedData = JSON.parse(Buffer.from(process.env.SHOUQIANBA_SEED_TERMINAL, 'base64').toString('utf8'));
-      Object.entries(seedData).forEach(([deviceId, data]) => {
-        terminalCache[deviceId] = { ...data, updatedAt: Date.now() };
-      });
-      saveTerminals();
-      console.log('[收钱吧] 已从环境变量加载种子终端数据');
-    } catch (e) {
-      console.error('[收钱吧] 解析环境变量终端数据失败:', e.message);
-    }
-  } else {
-    // 无环境变量时，从 config 预置的已激活终端加载（claw-web-new3）
-    // 这些数据在 config/shouqianba.js 中维护（2026-04-22 已激活）
-    try {
-      const deviceInfo = config.storeDevices?.[config.defaultDeviceId];
-      if (deviceInfo && deviceInfo.terminalSn && deviceInfo.terminalKey) {
-        terminalCache[config.defaultDeviceId] = {
-          terminalSn: deviceInfo.terminalSn,
-          terminalKey: deviceInfo.terminalKey,
-          merchantId: deviceInfo.merchantId || null,
-          storeSn: deviceInfo.storeSn || null,
-          deviceId: config.defaultDeviceId,
-          updatedAt: Date.now()
-        };
-        saveTerminals();
-        console.log('[收钱吧] 已从代码配置加载预置终端:', config.defaultDeviceId);
-      }
-    } catch (e) {
-      console.error('[收钱吧] 加载预置终端失败:', e.message);
-    }
+if (process.env.SHOUQIANBA_SEED_TERMINAL) {
+  try {
+    const seedData = JSON.parse(Buffer.from(process.env.SHOUQIANBA_SEED_TERMINAL, 'base64').toString('utf8'));
+    Object.entries(seedData).forEach(([deviceId, data]) => {
+      terminalCache[deviceId] = { ...data, updatedAt: Date.now() };
+    });
+    console.log('[收钱吧] 已从环境变量加载种子终端数据');
+  } catch (e) {
+    console.error('[收钱吧] 解析环境变量终端数据失败:', e.message);
   }
+}
+
+// 始终从 config 预置终端兜底 —— 配置优先级高于环境变量
+// 2026-05-04: 切换到 claw-web-new1（旧终端，密钥有效）
+try {
+  const deviceInfo = config.storeDevices?.[config.defaultDeviceId];
+  if (deviceInfo && deviceInfo.terminalSn && deviceInfo.terminalKey) {
+    terminalCache[config.defaultDeviceId] = {
+      terminalSn: deviceInfo.terminalSn,
+      terminalKey: deviceInfo.terminalKey,
+      merchantId: deviceInfo.merchantId || null,
+      storeSn: deviceInfo.storeSn || null,
+      deviceId: config.defaultDeviceId,
+      updatedAt: Date.now()
+    };
+    saveTerminals();
+    console.log('[收钱吧] 已从代码配置加载当前终端:', config.defaultDeviceId, deviceInfo.terminalSn);
+  }
+} catch (e) {
+  console.error('[收钱吧] 加载预置终端失败:', e.message);
 }
 
 // ============================================================
