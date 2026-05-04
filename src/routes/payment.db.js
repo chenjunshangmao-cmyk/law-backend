@@ -141,15 +141,15 @@ const SERVICES = {
   'ads-account': { name: '广告户开户', amount: 50000 }        // ¥500
 };
 
-// 硬编码终端配置（claw-web-new3，已激活）
-// terminalSn: 100111220054389553
-// terminalKey: 96bfaf401367d934cb10a1cbe9773647
+// 硬编码终端配置（claw-web-new1，2026-05-04 切回旧终端 ✅ 密钥有效）
+// terminalSn: 100111220054361978
+// terminalKey: 114d06c3f7f79d00d2ef022ab3d201af（2026-05-04 签到获取，已验证）
 const HARDCODE = {
-  terminalSn: '100111220054389553',
-  terminalKey: '96bfaf401367d934cb10a1cbe9773647',
+  terminalSn: '100111220054361978',
+  terminalKey: '114d06c3f7f79d00d2ef022ab3d201af',
   merchantId: '18956397746',
   storeSn: '00010101001200200046406',
-  deviceId: 'claw-web-new3'
+  deviceId: 'claw-web-new1'
 };
 
 /**

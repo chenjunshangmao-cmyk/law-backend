@@ -585,8 +585,8 @@ router.post('/notify', async (req, res) => {
           }
         }
         if (!terminalKeyForVerify) {
-          terminalKeyForVerify = '96bfaf401367d934cb10a1cbe9773647';
-          console.log('[收钱吧] 使用硬编码 terminalKey 验签');
+          terminalKeyForVerify = '114d06c3f7f79d00d2ef022ab3d201af';
+          console.log('[收钱吧] 使用硬编码 terminalKey 验签 (claw-web-new1)');
         }
       }
 
