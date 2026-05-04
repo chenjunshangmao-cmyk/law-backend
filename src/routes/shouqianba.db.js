@@ -330,35 +330,26 @@ router.post('/create-order', async (req, res) => {
       notify_url: baseUrl + '/api/shouqianba/notify'
     };
 
-    // WAP签名字段在请求体中（不是 Authorization header）
+    // WAP签名：参数排序 + &key= + MD5 + 大写
     const sign = wapSign(requestParams, terminal.terminalKey);
-    const body = { ...requestParams, sign, sign_type: 'MD5' };
+    const signedParams = { ...requestParams, sign, sign_type: 'MD5' };
 
-    console.log('[收钱吧] 调用 /v2/wap2:', JSON.stringify(body));
+    console.log('[收钱吧] 构建 WAP 支付链接 (网关模式)');
 
-    // POST 到收钱吧 REST API 获取支付链接
-    const { default: axios } = await import('axios');
-    const apiResp = await axios.post(config.apiBase + '/v2/wap2', JSON.stringify(body), {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 30000
-    });
-    const result = apiResp.data;
-    console.log('[收钱吧] wap2 响应:', JSON.stringify(result));
+    // 构建支付链接（微信/支付宝 WAP 网关跳转）
+    // 官方文档：https://m.wosai.cn/qr/gateway
+    const gatewayUrl = 'https://m.wosai.cn/qr/gateway';
+    const queryString = Object.keys(signedParams)
+      .sort()
+      .map(k => `${k}=${encodeURIComponent(signedParams[k])}`)
+      .join('&');
+    const payUrl = gatewayUrl + '?' + queryString;
 
-    if (result.result_code !== '200') {
-      const errMsg = result.error_message || result.return_msg || '创建支付订单失败';
-      console.error('[收钱吧] wap2 失败:', errMsg, 'code:', result.result_code);
-      return res.status(400).json({ success: false, error: errMsg, code: result.result_code });
-    }
-
-    const payUrl = result.pay_url || result.biz_response?.pay_url;
-    if (!payUrl) {
-      return res.status(500).json({ success: false, error: '收钱吧未返回支付链接' });
-    }
+    console.log('[收钱吧] ✅ 支付链接:', payUrl.substring(0, 100) + '...');
 
     // 持久化订单（本地文件，含 userId + planType 用于回调恢复）
     saveOrder({
-      clientSn, sn: result.sn || clientSn,
+      clientSn, sn: clientSn,
       orderStatus: 'CREATED', status: 'CREATED',
       totalAmount: Number(totalAmount),
       subject, payUrl,
@@ -390,7 +381,7 @@ router.post('/create-order', async (req, res) => {
     res.json({
       success: true,
       data: {
-        sn: result.sn || clientSn,
+        sn: clientSn,
         clientSn,
         totalAmount: parseInt(amountFen),
         payUrl
@@ -398,10 +389,7 @@ router.post('/create-order', async (req, res) => {
     });
   } catch (err) {
     console.error('[收钱吧] 创建支付订单失败:', err.message);
-    if (err.response) {
-      console.error('[收钱吧] API错误:', JSON.stringify(err.response.data));
-    }
-    res.status(500).json({ success: false, error: '创建订单失败: ' + (err.response?.data?.error_message || err.message) });
+    res.status(500).json({ success: false, error: '创建订单失败: ' + err.message });
   }
 });
 
