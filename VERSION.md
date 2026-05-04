@@ -9,23 +9,23 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.04.003** |
-| 构建时间 | 2026-05-04 10:05 CST |
+| 版本号 | **2026.05.04.004** |
+| 构建时间 | 2026-05-04 11:42 CST |
 | 构建者 | WorkBuddy AI |
-| Git 提交 | da30677 |
-| 前端地址 | https://34f2d961.claw-app-2026.pages.dev |
-| 后端状态 | Render 自动部署中 |
+| Git 提交 | 971f62c (后端) / 本地 (前端) |
+| 前端地址 | https://70af2ec0.claw-app-2026.pages.dev |
+| 后端状态 | ✅ Render 已部署 (971f62c) |
 
 ### 本次变更
 
-- OZON 发布：type_id 类目选择器 + 1688 反爬修复（Cookie jar + 浏览器头）
-- 广告采集模块：AdCollectionPage
-- AI 内容模块：AiContentPage
-- TikTok 发布模块：TikTokPublishPage
-- WhatsApp 中继模块：WhatsAppPage
-- 客服引擎：更新联系信息 + 关键词匹配优化
-- 修复：deploy-package/ 旧版本覆盖问题
-- 新增：版本管理系统（本文件 + deploy.bat + 网站版本号）
+**前端修复：**
+- 清除 `api.ts` 中硬编码的 `deviceId: 'claw-web-new3'`（已切换到 claw-web-new1）
+- 前端不再指定 deviceId，由后端根据 config 决定
+
+**后端增强：**
+- 自动签到机制：服务启动时自动签到获取最新密钥
+- getActiveTerminal 优先级调整：config > HARDCODE
+- 收钱吧支付恢复正常 ✅
 
 ---
 

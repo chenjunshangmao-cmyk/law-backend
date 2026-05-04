@@ -369,7 +369,7 @@ export const api = {
           clientSn: `claw-${planId}-${Date.now()}`,
           totalAmount: price,
           subject: subject || `Claw会员-${planId}`,
-          deviceId: 'claw-web-new3',
+          // deviceId 交由后端默认值决定，前端不再硬编码
           userId,   // 传入 userId，后端写 payment_orders 表，回调时自动升级会员
         })
       }, 90000);
