@@ -196,6 +196,64 @@ try {
 }
 
 // ============================================================
+// 自动签到：启动时自动获取最新密钥（解决密钥过期问题）
+// 用户无需任何操作，系统自己维护密钥有效性
+// ============================================================
+async function autoCheckin() {
+  const deviceId = config.defaultDeviceId;
+  const terminal = getTerminal(deviceId);
+  if (!terminal || !terminal.terminalSn || !terminal.terminalKey) {
+    console.log('[收钱吧] 自动签到跳过：无终端数据');
+    return;
+  }
+
+  try {
+    console.log('[收钱吧] 🔄 自动签到中... (terminal=' + terminal.terminalSn + ')');
+    const body = { terminal_sn: terminal.terminalSn, device_id: deviceId };
+    const bodyStr = JSON.stringify(body);
+    const sign = md5Sign(bodyStr, terminal.terminalKey);
+    const { default: axios } = await import('axios');
+    const resp = await axios.post(config.apiBase + '/terminal/checkin', bodyStr, {
+      headers: { 'Content-Type': 'application/json', 'Authorization': terminal.terminalSn + ' ' + sign },
+      timeout: 15000
+    });
+    const result = resp.data;
+
+    if (result.result_code === '200') {
+      const biz = result.biz_response || result;
+      const newKey = biz.terminal_key;
+      if (newKey && newKey !== terminal.terminalKey) {
+        console.log('[收钱吧] ✅ 签到成功，密钥已更新');
+        // 更新内存
+        terminalCache[deviceId] = {
+          ...terminal,
+          terminalKey: newKey,
+          updatedAt: Date.now()
+        };
+        // 持久化到文件和数据库
+        saveTerminals();
+        saveTerminal(deviceId, terminalCache[deviceId]);
+        
+        // 同步更新 config.storeDevices（内存中的配置）
+        if (config.storeDevices?.[deviceId]) {
+          config.storeDevices[deviceId].terminalKey = newKey;
+        }
+        console.log('[收钱吧] 新密钥已保存，系统正常运行');
+      } else {
+        console.log('[收钱吧] ✅ 签到成功，密钥未变化');
+      }
+    } else {
+      console.warn('[收钱吧] ⚠️ 自动签到失败:', result.error_message || result.result_code, '— 将使用现有密钥');
+    }
+  } catch (err) {
+    console.warn('[收钱吧] ⚠️ 自动签到异常:', err.message, '— 将使用现有密钥');
+  }
+}
+
+// 延迟5秒执行，确保数据库连接已就绪
+setTimeout(() => { autoCheckin(); }, 5000);
+
+// ============================================================
 // API 路由
 // ============================================================
 
