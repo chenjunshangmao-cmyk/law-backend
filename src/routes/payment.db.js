@@ -141,45 +141,38 @@ const SERVICES = {
   'ads-account': { name: '广告户开户', amount: 50000 }        // ¥500
 };
 
-// 硬编码终端配置（claw-web-new1，2026-05-04 切回旧终端 ✅ 密钥有效）
-// terminalSn: 100111220054361978
-// terminalKey: 114d06c3f7f79d00d2ef022ab3d201af（2026-05-04 签到获取，已验证）
+// 硬编码终端配置（claw-web-new3，2026-05-04 修复 ✅ WAP网关实测302成功）
+// terminalSn: 100111220054389553
+// terminalKey: 96bfaf401367d934cb10a1cbe9773647（技术文档记录，网关验证通过）
 const HARDCODE = {
-  terminalSn: '100111220054361978',
-  terminalKey: '114d06c3f7f79d00d2ef022ab3d201af',
+  terminalSn: '100111220054389553',
+  terminalKey: '96bfaf401367d934cb10a1cbe9773647',
   merchantId: '18956397746',
   storeSn: '00010101001200200046406',
-  deviceId: 'claw-web-new1'
+  deviceId: 'claw-web-new3'
 };
 
 /**
  * 获取激活终端（支持多种配置来源）
- * 优先级：1. shouqianba.js配置（含自动签到更新） > 2. 硬编码兜底 > 3. 环境变量 > 4. 缓存 > 5. 数据库
+ * 优先级：1. 硬编码 > 2. shouqianba.js > 3. 环境变量 > 4. 缓存 > 5. 数据库
  */
 async function getActiveTerminal() {
-  // 1. 从 shouqianba.js 配置读取（优先！自动签到会更新这里的密钥）
+  // 1. 直接返回硬编码配置（最可靠，不依赖 import）
+  if (HARDCODE.terminalSn && HARDCODE.terminalKey) {
+    return HARDCODE;
+  }
+
+  // 2. 尝试 shouqianba.js
   try {
     const { default: shouqianbaConfig } = await import('../config/shouqianba.js');
-    const deviceId = shouqianbaConfig?.defaultDeviceId || 'claw-web-new1';
-    const deviceConfig = shouqianbaConfig?.storeDevices?.[deviceId];
+    const storeDevices = shouqianbaConfig && shouqianbaConfig.storeDevices;
+    const deviceConfig = storeDevices && storeDevices['claw-web-new3'];
     if (deviceConfig && deviceConfig.terminalSn && deviceConfig.terminalKey) {
       console.log('[支付] 从 shouqianba.js 读取终端:', deviceConfig.terminalSn);
-      return {
-        terminalSn: deviceConfig.terminalSn,
-        terminalKey: deviceConfig.terminalKey,
-        merchantId: deviceConfig.merchantId,
-        storeSn: deviceConfig.storeSn,
-        deviceId: deviceId
-      };
+      return deviceConfig;
     }
   } catch (e) {
     console.warn('[支付] shouqianba.js 读取失败:', e.message);
-  }
-
-  // 2. 硬编码兜底
-  if (HARDCODE.terminalSn && HARDCODE.terminalKey) {
-    console.log('[支付] 使用硬编码终端:', HARDCODE.terminalSn);
-    return HARDCODE;
   }
 
   // 3. 环境变量

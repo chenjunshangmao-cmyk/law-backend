@@ -9,23 +9,22 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.04.004** |
-| 构建时间 | 2026-05-04 11:42 CST |
+| 版本号 | **2026.05.04.005** |
+| 构建时间 | 2026-05-04 12:30 CST |
 | 构建者 | WorkBuddy AI |
-| Git 提交 | 971f62c (后端) / 本地 (前端) |
-| 前端地址 | https://70af2ec0.claw-app-2026.pages.dev |
-| 后端状态 | ✅ Render 已部署 (971f62c) |
+| Git 提交 | 待提交 |
+| 前端地址 | https://claw-app-2026.pages.dev |
+| 后端状态 | 🔄 待 GitHub push → Render 自动部署 |
 
 ### 本次变更
 
-**前端修复：**
-- 清除 `api.ts` 中硬编码的 `deviceId: 'claw-web-new3'`（已切换到 claw-web-new1）
-- 前端不再指定 deviceId，由后端根据 config 决定
-
-**后端增强：**
-- 自动签到机制：服务启动时自动签到获取最新密钥
-- getActiveTerminal 优先级调整：config > HARDCODE
-- 收钱吧支付恢复正常 ✅
+**🔴 收钱吧支付修复（根因：终端切换错误）：**
+- **根因**：调试时将终端从 claw-web-new3 错误切换到 claw-web-new1（后者在3份文档中均标记为"废弃"）
+- claw-web-new1 → WAP网关返回错误页 ❌
+- claw-web-new3 → WAP网关返回302重定向 ✅
+- 回切到 claw-web-new3（SN: 100111220054389553, Key: 96bfaf401367d934cb10a1cbe9773647）
+- 统一所有硬编码密钥为 claw-web-new3 的 terminalKey
+- 更新文件：shouqianba.js ×2, shouqianba.db.js ×2, payment.db.js ×2
 
 ---
 
