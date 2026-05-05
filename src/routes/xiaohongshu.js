@@ -114,7 +114,63 @@ router.get('/login/status', async (req, res) => {
 });
 
 // =============================================================
-// 4. 发布图文笔记
+// 3.5 小红书合规检测（发布前自动扫描敏感词）
+// =============================================================
+
+// 小红书敏感词/违禁词库
+const XHS_BLOCKED_WORDS = {
+  // 引流违规（封号级别）
+  contact: [
+    '微信', 'WeChat', 'wechat', '扫码加', '加我微信',
+    '私信我', '私聊', '加V', '加v',
+    'QQ', 'qq号', '手机号', '电话',
+    '二维码', '扫码', '扫一扫',
+  ],
+  // 价格促销
+  price: [
+    '多少钱', '价格', '原价', '现价', '只要',
+    '优惠', '折扣', '限时', '秒杀', '抢购', '包邮',
+    '免费', '白送', '送XX', '买一送',
+    '下单', '购买链接', '点击购买', '去我店',
+  ],
+  // 广告法绝对化用语
+  absolute: [
+    '最好', '第一', '唯一', '全网', '独家',
+    '绝对', '100%', '百分百', '无敌',
+    '国家级', '顶级', '极品', '王牌',
+  ],
+  // 外部平台引流
+  external: [
+    '淘宝', '天猫', '京东', '拼多多', '抖音号',
+    '快手号', '闲鱼', '1688',
+  ],
+};
+
+/**
+ * 检测内容是否包含小红书违规词
+ * @returns {{ safe: boolean, warnings: string[] }}
+ */
+function checkXhsCompliance(title, content, tags = []) {
+  const text = `${title} ${content} ${tags.join(' ')}`.toLowerCase();
+  const warnings = [];
+
+  for (const [category, words] of Object.entries(XHS_BLOCKED_WORDS)) {
+    for (const word of words) {
+      if (text.includes(word.toLowerCase())) {
+        warnings.push(`[${category}] 发现敏感词: "${word}"`);
+      }
+    }
+  }
+
+  return {
+    safe: warnings.length === 0,
+    warnings: warnings.slice(0, 5), // 最多返回5条
+    risk: warnings.length >= 3 ? 'high' : warnings.length > 0 ? 'medium' : 'low',
+  };
+}
+
+// =============================================================
+// 4. 发布图文笔记（含合规检测）
 // =============================================================
 router.post('/publish/note', async (req, res) => {
   try {
@@ -130,6 +186,20 @@ router.post('/publish/note', async (req, res) => {
 
     if (!title || !content) {
       return res.status(400).json({ success: false, error: '标题和正文不能为空' });
+    }
+
+    // 合规检测
+    const compliance = checkXhsCompliance(title, content, tags || []);
+    if (!compliance.safe) {
+      console.warn('[小红书] ⚠️ 内容合规警告:', compliance.warnings);
+      if (compliance.risk === 'high') {
+        return res.status(400).json({
+          success: false,
+          error: '内容包含高风险敏感词，请修改后重试',
+          code: 'COMPLIANCE_HIGH_RISK',
+          warnings: compliance.warnings,
+        });
+      }
     }
 
     if (!images || !Array.isArray(images) || images.length === 0) {
@@ -172,6 +242,7 @@ router.post('/publish/note', async (req, res) => {
       success: true,
       data: result,
       message: '图文发布成功！',
+      ...(compliance.warnings.length > 0 ? { complianceWarning: compliance.warnings } : {}),
     });
   } catch (error) {
     console.error('[小红书] 发布图文失败:', error);
@@ -181,7 +252,7 @@ router.post('/publish/note', async (req, res) => {
 });
 
 // =============================================================
-// 5. 发布视频笔记
+// 5. 发布视频笔记（含合规检测）
 // =============================================================
 router.post('/publish/video', async (req, res) => {
   try {
@@ -199,6 +270,20 @@ router.post('/publish/video', async (req, res) => {
 
     if (!title || !content) {
       return res.status(400).json({ success: false, error: '标题和正文不能为空' });
+    }
+
+    // 合规检测
+    const compliance = checkXhsCompliance(title, content, tags || []);
+    if (!compliance.safe) {
+      console.warn('[小红书] ⚠️ 视频内容合规警告:', compliance.warnings);
+      if (compliance.risk === 'high') {
+        return res.status(400).json({
+          success: false,
+          error: '内容包含高风险敏感词，请修改后重试',
+          code: 'COMPLIANCE_HIGH_RISK',
+          warnings: compliance.warnings,
+        });
+      }
     }
 
     if (!videoBase64) {
@@ -620,7 +705,7 @@ const WANX_T2I_STYLE_MAP = {
 };
 
 // =============================================================
-// 11b. AI 批量文案生成（一次生成4种风格）
+// 11b. AI 批量文案生成（一次生成4种风格 — 合规版）
 // POST /api/xiaohongshu/ai/generate-multi-content
 // =============================================================
 router.post('/ai/generate-multi-content', async (req, res) => {
@@ -631,58 +716,43 @@ router.post('/ai/generate-multi-content', async (req, res) => {
       extraInfo,
     } = req.body || {};
 
-    // imageDescription 或 productName 至少有一个非空（空字符串也算缺失）
     const effectiveDesc = (imageDescription || productName || '').trim();
     if (!effectiveDesc) {
       return res.status(400).json({ success: false, error: '请提供图片描述或产品名称' });
     }
 
-    const systemPrompt = `你是一位小红书爆款内容创作者，擅长撰写高互动率的图文笔记。
-写作风格：真实、接地气、充满感染力，善用emoji，擅长制造代入感。
+    const systemPrompt = `你是一个普通的小红书用户，偶尔分享自己买过、用过的东西。
+你的笔记风格：真实自然，像是在跟朋友聊天，偶尔有口语化表达和小瑕疵反而更真实。
 
-请为同一产品生成4种不同风格的小红书笔记，每种风格一张：
-1. 种草推荐 — 像闺蜜分享好物，口吻亲切真实
-2. 真实测评 — 从外观/质地/使用感/性价比多维度分析
-3. 日常分享 — 自然融入生活感，不刻意推荐
-4. 好物带货 — 突出性价比和购买理由，有紧迫感
+⚠️ 小红书合规要求（必须遵守）：
+- 禁止使用任何直接推销话术（如"快买""必入""限时"）
+- 禁止出现价格、微信号、二维码、链接
+- 禁止使用绝对化广告用语（最好、第一、全网、独家）
+- 不要刻意引导购买，只是分享个人体验
+- 不要堆积关键词，正常说话即可
+
+请为同一产品生成4种不同角度的生活分享：
+1. 购物开箱 — 收到了XX，分享一下第一印象
+2. 使用心得 — 用了一段时间的真实感受
+3. 日常碎片 — 把产品自然融入某天的生活记录里
+4. 对比感受 — 和之前用过的东西对比一下
 
 要求：
-- 标题：吸引人，20字以内，可以有emoji，要有点击欲
-- 正文：200-400字，自然口语化，适当使用emoji，段落分明
-- 标签：8-12个相关话题标签（不带#号）
+- 标题：自然有生活感，15字以内，可以有一两个emoji点缀，不要标题党
+- 正文：150-300字，像发朋友圈一样自然，段落短小，偶尔用"哈哈哈""绝了"这种真实语气
+- 标签：3-5个精准话题就够了`
 
-产品信息：
-- 名称/描述：${effectiveDesc}
-${productName && productName !== effectiveDesc ? `- 产品名称：${productName}` : ''}
-${extraInfo ? `- 补充信息：${extraInfo}` : ''}
+    const userPrompt = `产品信息：${effectiveDesc}
+${productName && productName !== effectiveDesc ? `产品名称：${productName}` : ''}
+${extraInfo ? `补充：${extraInfo}` : ''}
 
-请严格以JSON格式输出：
+输出纯JSON（不要markdown代码块）：
 {
   "plans": [
-    {
-      "style": "种草推荐",
-      "title": "笔记标题",
-      "content": "正文内容",
-      "tags": ["标签1", "标签2"]
-    },
-    {
-      "style": "真实测评",
-      "title": "笔记标题",
-      "content": "正文内容",
-      "tags": ["标签1", "标签2"]
-    },
-    {
-      "style": "日常分享",
-      "title": "笔记标题",
-      "content": "正文内容",
-      "tags": ["标签1", "标签2"]
-    },
-    {
-      "style": "好物带货",
-      "title": "笔记标题",
-      "content": "正文内容",
-      "tags": ["标签1", "标签2"]
-    }
+    {"style":"购物开箱","title":"标题","content":"正文","tags":["标签1","标签2","标签3"]},
+    {"style":"使用心得","title":"标题","content":"正文","tags":["标签1","标签2"]},
+    {"style":"日常碎片","title":"标题","content":"正文","tags":["标签1","标签2","标签3"]},
+    {"style":"对比感受","title":"标题","content":"正文","tags":["标签1","标签2"]}
   ]
 }`;
 
@@ -719,16 +789,16 @@ ${extraInfo ? `- 补充信息：${extraInfo}` : ''}
 });
 
 // =============================================================
-// 11. AI 文案生成（基于图片描述或关键词）
+// 11. AI 文案生成（基于图片描述或关键词 — 合规版）
 // POST /api/xiaohongshu/ai/generate-content
 // =============================================================
 router.post('/ai/generate-content', async (req, res) => {
   try {
     const {
-      imageDescription,  // 图片描述或产品名称
-      productName,       // 产品名称（可选补充）
-      style,             // 文案风格：'种草' | '测评' | '日常' | '带货'
-      extraInfo,         // 额外信息（颜色/尺码等）
+      imageDescription,
+      productName,
+      style,
+      extraInfo,
     } = req.body || {};
 
     if (!imageDescription && !productName) {
@@ -736,34 +806,32 @@ router.post('/ai/generate-content', async (req, res) => {
     }
 
     const stylePrompts = {
-      '种草': '写一篇小红书种草笔记，口吻亲切真实，像闺蜜分享好物',
-      '测评': '写一篇产品测评笔记，从外观/质地/使用感/性价比四个维度分析',
-      '日常': '写一篇日常分享笔记，自然融入产品，营造生活感',
-      '带货': '写一篇带货种草笔记，突出性价比和购买理由',
+      '开箱': '分享刚收到一个东西的第一印象，像给朋友发消息一样自然',
+      '心得': '用了XX一段时间的真实感受，有好有坏，诚实分享',
+      '日常': '把产品自然融入今天的生活记录里，不刻意提它',
+      '对比': '和之前用过的东西简单对比一下，客观不吹不黑',
     };
-    const selectedStyle = stylePrompts[style] || stylePrompts['种草'];
+    const selectedStyle = stylePrompts[style] || stylePrompts['心得'];
 
-    const systemPrompt = `你是一位小红书爆款内容创作者，擅长撰写高互动率的图文笔记。
-写作风格：真实、接地气、充满感染力，善用emoji，擅长制造代入感。`;
+    const systemPrompt = `你是一个普通小红书用户，偶尔记录自己的购物和生活。
+风格：真实、自然、像发朋友圈，不需要完美。偶尔用"吧""啊""哈哈哈"更真实。
 
-    const userPrompt = `${selectedStyle}。
+⚠️ 严禁以下行为：
+- 推销话术（快买、必入、限时、抢购）
+- 价格、微信号、二维码、链接
+- 绝对化用语（最好、第一、全网、独家、无敌）
+- 刻意引导购买行为
+- 关键词堆砌、营销号语气`;
 
-产品信息：
-- 名称/描述：${imageDescription || productName}
-${productName ? `- 产品名称：${productName}` : ''}
-${extraInfo ? `- 补充信息：${extraInfo}` : ''}
+    const userPrompt = `${selectedStyle}
 
-要求：
-1. 标题：吸引人，20字以内，可以有emoji，要有点击欲
-2. 正文：200-400字，自然口语化，适当使用emoji，段落分明
-3. 标签：8-12个相关话题标签（不带#号）
+参考信息：${imageDescription || productName}
+${productName ? `名称：${productName}` : ''}
+${extraInfo ? `补充：${extraInfo}` : ''}
 
-请严格以JSON格式输出：
-{
-  "title": "笔记标题",
-  "content": "正文内容",
-  "tags": ["标签1", "标签2", "标签3"]
-}`;
+写一篇150-300字的笔记，标题15字以内自然有生活感，标签3-5个。
+
+输出纯JSON：{"title":"标题","content":"正文","tags":["标签1","标签2"]}`;
 
     const rawContent = await callQwen([
       { role: 'system', content: systemPrompt },
@@ -1212,6 +1280,23 @@ ${sellingPoints.length > 0 ? `核心卖点：${sellingPoints.join('、')}` : ''}
     res.json({ success: true, data: { url: resultUrl, prompt: imgPrompt, style } });
   } catch (error) {
     console.error('[小红书AI] 竞品图生成失败:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =============================================================
+// 16. 合规检测接口（前端发布前预检）
+// POST /api/xiaohongshu/check-compliance
+// =============================================================
+router.post('/check-compliance', async (req, res) => {
+  try {
+    const { title, content, tags } = req.body || {};
+    if (!title && !content) {
+      return res.status(400).json({ success: false, error: '请提供标题或正文' });
+    }
+    const result = checkXhsCompliance(title || '', content || '', tags || []);
+    res.json({ success: true, data: result });
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
