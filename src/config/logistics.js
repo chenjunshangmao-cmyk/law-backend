@@ -1,30 +1,85 @@
 // ==========================================
-// 物流配置 - 6大物流渠道
+// 物流配置 — 国内物流 + 国际物流
+// domestic=true → 国内运费，按件/按重
+// domestic=false → 国际物流，按重量区间
+// 价格以物流公司实际报价为准，需定期更新
 // ==========================================
 
 export const LOGISTICS_CONFIG = {
-  // 安可数 - 主要物流
+  // ─── 国内物流 ───
+  // 菜鸟/申通（电商常用）
+  cainiao: {
+    name: '菜鸟快递',
+    code: 'cainiao',
+    domestic: true,
+    basePrice: 2.5,           // 首重1kg内 ¥2.5
+    perKg: 1.0,               // 续重 ¥1/kg
+    deliveryTime: '2-4天',
+    tracking: true,
+    region: 'cn',
+  },
+
+  // 圆通
+  yuantong: {
+    name: '圆通',
+    code: 'yuantong',
+    domestic: true,
+    basePrice: 3.0,
+    perKg: 1.0,
+    deliveryTime: '2-5天',
+    tracking: true,
+    region: 'cn',
+  },
+
+  // 顺丰
+  shunfeng: {
+    name: '顺丰',
+    code: 'shunfeng',
+    domestic: true,
+    basePrice: 12.0,          // 顺丰贵
+    perKg: 2.0,
+    deliveryTime: '1-2天',
+    tracking: true,
+    region: 'cn',
+  },
+
+  // 中通
+  zhongtong: {
+    name: '中通',
+    code: 'zhongtong',
+    domestic: true,
+    basePrice: 2.5,
+    perKg: 0.8,
+    deliveryTime: '2-4天',
+    tracking: true,
+    region: 'cn',
+  },
+
+  // ─── 国际物流 ───
+  // 安可数
   ansu: {
     name: '安可数',
     code: 'ansu',
-    basePrice: 25, // 起步价
+    domestic: false,
+    basePrice: 25,
     weightTiers: [
-      { min: 0, max: 100, price: 25 },      // 0-100g: 25元
-      { min: 100, max: 300, price: 35 },    // 100-300g: 35元
-      { min: 300, max: 500, price: 45 },    // 300-500g: 45元
-      { min: 500, max: 1000, price: 65 },   // 500-1000g: 65元
-      { min: 1000, max: 2000, price: 95 },  // 1000-2000g: 95元
-      { min: 2000, max: 5000, price: 150 }, // 2000-5000g: 150元
+      { min: 0, max: 100, price: 25 },
+      { min: 100, max: 300, price: 35 },
+      { min: 300, max: 500, price: 45 },
+      { min: 500, max: 1000, price: 65 },
+      { min: 1000, max: 2000, price: 95 },
+      { min: 2000, max: 5000, price: 150 },
     ],
     deliveryTime: '7-15天',
     countries: ['US', 'UK', 'DE', 'FR', 'AU', 'CA', 'JP', 'KR', 'SG', 'MY'],
     tracking: true,
   },
-  
+
   // 云途
   yuntu: {
     name: '云途',
     code: 'yuntu',
+    domestic: false,
     basePrice: 22,
     weightTiers: [
       { min: 0, max: 100, price: 22 },
@@ -38,11 +93,12 @@ export const LOGISTICS_CONFIG = {
     countries: ['US', 'UK', 'DE', 'FR', 'AU', 'CA', 'JP', 'KR'],
     tracking: true,
   },
-  
+
   // 燕文
   yanwen: {
     name: '燕文',
     code: 'yanwen',
+    domestic: false,
     basePrice: 20,
     weightTiers: [
       { min: 0, max: 100, price: 20 },
@@ -56,11 +112,12 @@ export const LOGISTICS_CONFIG = {
     countries: ['US', 'UK', 'DE', 'FR', 'AU', 'CA', 'JP', 'KR', 'BR', 'MX'],
     tracking: true,
   },
-  
+
   // 递四方
   disifang: {
     name: '递四方',
     code: 'disifang',
+    domestic: false,
     basePrice: 23,
     weightTiers: [
       { min: 0, max: 100, price: 23 },
@@ -74,11 +131,12 @@ export const LOGISTICS_CONFIG = {
     countries: ['US', 'UK', 'DE', 'FR', 'AU', 'CA', 'JP', 'KR', 'SG'],
     tracking: true,
   },
-  
+
   // 国欧
   guoou: {
     name: '国欧',
     code: 'guoou',
+    domestic: false,
     basePrice: 26,
     weightTiers: [
       { min: 0, max: 100, price: 26 },
@@ -92,11 +150,12 @@ export const LOGISTICS_CONFIG = {
     countries: ['US', 'UK', 'DE', 'FR', 'IT', 'ES', 'NL', 'BE'],
     tracking: true,
   },
-  
+
   // UNI
   uni: {
     name: 'UNI',
     code: 'uni',
+    domestic: false,
     basePrice: 24,
     weightTiers: [
       { min: 0, max: 100, price: 24 },
@@ -112,30 +171,34 @@ export const LOGISTICS_CONFIG = {
   },
 };
 
-// 计算物流费用
-export function calculateShipping(weight, logisticsCode = 'ansu', country = 'US') {
+/** 计算物流费用 */
+export function calculateShipping(weight, logisticsCode, destination) {
   const config = LOGISTICS_CONFIG[logisticsCode];
   if (!config) return null;
-  
-  // 找到对应的重量区间
+
+  // 国内物流：首重+续重
+  if (config.domestic) {
+    const kg = Math.max(0.1, weight / 1000); // 最小0.1kg
+    if (kg <= 1) return config.basePrice;
+    return config.basePrice + Math.ceil(kg - 1) * (config.perKg || 1);
+  }
+
+  // 国际物流：重量区间阶梯
   const tier = config.weightTiers.find(t => weight >= t.min && weight < t.max);
   if (!tier) {
-    // 超过最大重量，按最大区间计算 + 续重
     const maxTier = config.weightTiers[config.weightTiers.length - 1];
-    const extraWeight = weight - maxTier.max;
-    const extraPrice = Math.ceil(extraWeight / 1000) * 30; // 续重30元/KG
-    return maxTier.price + extraPrice;
+    const extraKg = Math.ceil((weight - maxTier.max) / 1000);
+    return maxTier.price + extraKg * 30;
   }
-  
   return tier.price;
 }
 
-// 获取所有物流选项
-export function getLogisticsOptions() {
-  return Object.values(LOGISTICS_CONFIG).map(l => ({
-    code: l.code,
-    name: l.name,
-    basePrice: l.basePrice,
-    deliveryTime: l.deliveryTime,
-  }));
+// 按平台类型获取物流选项
+export function getLogisticsOptions(domestic = false) {
+  return Object.values(LOGISTICS_CONFIG)
+    .filter(l => l.domestic === domestic)
+    .map(l => ({
+      code: l.code, name: l.name, basePrice: l.basePrice,
+      deliveryTime: l.deliveryTime, domestic: l.domestic,
+    }));
 }

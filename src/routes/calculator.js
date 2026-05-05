@@ -1,10 +1,10 @@
 // ==========================================
-// 利润计算器 API 路由
+// 利润计算器 API 路由 v2 — 区分国内/国外平台
 // ==========================================
 
 import express from 'express';
-import { calculateShipping, LOGISTICS_CONFIG } from '../config/logistics.js';
-import { calculateCommission, PLATFORM_COMMISSION_CONFIG } from '../config/platforms.js';
+import { calculateShipping, LOGISTICS_CONFIG, getLogisticsOptions } from '../config/logistics.js';
+import { PLATFORM_COMMISSION_CONFIG, calculateCommission } from '../config/platforms.js';
 
 const router = express.Router();
 
@@ -17,158 +17,159 @@ router.post('/calculate', async (req, res) => {
       logisticsProvider,   // 物流商代码
       destination,         // 目的地
       platforms,           // 销售平台数组
-      additionalCosts,     // 其他成本
-      taxRate,             // 税率
-      targetProfitRate,    // 目标利润率
+      additionalCosts,     // 其他成本（打包、贴标等）
+      taxRate,             // 税率（含关税+增值税，仅国际）
+      targetProfitRate,    // 目标利润率 %
     } = req.body;
 
-    // 参数验证
     if (!costPrice || !weight || !logisticsProvider || !platforms || platforms.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: '缺少必要参数：costPrice, weight, logisticsProvider, platforms'
-      });
+      return res.status(400).json({ success: false, error: '缺少必要参数' });
     }
 
-    // 1. 计算物流费用
-    const shippingCost = calculateShipping(weight, logisticsProvider, destination);
-    if (shippingCost === null) {
-      return res.status(400).json({
-        success: false,
-        error: '无效的物流商代码'
-      });
-    }
+    const productCost = Number(costPrice);
+    const weightG = Number(weight);
+    const otherCosts = Number(additionalCosts || 0);
+    const profitTarget = (targetProfitRate || 50) / 100;
 
-    // 2. 计算税费
-    const taxCost = (costPrice + shippingCost) * (taxRate || 13) / 100;
+    // 区分国内/国外平台
+    const domesticPlatforms = platforms.filter(p => PLATFORM_COMMISSION_CONFIG[p]?.domestic);
+    const internationalPlatforms = platforms.filter(p => !PLATFORM_COMMISSION_CONFIG[p]?.domestic);
 
-    // 3. 其他成本
-    const otherCosts = additionalCosts || 0;
+    // 物流费
+    const logisticsCfg = LOGISTICS_CONFIG[logisticsProvider];
+    const shippingCost = calculateShipping(weightG, logisticsProvider, destination);
 
-    // 4. 计算各平台的建议售价和利润
-    const platformResults = platforms.map(platform => {
-      const platformConfig = PLATFORM_COMMISSION_CONFIG[platform];
-      if (!platformConfig) return null;
+    const results = [];
 
-      // 计算佣金
-      const commission = calculateCommission(platform, weight, 0);
+    // ─── 计算国内平台 ───
+    for (const platform of domesticPlatforms) {
+      const cfg = PLATFORM_COMMISSION_CONFIG[platform];
+      if (!cfg) continue;
+
+      // 国内平台：只用国内物流，无国际运费，无关税
+      const domesticShipping = logisticsCfg?.domestic ? shippingCost : 2.5; // 兜底菜鸟价
+      const baseCost = productCost + domesticShipping + otherCosts;
       
-      // 计算总成本（不含售价相关费用）
-      const baseCost = costPrice + shippingCost + taxCost + otherCosts;
+      // 国内增值税 13% 或用户自定义
+      const vatRate = (Number(taxRate) || 13) / 100;
+      const vatCost = productCost * vatRate;  // 只对商品成本收增值税
       
-      // 根据目标利润率计算建议售价
-      const targetRate = targetProfitRate || 30; // 默认30%利润率
-      const suggestedPrice = calculateSuggestedPrice(
-        baseCost,
-        commission.rate,
-        targetRate / 100,
-        platformConfig.fixedFee
-      );
-
-      // 计算实际利润
-      const commissionAmount = suggestedPrice * commission.rate + platformConfig.fixedFee;
-      const totalCost = baseCost + commissionAmount;
+      // 佣金
+      const comm = calculateCommission(platform, weightG, 0);
+      const suggestedPrice = calcPrice(baseCost + vatCost, comm.rate, cfg.fixedFee || 0, profitTarget);
+      const commAmount = suggestedPrice * comm.rate + (cfg.fixedFee || 0);
+      const totalCost = baseCost + vatCost + commAmount;
       const profit = suggestedPrice - totalCost;
-      const profitRate = (profit / suggestedPrice) * 100;
+      const profitRate = profit / suggestedPrice * 100;
 
-      return {
-        platform,
-        platformName: platformConfig.name,
-        currency: platformConfig.currency,
-        exchangeRate: platformConfig.exchangeRate,
-        suggestedPrice: Math.round(suggestedPrice * 100) / 100,
-        suggestedPriceLocal: Math.round(suggestedPrice * platformConfig.exchangeRate * 100) / 100,
+      results.push({
+        platform, platformName: cfg.name, domestic: true,
+        currency: cfg.currency, exchangeRate: cfg.exchangeRate,
+        suggestedPrice: round2(suggestedPrice),
+        suggestedPriceLocal: round2(suggestedPrice * cfg.exchangeRate),
         costs: {
-          product: costPrice,
-          shipping: shippingCost,
-          tax: Math.round(taxCost * 100) / 100,
-          other: otherCosts,
-          commission: Math.round(commissionAmount * 100) / 100,
-          commissionRate: commission.rate,
-          fixedFee: platformConfig.fixedFee,
-          total: Math.round(totalCost * 100) / 100,
+          product: productCost, shipping: round2(domesticShipping),
+          tax: round2(vatCost), other: otherCosts,
+          commission: round2(commAmount), commissionRate: comm.rate,
+          fixedFee: cfg.fixedFee || 0,
+          total: round2(totalCost),
         },
-        profit: Math.round(profit * 100) / 100,
-        profitLocal: Math.round(profit * platformConfig.exchangeRate * 100) / 100,
-        profitRate: Math.round(profitRate * 100) / 100,
-      };
-    }).filter(Boolean);
+        profit: round2(profit),
+        profitLocal: round2(profit * cfg.exchangeRate),
+        profitRate: round2(profitRate),
+      });
+    }
 
-    // 汇总信息
+    // ─── 计算国外平台 ───
+    for (const platform of internationalPlatforms) {
+      const cfg = PLATFORM_COMMISSION_CONFIG[platform];
+      if (!cfg) continue;
+
+      // 国际运费
+      const intlShipping = logisticsCfg?.domestic ? 25 : (shippingCost || 25);
+      // 关税≈ (成本+运费)×税率
+      const customsRate = (Number(taxRate) || 13) / 100;
+      const customsCost = (productCost + intlShipping) * customsRate;
+      
+      const baseCost = productCost + intlShipping + customsCost + otherCosts;
+      const comm = calculateCommission(platform, weightG, 0);
+      const suggestedPrice = calcPrice(baseCost, comm.rate, cfg.fixedFee || 0, profitTarget);
+      const commAmount = suggestedPrice * comm.rate + (cfg.fixedFee || 0);
+      const totalCost = baseCost + commAmount;
+      const profit = suggestedPrice - totalCost;
+      const profitRate = profit / suggestedPrice * 100;
+
+      results.push({
+        platform, platformName: cfg.name, domestic: false,
+        currency: cfg.currency, exchangeRate: cfg.exchangeRate,
+        suggestedPrice: round2(suggestedPrice),
+        suggestedPriceLocal: round2(suggestedPrice * cfg.exchangeRate),
+        costs: {
+          product: productCost, shipping: round2(intlShipping),
+          tax: round2(customsCost), other: otherCosts,
+          commission: round2(commAmount), commissionRate: comm.rate,
+          fixedFee: cfg.fixedFee || 0,
+          total: round2(totalCost),
+        },
+        profit: round2(profit),
+        profitLocal: round2(profit * cfg.exchangeRate),
+        profitRate: round2(profitRate),
+      });
+    }
+
     const summary = {
       baseCosts: {
-        product: costPrice,
-        shipping: shippingCost,
-        tax: Math.round(taxCost * 100) / 100,
+        product: productCost,
+        shipping: logisticsCfg?.domestic ? (shippingCost || 0) : (shippingCost || 25),
+        tax: results[0]?.costs.tax || 0,
         other: otherCosts,
-        total: Math.round((costPrice + shippingCost + taxCost + otherCosts) * 100) / 100,
+        total: round2(productCost + (logisticsCfg?.domestic ? (shippingCost || 0) : (shippingCost || 25)) + (results[0]?.costs.tax || 0) + otherCosts),
       },
       logisticsInfo: {
-        provider: LOGISTICS_CONFIG[logisticsProvider]?.name || logisticsProvider,
-        weight: weight,
-        destination: destination || 'US',
+        provider: logisticsCfg?.name || logisticsProvider,
+        domestic: !!logisticsCfg?.domestic,
+        weight: weightG,
       },
+      domesticCount: domesticPlatforms.length,
+      internationalCount: internationalPlatforms.length,
     };
 
-    res.json({
-      success: true,
-      data: {
-        summary,
-        platforms: platformResults,
-      }
-    });
-
+    res.json({ success: true, data: { summary, results } });
   } catch (error) {
     console.error('利润计算错误:', error);
-    res.status(500).json({
-      success: false,
-      error: '计算失败: ' + error.message
-    });
+    res.status(500).json({ success: false, error: '计算失败: ' + error.message });
   }
 });
 
-// 获取物流选项
+// 获取物流选项 — 按国内/国外过滤
 router.get('/logistics', (req, res) => {
-  const options = Object.values(LOGISTICS_CONFIG).map(l => ({
-    code: l.code,
-    name: l.name,
-    basePrice: l.basePrice,
-    deliveryTime: l.deliveryTime,
-    countries: l.countries,
-  }));
-
-  res.json({
-    success: true,
-    data: options
-  });
+  const { domestic } = req.query;
+  const filterDomestic = domestic === 'true' ? true : domestic === 'false' ? false : undefined;
+  const options = Object.values(LOGISTICS_CONFIG)
+    .filter(l => filterDomestic === undefined || l.domestic === filterDomestic)
+    .map(l => ({
+      code: l.code, name: l.name, basePrice: l.basePrice,
+      deliveryTime: l.deliveryTime, domestic: !!l.domestic,
+    }));
+  res.json({ success: true, data: { logistics: options } });
 });
 
 // 获取平台选项
 router.get('/platforms', (req, res) => {
-  const options = Object.entries(PLATFORM_COMMISSION_CONFIG).map(([key, config]) => ({
-    key,
-    name: config.name,
-    currency: config.currency,
-    commissionTiers: config.commissionTiers,
+  const options = Object.entries(PLATFORM_COMMISSION_CONFIG).map(([key, cfg]) => ({
+    key, name: cfg.name, domestic: !!cfg.domestic,
+    currency: cfg.currency, exchangeRate: cfg.exchangeRate,
   }));
-
-  res.json({
-    success: true,
-    data: options
-  });
+  res.json({ success: true, data: { platforms: options } });
 });
 
-// 计算建议售价的辅助函数
-function calculateSuggestedPrice(baseCost, commissionRate, targetProfitRate, fixedFee) {
-  // 公式: 售价 = (基础成本 + 固定费用) / (1 - 佣金率 - 目标利润率)
-  const denominator = 1 - commissionRate - targetProfitRate;
-  
-  if (denominator <= 0) {
-    // 如果分母太小，返回一个保底价格（成本×2）
-    return baseCost * 2;
-  }
-  
-  return (baseCost + fixedFee) / denominator;
+// 售价逆推公式: 售价 = (基础成本 + 固定费) / (1 - 佣金率 - 目标利润率)
+function calcPrice(baseCost, commissionRate, fixedFee, targetProfitRate) {
+  const denom = 1 - commissionRate - targetProfitRate;
+  if (denom <= 0.01) return baseCost * 2; // 保底
+  return (baseCost + fixedFee) / denom;
 }
+
+function round2(n) { return Math.round(n * 100) / 100; }
 
 export default router;

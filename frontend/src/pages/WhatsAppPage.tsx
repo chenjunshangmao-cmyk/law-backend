@@ -8,6 +8,18 @@ import { useAuth } from '../contexts/AuthContext';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '';
 
+/** 带认证token的 fetch */
+async function authFetch(path: string, options: RequestInit = {}): Promise<any> {
+  const token = localStorage.getItem('token');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> || {}),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  return res;
+}
+
 export default function WhatsAppPage() {
   const { user } = useAuth();
   const [links, setLinks] = useState([]);
@@ -35,8 +47,8 @@ export default function WhatsAppPage() {
     try {
       setLoading(true);
       const [linksRes, statsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/whatsapp/links`, { credentials: 'include' }),
-        fetch(`${API_BASE}/api/whatsapp/stats`, { credentials: 'include' }),
+        authFetch('/api/whatsapp/links'),
+        authFetch('/api/whatsapp/stats'),
       ]);
       if (linksRes.ok) {
         const data = await linksRes.json();
@@ -63,14 +75,12 @@ export default function WhatsAppPage() {
 
     try {
       const url = editingId
-        ? `${API_BASE}/api/whatsapp/links/${editingId}`
-        : `${API_BASE}/api/whatsapp/links`;
+        ? `/api/whatsapp/links/${editingId}`
+        : `/api/whatsapp/links`;
       const method = editingId ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await authFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
@@ -92,10 +102,7 @@ export default function WhatsAppPage() {
   async function handleDelete(linkId) {
     if (!confirm('确定删除这条链接吗？删除后不可恢复。')) return;
     try {
-      const res = await fetch(`${API_BASE}/api/whatsapp/links/${linkId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
+      const res = await authFetch(`/api/whatsapp/links/${linkId}`, { method: 'DELETE' });
       if (res.ok) {
         showToast('删除成功', 'success');
         fetchData();
@@ -107,10 +114,7 @@ export default function WhatsAppPage() {
 
   async function handleReset(linkId) {
     try {
-      const res = await fetch(`${API_BASE}/api/whatsapp/links/${linkId}/reset`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+      const res = await authFetch(`/api/whatsapp/links/${linkId}/reset`, { method: 'POST' });
       if (res.ok) {
         showToast('计数已重置', 'success');
         fetchData();
@@ -165,11 +169,9 @@ export default function WhatsAppPage() {
   }
 
   const getLinkUrl = (linkId) => {
-    // 优先使用 api.chenjuntrading.cn
-    const host = window.location.hostname === 'localhost'
-      ? `${window.location.protocol}//${window.location.host}`
-      : 'https://api.chenjuntrading.cn';
-    return `${host}/go?id=${linkId}`;
+    // 跳转链接走后端（/go 路由在 claw-backend）
+    const backendHost = import.meta.env.VITE_API_BASE || 'https://claw-backend-2026.onrender.com';
+    return `${backendHost}/go?id=${linkId}`;
   };
 
   const styles = {

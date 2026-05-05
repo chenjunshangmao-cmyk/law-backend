@@ -3,7 +3,7 @@
  * 链路：成本 → 国内物流 → 国际物流 → 后程费用 → 佣金 → 利润 → 销售价格
  * 售价档位：30%/50%/70%/90% 利润，选完后可一键填入发布页
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
@@ -21,6 +21,7 @@ interface CostBreakdown {
 interface PlatformResult {
   platform: string;
   platformName: string;
+  domestic: boolean;
   currency: string;
   exchangeRate: number;
   suggestedPrice: number;
@@ -67,21 +68,53 @@ export default function CalculatorPage() {
   });
 
   const [logisticsOptions, setLogisticsOptions] = useState<any[]>([]);
+  const [allLogistics, setAllLogistics] = useState<any[]>([]);
   const [platformOptions, setPlatformOptions] = useState<any[]>([]);
   const [allTierResults, setAllTierResults] = useState<Record<number, { results: PlatformResult[]; summary: any }>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [lastFormKey, setLastFormKey] = useState('');
 
+  // 判断是否有国内平台被选中
+  const hasDomesticPlatform = useMemo(() =>
+    platformOptions.some(p => p.domestic && form.selectedPlatforms.includes(p.key)),
+    [platformOptions, form.selectedPlatforms]);
+  const hasInternationalPlatform = useMemo(() =>
+    platformOptions.some(p => !p.domestic && form.selectedPlatforms.includes(p.key)),
+    [platformOptions, form.selectedPlatforms]);
+
   useEffect(() => {
     Promise.all([
-      api.calculate.logistics().catch(() => ({ data: [] })),
-      api.calculate.platforms().catch(() => ({ data: [] }))
+      api.calculate.logistics().catch(() => ({ data: { logistics: [] } })),
+      api.calculate.platforms().catch(() => ({ data: { platforms: [] } }))
     ]).then(([logi, plat]) => {
-      setLogisticsOptions(Array.isArray(logi?.data?.logistics) ? logi.data.logistics : (Array.isArray(logi?.data) ? logi.data : []));
-      setPlatformOptions(Array.isArray(plat?.data?.platforms) ? plat.data.platforms : (Array.isArray(plat?.data) ? plat.data : []));
+      const logistics = logi?.data?.logistics || [];
+      setAllLogistics(logistics);
+      setPlatformOptions(plat?.data?.platforms || []);
     });
   }, []);
+
+  // 根据选中的平台类型过滤物流选项
+  useEffect(() => {
+    if (allLogistics.length === 0) return;
+    // 如果只选国内平台 → 只显示国内物流
+    if (hasDomesticPlatform && !hasInternationalPlatform) {
+      setLogisticsOptions(allLogistics.filter(l => l.domestic));
+    }
+    // 如果只选国外平台 → 只显示国际物流
+    else if (!hasDomesticPlatform && hasInternationalPlatform) {
+      setLogisticsOptions(allLogistics.filter(l => !l.domestic));
+    }
+    // 两者都有 → 显示全部
+    else {
+      setLogisticsOptions(allLogistics);
+    }
+    // 切换时清除物流选择
+    if (form.logisticsProvider) {
+      const valid = allLogistics.find(l => l.code === form.logisticsProvider);
+      if (!valid) setForm(f => ({ ...f, logisticsProvider: '' }));
+    }
+  }, [hasDomesticPlatform, hasInternationalPlatform, allLogistics]);
 
   const currentTierResults = allTierResults[form.selectedTier];
 
@@ -221,11 +254,31 @@ export default function CalculatorPage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {platformOptions.map(p => (
                 <button key={p.key} onClick={() => togglePlatform(p.key)}
-                  style={{ padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: '2px solid ' + (form.selectedPlatforms.includes(p.key) ? '#6366f1' : '#e5e7eb'), background: form.selectedPlatforms.includes(p.key) ? '#eef2ff' : '#fff', color: form.selectedPlatforms.includes(p.key) ? '#4338ca' : '#374151', cursor: 'pointer' }}
-                >{platformIcons[p.key] || '🌐'} {p.name}</button>
+                  style={{
+                    padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                    border: `2px solid ${form.selectedPlatforms.includes(p.key) ? '#6366f1' : '#e5e7eb'}`,
+                    background: form.selectedPlatforms.includes(p.key) ? '#eef2ff' : '#fff',
+                    color: form.selectedPlatforms.includes(p.key) ? '#4338ca' : '#374151',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                  }}
+                >
+                  {platformIcons[p.key] || '🌐'} {p.name}
+                  <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 2 }}>{p.domestic ? '国内' : '跨境'}</span>
+                </button>
               ))}
             </div>
-            <InputField label="增值税率 %" value={form.taxRate} onChange={v => setForm(f => ({...f, taxRate: v}))} suffix="%" />
+            {hasDomesticPlatform && hasInternationalPlatform && (
+              <p style={{ fontSize: 12, color: '#f59e0b', marginTop: 8 }}>⚠️ 同时选了国内+跨境平台，物流选项显示全部</p>
+            )}
+          </div>
+
+          {/* 税费说明 */}
+          <div style={{ background: '#fff', borderRadius: 12, padding: 16, border: '1px solid #e5e7eb', marginBottom: 16 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>🧾 税费设置</h3>
+            <InputField label={hasInternationalPlatform ? '关税+增值税 %' : '增值税率 %'} value={form.taxRate} onChange={v => setForm(f => ({...f, taxRate: v}))} suffix="%" />
+            <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>
+              {hasInternationalPlatform ? '跨境平台：商品成本+运费 × 税率' : '国内平台：商品成本 × 增值税率'}
+            </p>
           </div>
 
           <button onClick={calculateAll} disabled={loading}
@@ -306,9 +359,14 @@ export default function CalculatorPage() {
                         {platformIcons[r.platform] || '🌐'} {r.platformName}
                         <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 8 }}>({r.currency})</span>
                       </div>
-                      <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: '#d1fae5', color: '#059669' }}>
-                        {tier.label}
-                      </span>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <span style={{ padding: '4px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: r.domestic ? '#dbeafe' : '#fef3c7', color: r.domestic ? '#2563eb' : '#92400e' }}>
+                          {r.domestic ? '国内' : '跨境'}
+                        </span>
+                        <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: '#d1fae5', color: '#059669' }}>
+                          {tier.label}
+                        </span>
+                      </div>
                     </div>
 
                     {/* 建议售价 - 大号展示 */}

@@ -25,6 +25,20 @@ if (!fs.existsSync(WHATSAPP_FILE)) {
 
 const router = express.Router();
 
+// ======== 会员链接限额 ========
+
+const LINK_LIMITS = {
+  free: 1,
+  basic: 3,
+  pro: 10,
+  enterprise: Infinity,
+};
+
+function getLinkLimit(user) {
+  const type = (user.membership_type || user.plan || 'free').toLowerCase();
+  return LINK_LIMITS[type] ?? 1;
+}
+
 // ======== 工具函数 ========
 
 function generateId() {
@@ -107,6 +121,19 @@ router.post('/links', authenticateToken, (req, res) => {
 
     if (!clientName || !phone) {
       return res.status(400).json({ success: false, error: '客户名称和手机号必填' });
+    }
+
+    // 会员限额检查
+    const userLinks = links.filter(l => l.userId === req.user.userId);
+    const limit = getLinkLimit(req.user);
+    if (userLinks.length >= limit) {
+      return res.status(403).json({
+        success: false,
+        error: `您的${req.user.membership_type === 'free' ? '免费' : ''}会员最多可创建 ${limit} 个链接`,
+        code: 'LINK_LIMIT_REACHED',
+        limit,
+        current: userLinks.length,
+      });
     }
 
     const linkId = generateId();
@@ -273,6 +300,8 @@ router.get('/stats', authenticateToken, (req, res) => {
         totalLinks: links.length,
         activeLinks,
         totalClicks,
+        linkLimit: getLinkLimit(req.user),
+        membershipType: req.user.membership_type || req.user.plan || 'free',
         dailyStats,
       }
     });
