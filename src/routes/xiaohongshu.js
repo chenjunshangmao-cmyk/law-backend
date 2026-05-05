@@ -182,6 +182,7 @@ router.post('/publish/note', async (req, res) => {
       tags,
       location,
       isPrivate,
+      semiAuto,    // ✅ 半自动模式：填完不点发布
     } = req.body || {};
 
     if (!title || !content) {
@@ -220,7 +221,8 @@ router.post('/publish/note', async (req, res) => {
     // 将 base64 图片保存为临时文件
     const imageFiles = images.map((img, i) => saveBase64File(img, `image_${i}.jpg`));
 
-    await xhs.createContext(accountId, { headless: true });
+    // 半自动 → 有头浏览器，方便用户手动点发布
+    await xhs.createContext(accountId, { headless: semiAuto ? false : true });
 
     const result = await xhs.publishNote({
       images: imageFiles.map(f => f.path),
@@ -230,9 +232,13 @@ router.post('/publish/note', async (req, res) => {
       location: location || '',
       isPrivate: isPrivate || false,
       accountId: accountId || 'default',
+      semiAuto: !!semiAuto,
     });
 
-    await xhs.close();
+    // 半自动模式：不关闭浏览器，让用户手动点发布
+    if (!semiAuto) {
+      await xhs.close();
+    }
 
     // 清理临时图片文件
     imageFiles.forEach(f => {
@@ -242,12 +248,14 @@ router.post('/publish/note', async (req, res) => {
     res.json({
       success: true,
       data: result,
-      message: '图文发布成功！',
+      message: semiAuto ? '内容已填充，请在浏览器窗口手动点击【发布】' : '图文发布成功！',
       ...(compliance.warnings.length > 0 ? { complianceWarning: compliance.warnings } : {}),
     });
   } catch (error) {
     console.error('[小红书] 发布图文失败:', error);
-    await xhs.close().catch(() => {});
+    if (!semiAuto) {
+      await xhs.close().catch(() => {});
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -267,6 +275,7 @@ router.post('/publish/video', async (req, res) => {
       tags,
       location,
       isPrivate,
+      semiAuto,      // ✅ 半自动模式
     } = req.body || {};
 
     if (!title || !content) {
@@ -305,7 +314,8 @@ router.post('/publish/video', async (req, res) => {
       coverFile = saveBase64File(coverBase64, 'cover.jpg');
     }
 
-    await xhs.createContext(accountId, { headless: true });
+    // 半自动 → 有头浏览器
+    await xhs.createContext(accountId, { headless: semiAuto ? false : true });
 
     const result = await xhs.publishVideo({
       videoPath: videoFile.path,
@@ -315,9 +325,13 @@ router.post('/publish/video', async (req, res) => {
       tags: tags || [],
       location: location || '',
       isPrivate: isPrivate || false,
+      semiAuto: !!semiAuto,
     });
 
-    await xhs.close();
+    // 半自动模式：不关闭浏览器
+    if (!semiAuto) {
+      await xhs.close();
+    }
 
     // 清理临时文件
     try { fs.unlinkSync(videoFile.path); } catch {}
@@ -326,11 +340,13 @@ router.post('/publish/video', async (req, res) => {
     res.json({
       success: true,
       data: result,
-      message: '视频发布成功！',
+      message: semiAuto ? '内容已填充，请在浏览器窗口手动点击【发布】' : '视频发布成功！',
     });
   } catch (error) {
     console.error('[小红书] 发布视频失败:', error);
-    await xhs.close().catch(() => {});
+    if (!semiAuto) {
+      await xhs.close().catch(() => {});
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 });

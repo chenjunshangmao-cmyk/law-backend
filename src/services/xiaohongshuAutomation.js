@@ -371,6 +371,7 @@ export class XiaohongshuAutomation {
     location = '',
     isPrivate = false,
     accountId = 'default',
+    semiAuto = false,   // ✅ 半自动模式：填完内容不点发布，留给人手动点
   }) {
     // 频率限制
     checkRateLimit(accountId);
@@ -480,6 +481,17 @@ export class XiaohongshuAutomation {
     await humanScroll(this.page);
     await humanDelay(this.page, 1000, 3000);
 
+    // 6.5 半自动模式：填完内容即停止，等用户手动点发布
+    if (semiAuto) {
+      console.log('[小红书-半自动] 内容已填充完毕，等待用户手动点击发布按钮');
+      return {
+        success: true,
+        semiAuto: true,
+        message: '内容已自动填充，请手动点击【发布】按钮',
+        note: '浏览器窗口保持打开，请在 5 分钟内手动点击发布',
+      };
+    }
+
     // 7. 发布（找到按钮，慢慢移动过去）
     const publishBtn = await this.page.$(
       'button:has-text("发布"):not(:has-text("定时")), [class*="publish-btn"], .submit-btn'
@@ -553,6 +565,7 @@ export class XiaohongshuAutomation {
     tags = [],
     location = '',
     isPrivate = false,
+    semiAuto = false,   // ✅ 半自动模式：填完内容不点发布
   }) {
     // 1. 进入发布页
     await this.page.goto('https://creator.xiaohongshu.com/publish/publish?type=video', {
@@ -597,7 +610,7 @@ export class XiaohongshuAutomation {
       await contentEditor.fill(content);
     }
 
-    // 6. 添加标签
+    // 6. 添加标签（视频也支持标签）
     if (tags.length > 0) {
       const tagInput = await this.page.$('[placeholder*="添加标签"], [placeholder*="话题"]');
       if (tagInput) {
@@ -611,6 +624,17 @@ export class XiaohongshuAutomation {
           }
         }
       }
+    }
+
+    // 6.5 半自动模式：填完内容即停止，等用户手动点发布
+    if (semiAuto) {
+      console.log('[小红书-半自动] 视频内容已填充完毕，等待用户手动点击发布按钮');
+      return {
+        success: true,
+        semiAuto: true,
+        message: '内容已自动填充，请手动点击【发布】按钮',
+        note: '浏览器窗口保持打开，请在 5 分钟内手动点击发布',
+      };
     }
 
     // 7. 发布
