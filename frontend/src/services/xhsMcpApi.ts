@@ -36,6 +36,13 @@ const xhsMcpApi = {
   loginStatus: (accountId: string = 'default') =>
     bridgeFetch(`/login/status?accountId=${encodeURIComponent(accountId)}`),
 
+  /** 合规检测 */
+  checkCompliance: (data: { title: string; content: string; tags?: string[] }) =>
+    bridgeFetch('/check-compliance', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   /** 发布图文笔记 */
   publishNote: (data: {
     accountId?: string;
@@ -69,6 +76,9 @@ const xhsMcpApi = {
 
   /** 健康检查 */
   health: () => bridgeFetch('/health'),
+
+  /** 获取 Slot 池状态（v3.0） */
+  getSlots: () => bridgeFetch('/slots'),
 };
 
 export default xhsMcpApi;

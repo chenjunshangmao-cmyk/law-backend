@@ -24,6 +24,7 @@ const IMG_STYLES = [
 
 export default function XiaohongshuPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [slotInfo, setSlotInfo] = useState<{ slots: any[]; total: number; free: number } | null>(null);
   const [tab, setTab] = useState<'accounts' | 'publish'>('publish');
   const [publishType, setPublishType] = useState<'note' | 'video' | 'product'>('note');
   const [loading, setLoading] = useState(false);
@@ -473,6 +474,24 @@ export default function XiaohongshuPage() {
           }
         }
       } catch {}
+
+      // 从 Slot Pool 获取账号的 slot 分配
+      try {
+        const slotRes = await xhsMcpApi.getSlots();
+        if (slotRes?.success && slotRes.data) {
+          setSlotInfo(slotRes.data);
+          // 给每个账号标记 slotId
+          const slotMap: Record<string, number> = {};
+          slotRes.data.slots.forEach((s: any) => {
+            if (s.accountId) slotMap[s.accountId] = s.slotId;
+          });
+          allAccounts.forEach(acc => {
+            if (slotMap[acc.accountId] !== undefined) {
+              acc.slotId = slotMap[acc.accountId];
+            }
+          });
+        }
+      } catch {}
       
       setAccounts(allAccounts);
       if (allAccounts.length > 0 && !selectedAccount) {
@@ -694,10 +713,30 @@ export default function XiaohongshuPage() {
     const publishImages = getPublishImages();
     if (publishImages.length === 0) { setMessage({ type: 'error', text: '请至少上传一张图片' }); return; }
 
+    const tagList = tags.split(/[,，\s]+/).filter(t => t.trim());
+
+    // 合规预检
+    try {
+      const check = await xhsMcpApi.checkCompliance({
+        title: title.trim(),
+        content: content.trim(),
+        tags: tagList,
+      });
+      if (check?.data && !check.data.safe) {
+        const risk = check.data.risk;
+        const warns = check.data.warnings?.join('\n') || '';
+        if (risk === 'high') {
+          setMessage({ type: 'error', text: `⚠️ 内容违规，无法发布：\n${warns}` });
+          return;
+        }
+        // medium risk: 弹窗确认
+        const ok = window.confirm(`⚠️ 检测到以下风险词：\n\n${warns}\n\n仍要发布吗？`);
+        if (!ok) return;
+      }
+    } catch (_) { /* 检测失败不阻塞发布 */ }
+
     setPublishing(true);
     setMessage({ type: 'info', text: '📤 通过 MCP 桥接发布中...' });
-
-    const tagList = tags.split(/[,，\s]+/).filter(t => t.trim());
 
     try {
       const res = await xhsMcpApi.publishNote({
@@ -829,6 +868,16 @@ export default function XiaohongshuPage() {
     if (!selectedAccount) { setMessage({ type: 'error', text: '请先选择账号' }); return; }
     if (!videoFile) { setMessage({ type: 'error', text: '请上传视频文件' }); return; }
     if (!videoTitle.trim()) { setMessage({ type: 'error', text: '请填写标题' }); return; }
+
+    // 合规预检
+    try {
+      const check = await xhsMcpApi.checkCompliance({ title: videoTitle, content: videoDesc });
+      if (check?.data && !check.data.safe && check.data.risk === 'high') {
+        setMessage({ type: 'error', text: `⚠️ 内容违规：${check.data.warnings?.join('; ')}` });
+        return;
+      }
+    } catch (_) {}
+
     setPublishing(true);
     setMessage(null);
     try {
@@ -857,6 +906,17 @@ export default function XiaohongshuPage() {
       setMessage({ type: 'error', text: '请先选择发布方案并填入发布资料' });
       return;
     }
+
+    // 合规预检
+    try {
+      const tagList = tags.split(/[,，\s]+/).filter(t => t.trim());
+      const check = await xhsMcpApi.checkCompliance({ title, content, tags: tagList });
+      if (check?.data && !check.data.safe && check.data.risk === 'high') {
+        setMessage({ type: 'error', text: `⚠️ 内容违规：${check.data.warnings?.join('; ')}` });
+        return;
+      }
+    } catch (_) {}
+
     setPublishing(true);
     setMessage(null);
     try {
@@ -1063,6 +1123,30 @@ export default function XiaohongshuPage() {
               用小红书App扫描二维码即可登录，登录状态自动保存，无需重复扫码
             </p>
 
+            {/* Slot 状态栏 */}
+            {slotInfo && (
+              <div className={`mb-4 p-3 rounded-lg text-xs ${slotInfo.free === 0 ? 'bg-red-50 border border-red-200' : 'bg-indigo-50 border border-indigo-200'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-gray-700">🖥️ Slot 池状态</span>
+                  <span className="font-mono">
+                    {slotInfo.free}/{slotInfo.total} 空闲
+                  </span>
+                </div>
+                <div className="flex gap-1 mt-2">
+                  {slotInfo.slots.map((s: any) => (
+                    <div
+                      key={s.slotId}
+                      title={`Slot ${s.slotId} (${s.port})${s.accountId ? ': ' + s.accountId : ': 空闲'}${s.loggedIn ? ' [已登录]' : ''}`}
+                      className={`flex-1 h-2 rounded ${s.free ? 'bg-green-400' : s.loggedIn ? 'bg-indigo-500' : 'bg-yellow-400'}`}
+                    />
+                  ))}
+                </div>
+                {slotInfo.free === 0 && (
+                  <p className="mt-2 text-red-600 font-medium">⚠️ 所有席位已满（5/5），请先登出其他账号再添加新账号</p>
+                )}
+              </div>
+            )}
+
             {/* 新账号ID输入 */}
             <div className="flex gap-2 mb-4">
               <input
@@ -1172,6 +1256,11 @@ export default function XiaohongshuPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {acc.slotId !== undefined && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-mono">
+                            Slot #{acc.slotId}
+                          </span>
+                        )}
                         {isActive && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">当前选中</span>
                         )}

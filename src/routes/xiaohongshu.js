@@ -229,6 +229,7 @@ router.post('/publish/note', async (req, res) => {
       tags: tags || [],
       location: location || '',
       isPrivate: isPrivate || false,
+      accountId: accountId || 'default',
     });
 
     await xhs.close();
