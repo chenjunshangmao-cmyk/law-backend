@@ -17,6 +17,8 @@ import {
   SUPPORTED_CHAINS,
   checkPaymentAllChains,
   healthCheck,
+  cnyToUsdt,
+  getExchangeRate,
 } from '../services/cryptoPayment.js';
 
 const router = express.Router();
@@ -105,7 +107,8 @@ router.post('/create', authenticateToken, async (req, res) => {
 
     const amountCNY = getPrice(orderKey);
     const orderName = getName(orderKey);
-    const amountUSDT = amountCNY; // 1 USDT ≈ 1 USD ≈ 7 CNY 暂时 1:1
+    const amountUSDT = await cnyToUsdt(amountCNY); // CNY → USDT 按实时汇率换算
+    const rate = await getExchangeRate();
 
     const orderNo = `CRYPTO${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
     const walletAddress = getWalletAddress();
@@ -134,6 +137,7 @@ router.post('/create', authenticateToken, async (req, res) => {
         orderNo,
         amountCNY,
         amountUSDT,
+        rate,
         walletAddress,
         orderName,
         orderKey,
@@ -169,7 +173,7 @@ router.get('/status/:orderNo', authenticateToken, async (req, res) => {
     if (order.status === 'pending' && order.payment_method === 'crypto') {
       const planType = order.plan_type;
       const amountCNY = order.amount / 100; // 分→元
-      const amountUSDT = getPrice(planType) || amountCNY;
+      const amountUSDT = await cnyToUsdt(getPrice(planType) || amountCNY);
 
       const txResult = await checkPaymentAllChains(
         amountUSDT,
@@ -219,12 +223,14 @@ router.get('/status/:orderNo', authenticateToken, async (req, res) => {
 router.get('/wallet', async (req, res) => {
   try {
     const address = getWalletAddress();
+    const rate = await getExchangeRate();
     res.json({
       success: true,
       data: {
         address,
+        rate,
         chains: SUPPORTED_CHAINS,
-        qrValue: `ethereum:${address}`, // 通用 EVM 地址二维码
+        qrValue: `ethereum:${address}`,
       },
     });
   } catch (err) {

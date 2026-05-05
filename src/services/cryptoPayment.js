@@ -21,7 +21,11 @@ const USDT_CONTRACTS = {
 
 // ======== RPC 节点 ========
 const RPC_URLS = {
-  ethereum: process.env.ETH_RPC_URL || 'https://eth.llamarpc.com',
+  ethereum: process.env.ETH_RPC_URL || (
+    process.env.INFURA_PROJECT_ID
+      ? `https://mainnet.infura.io/v3/${process.env.INFURA_PROJECT_ID}`
+      : 'https://eth.llamarpc.com'
+  ),
   bsc:      process.env.BSC_RPC_URL || 'https://bsc-dataseed1.binance.org',
   polygon:  process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
 };
@@ -226,4 +230,79 @@ export async function healthCheck() {
     connectedChain,
     issues,
   };
+}
+
+// ======== 汇率模块 ========
+
+let _cachedRate = null;
+let _rateExpiry = 0;
+const RATE_CACHE_TTL = 10 * 60 * 1000; // 10分钟
+
+/**
+ * 获取 USD/CNY 实时汇率
+ * @returns {number} 1 USD = ? CNY
+ */
+async function fetchExchangeRate() {
+  // CoinGecko (USDT 1:1 USD 锚定)
+  try {
+    const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=cny', {
+      headers: { 'Accept': 'application/json' }
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.tether?.cny) {
+        console.log('[Crypto] CoinGecko 汇率:', data.tether.cny);
+        return data.tether.cny;
+      }
+    }
+  } catch (_) { /* fallback */ }
+
+  // 备用: ExchangeRate-API
+  try {
+    const resp = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.rates?.CNY) {
+        console.log('[Crypto] ExchangeRate-API 汇率:', data.rates.CNY);
+        return data.rates.CNY;
+      }
+    }
+  } catch (_) { /* fallback */ }
+
+  // 硬编码兜底
+  console.warn('[Crypto] 汇率API均失败，使用兜底汇率 7.2');
+  return 7.2;
+}
+
+/**
+ * 获取缓存的 USD/CNY 汇率
+ */
+export async function getExchangeRate() {
+  const now = Date.now();
+  if (_cachedRate && now < _rateExpiry) {
+    return _cachedRate;
+  }
+  _cachedRate = await fetchExchangeRate();
+  _rateExpiry = now + RATE_CACHE_TTL;
+  return _cachedRate;
+}
+
+/**
+ * 人民币 → USDT 换算
+ * @param {number} cnyAmount — 人民币金额（元）
+ * @returns {number} USDT 金额
+ */
+export async function cnyToUsdt(cnyAmount) {
+  const rate = await getExchangeRate();
+  return Math.round((cnyAmount / rate) * 100) / 100;
+}
+
+/**
+ * USDT → 人民币换算
+ * @param {number} usdtAmount — USDT 金额
+ * @returns {number} 人民币金额（元）
+ */
+export async function usdtToCny(usdtAmount) {
+  const rate = await getExchangeRate();
+  return Math.round(usdtAmount * rate * 100) / 100;
 }

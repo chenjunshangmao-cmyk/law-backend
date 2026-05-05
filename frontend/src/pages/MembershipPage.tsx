@@ -154,7 +154,8 @@ export default function MembershipPage() {
 
   // USDT 加密支付
   const [cryptoOrder, setCryptoOrder] = useState<{
-    orderNo: string; amountUSDT: number; walletAddress: string; chains: any[];
+    orderNo: string; amountUSDT: number; amountCNY?: number; rate?: number;
+    walletAddress: string; chains: any[];
     tip: string; createdAt: string;
   } | null>(null);
   const [cryptoPolling, setCryptoPolling] = useState(false);
@@ -441,6 +442,12 @@ export default function MembershipPage() {
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-center">
                   <p className="text-3xl font-bold text-amber-700">${cryptoOrder.amountUSDT}</p>
                   <p className="text-sm text-amber-600 mt-1">USDT</p>
+                  {cryptoOrder.amountCNY && (
+                    <p className="text-xs text-amber-500 mt-1">
+                      ≈ ¥{cryptoOrder.amountCNY} 人民币
+                      {cryptoOrder.rate && <span>（汇率 1 USD ≈ {cryptoOrder.rate} CNY）</span>}
+                    </p>
+                  )}
                 </div>
 
                 {/* 地址 + QR */}
