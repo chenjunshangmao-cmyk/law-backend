@@ -354,7 +354,7 @@ export const api = {
   // Crypto 加密支付 API (USDT)
   // ============================================================
   crypto: {
-    createOrder: async (data: { plan: string }) => {
+    createOrder: async (data: { plan?: string; serviceId?: string }) => {
       const token = getToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;

@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Check, Crown, Zap, Building2, QrCode, RefreshCw, Bot, Shield, ChevronDown, ChevronUp, Users, XCircle, Coins, Copy, ExternalLink } from 'lucide-react';
+import { Check, Crown, Zap, Building2, QrCode, RefreshCw, Bot, Shield, ChevronDown, ChevronUp, Users, XCircle, Coins, Copy, ExternalLink, Globe, Monitor, Youtube, Share2, TrendingUp } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { PaymentOrder } from '../types';
@@ -41,6 +41,69 @@ const PLANS = [
     icon: Crown,
     color: 'red',
     features: ['店铺绑定：无限', 'AI文案：无限次', 'AI图片：无限次', 'AI视频：无限次', '代理服务：12个国家', '专属客服：7×24小时'],
+  },
+];
+
+const SERVICES = [
+  {
+    id: 'domestic-op',
+    name: '国内代运营',
+    price: 5000,
+    icon: TrendingUp,
+    color: '#3b82f6',
+    bgColor: '#eff6ff',
+    desc: '国内电商平台全托管运营，选品/上架/客服一体化',
+    features: ['1688/淘宝/拼多多/抖音', '选品+上架+定价', '客服托管', '数据周报'],
+  },
+  {
+    id: 'overseas-op',
+    name: '海外代运营',
+    price: 5000,
+    icon: Globe,
+    color: '#6366f1',
+    bgColor: '#eef2ff',
+    desc: '海外跨境电商全托管，TikTok Shop/Amazon/Shopee 全覆盖',
+    features: ['TikTok Shop/Amazon/Shopee', '多语言AI文案', '物流对接', '海外仓协调'],
+  },
+  {
+    id: 'website-build',
+    name: '独立站搭建',
+    price: 3800,
+    icon: Monitor,
+    color: '#8b5cf6',
+    bgColor: '#f5f3ff',
+    desc: '外贸独立站一站式搭建，含域名/服务器/SEO优化',
+    features: ['响应式网站设计', '域名+服务器配置', '支付网关对接', '基础SEO优化'],
+  },
+  {
+    id: 'youtube-live',
+    name: 'YouTube 直播号',
+    price: 1000,
+    icon: Youtube,
+    color: '#ef4444',
+    bgColor: '#fef2f2',
+    desc: 'YouTube 直播账号开通+OBS推流配置+AI数字人直播',
+    features: ['账号注册+验证', 'OBS推流配置', 'AI数字人直播脚本', '24小时自动直播'],
+  },
+  {
+    id: 'facebook-live',
+    name: 'Facebook 直播推广号',
+    price: 2800,
+    icon: Share2,
+    color: '#3b82f6',
+    bgColor: '#eff6ff',
+    desc: 'Facebook 直播账号+广告投放+多平台同步推流',
+    features: ['FB账号+主页搭建', '直播推流配置', '广告投放优化', '多平台同步'],
+  },
+  {
+    id: 'ads-account',
+    name: '广告户开户',
+    price: 500,
+    icon: TrendingUp,
+    color: '#22c55e',
+    bgColor: '#f0fdf4',
+    desc: '主流广告平台企业户开户，含审核材料准备',
+    features: ['Google Ads开户', 'Facebook Ads开户', 'TikTok Ads开户', '审核材料辅导'],
   },
 ];
 
@@ -98,18 +161,17 @@ export default function MembershipPage() {
   const [cryptoPaid, setCryptoPaid] = useState(false);
   const [copyAddressTip, setCopyAddressTip] = useState('');
 
-  const handleShouqianbaPay = async (planId: string, price: number) => {
+  const handleShouqianbaPay = async (orderId: string, price: number, displayName: string) => {
     setLoading(true);
     setError('');
-    setSelectedPlan(planId);
+    setSelectedPlan(orderId);
     setSqOrder(null);
 
     try {
-      // 直接调用 shouqianba.createOrder，快速返回二维码
       const res = await api.shouqianba.createOrder(
-        planId,
+        orderId,
         price,
-        `Claw会员-${PLANS.find(p => p.id === planId)?.name || planId}`,
+        `Claw-${displayName}`,
         user?.id
       );
       if (!res.success) throw new Error(res.error || '创建订单失败');
@@ -129,15 +191,17 @@ export default function MembershipPage() {
   };
 
   // USDT 加密支付
-  const handleCryptoPay = async (planId: string) => {
+  const handleCryptoPay = async (orderId: string) => {
     setLoading(true);
     setError('');
-    setSelectedPlan(planId);
+    setSelectedPlan(orderId);
     setCryptoOrder(null);
     setCryptoPaid(false);
 
     try {
-      const res = await api.crypto.createOrder({ plan: planId });
+      const isPlan = PLANS.some(p => p.id === orderId);
+      const payload = isPlan ? { plan: orderId } : { serviceId: orderId };
+      const res = await api.crypto.createOrder(payload);
       if (!res.success) throw new Error(res.error || '创建USDT订单失败');
       setCryptoOrder(res.data);
 
@@ -231,6 +295,20 @@ export default function MembershipPage() {
   const currentPlan = user?.membershipType || 'free';
   const isExpired = user?.membershipExpiresAt ? new Date(user.membershipExpiresAt) < new Date() : false;
 
+  // 获取订单显示名称（套餐或业务）
+  const getOrderName = (id: string) => {
+    const plan = PLANS.find(p => p.id === id);
+    if (plan) return plan.name;
+    const service = SERVICES.find(s => s.id === id);
+    return service ? service.name : id;
+  };
+  const getOrderPrice = (id: string) => {
+    const plan = PLANS.find(p => p.id === id);
+    if (plan) return plan.price;
+    const service = SERVICES.find(s => s.id === id);
+    return service ? service.price : 0;
+  };
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-8">
@@ -297,7 +375,7 @@ export default function MembershipPage() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900">
-                {PLANS.find(p => p.id === selectedPlan)?.name} - ¥{(Number(sqOrder.totalAmount) / 100).toFixed(0)}
+                {getOrderName(selectedPlan)} - ¥{(Number(sqOrder.totalAmount) / 100).toFixed(0)}
               </h2>
               <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">收钱吧</span>
             </div>
@@ -338,7 +416,7 @@ export default function MembershipPage() {
                 USDT 付款
               </h2>
               <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded font-mono">
-                {PLANS.find(p => p.id === selectedPlan)?.name} · ${cryptoOrder.amountUSDT}
+                {getOrderName(selectedPlan)} · ${cryptoOrder.amountUSDT}
               </span>
             </div>
 
@@ -537,7 +615,7 @@ export default function MembershipPage() {
               {!isCurrentPlan && (
                 <div className="space-y-2">
                   <button
-                    onClick={() => handleShouqianbaPay(plan.id, plan.price)}
+                    onClick={() => handleShouqianbaPay(plan.id, plan.price, plan.name)}
                     disabled={loading && selectedPlan !== plan.id}
                     className="w-full py-2.5 rounded-xl font-medium transition-colors text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                   >
@@ -556,6 +634,78 @@ export default function MembershipPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* ========================================
+          业务服务区
+          ======================================== */}
+      <div className="mt-12 mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <h2 className="text-xl font-bold text-gray-900">业务服务</h2>
+          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">一次性付费</span>
+        </div>
+        <p className="text-gray-500 text-sm mb-6">专业代运营与技术服务，一次付费，长期交付</p>
+
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {SERVICES.map(service => {
+            const Icon = service.icon;
+            return (
+              <div
+                key={service.id}
+                className="rounded-2xl border border-gray-200 p-5 hover:border-gray-300 hover:shadow-sm transition-all flex flex-col"
+              >
+                {/* 图标 + 名称 */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: service.bgColor }}>
+                    <Icon className="w-5 h-5" style={{ color: service.color }} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-sm">{service.name}</h3>
+                    <p className="text-xs text-gray-400">一次性服务</p>
+                  </div>
+                </div>
+
+                {/* 描述 */}
+                <p className="text-xs text-gray-500 mb-3 leading-relaxed">{service.desc}</p>
+
+                {/* 特性列表 */}
+                <ul className="space-y-1.5 mb-4 flex-1">
+                  {service.features.map((f, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-xs text-gray-600">
+                      <Check className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: service.color }} />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                {/* 价格 + 支付按钮 */}
+                <div className="border-t border-gray-100 pt-3">
+                  <div className="flex items-end justify-between mb-3">
+                    <span className="text-2xl font-bold text-gray-900">¥{service.price}</span>
+                    <span className="text-xs text-gray-400">/次</span>
+                  </div>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => handleShouqianbaPay(service.id, service.price, service.name)}
+                      disabled={loading && selectedPlan !== service.id}
+                      className="w-full py-2 rounded-xl font-medium transition-colors text-xs bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {loading && selectedPlan === service.id ? '处理中...' : '💚 微信/支付宝'}
+                    </button>
+                    <button
+                      onClick={() => handleCryptoPay(service.id)}
+                      disabled={loading && selectedPlan !== service.id}
+                      className="w-full py-1.5 rounded-xl font-medium transition-colors text-xs bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 flex items-center justify-center gap-1"
+                    >
+                      <Coins className="w-3.5 h-3.5" />
+                      {loading && selectedPlan === service.id ? '处理中...' : 'USDT'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* 联系方式 */}

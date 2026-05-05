@@ -29,6 +29,29 @@ const PLAN_PRICES = {
   flagship:   5888,
 };
 
+// ======== 业务服务价格映射（与 payment.db.js 对齐，单位：元） ========
+const SERVICE_PRICES = {
+  'domestic-op':    { name: '国内代运营',       price: 5000 },
+  'overseas-op':    { name: '海外代运营',       price: 5000 },
+  'website-build':  { name: '独立站搭建',       price: 3800 },
+  'youtube-live':   { name: 'YouTube 直播号',   price: 1000 },
+  'facebook-live':  { name: 'Facebook 直播推广号', price: 2800 },
+  'ads-account':    { name: '广告户开户',       price: 500 },
+};
+
+function getPrice(key) {
+  if (PLAN_PRICES[key]) return PLAN_PRICES[key];
+  if (SERVICE_PRICES[key]) return SERVICE_PRICES[key].price;
+  return null;
+}
+
+function getName(key) {
+  const planNames = { basic: '基础版', premium: '专业版', enterprise: '企业版', flagship: '旗舰版' };
+  if (planNames[key]) return planNames[key] + '套餐';
+  if (SERVICE_PRICES[key]) return SERVICE_PRICES[key].name;
+  return key;
+}
+
 // ======== 确保 payment_orders 表有 crypto 相关字段 ========
 let _tableReady = false;
 async function ensureCryptoFields() {
@@ -72,15 +95,17 @@ router.post('/create', authenticateToken, async (req, res) => {
   try {
     await ensureCryptoFields();
 
-    const { plan } = req.body;
+    const { plan, serviceId } = req.body;
+    const orderKey = plan || serviceId;
     const userId = req.userId;
 
-    if (!plan || !PLAN_PRICES[plan]) {
-      return res.status(400).json({ success: false, error: '无效的套餐类型' });
+    if (!orderKey || !getPrice(orderKey)) {
+      return res.status(400).json({ success: false, error: '无效的套餐或服务类型' });
     }
 
-    const amountCNY = PLAN_PRICES[plan];
-    const amountUSDT = amountCNY; // 1 USDT ≈ 1 USD ≈ 7 CNY 暂时 1:1 计（后续可加汇率）
+    const amountCNY = getPrice(orderKey);
+    const orderName = getName(orderKey);
+    const amountUSDT = amountCNY; // 1 USDT ≈ 1 USD ≈ 7 CNY 暂时 1:1
 
     const orderNo = `CRYPTO${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
     const walletAddress = getWalletAddress();
@@ -94,10 +119,10 @@ router.post('/create', authenticateToken, async (req, res) => {
       [
         orderNo,
         userId,
-        plan,
-        `${plan}套餐`,
-        amountCNY * 100, // 存分为单位，与收钱吧一致
-        `USDT支付 - ${plan}套餐`,
+        orderKey,
+        orderName,
+        amountCNY * 100,
+        `USDT支付 - ${orderName}`,
         'crypto',
         walletAddress,
       ]
@@ -110,6 +135,8 @@ router.post('/create', authenticateToken, async (req, res) => {
         amountCNY,
         amountUSDT,
         walletAddress,
+        orderName,
+        orderKey,
         chains: SUPPORTED_CHAINS,
         createdAt: new Date().toISOString(),
         tip: `请向该地址转入恰好 ${amountUSDT} USDT（任意链），系统自动确认`,
@@ -142,7 +169,7 @@ router.get('/status/:orderNo', authenticateToken, async (req, res) => {
     if (order.status === 'pending' && order.payment_method === 'crypto') {
       const planType = order.plan_type;
       const amountCNY = order.amount / 100; // 分→元
-      const amountUSDT = PLAN_PRICES[planType] || amountCNY;
+      const amountUSDT = getPrice(planType) || amountCNY;
 
       const txResult = await checkPaymentAllChains(
         amountUSDT,
