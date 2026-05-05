@@ -35,6 +35,7 @@ import xiaohongshuRoutes from './routes/xiaohongshu.js';
 import ozonPublishRoutes from './routes/ozonPublish.js';
 import whatsappRoutes from './routes/whatsapp.js';
 import cryptoPaymentRoutes from './routes/cryptoPayment.js';
+import youtubeApiRoutes from './routes/youtube.api.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -186,6 +187,7 @@ const initDatabase = async () => {
 app.use('/api/auth', authRoutes);
 
 app.use('/api/auth/youtube', youtubeAuthRoutes);  // YouTube OAuth 路由（视频授权）
+app.use('/api/youtube', youtubeApiRoutes);          // YouTube Data API v3（视频上传/管理等）
 app.get('/api/health', healthCheck);
 app.get('/health', healthCheck);
 app.use('/api/products', productRoutes);
