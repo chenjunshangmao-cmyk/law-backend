@@ -148,6 +148,13 @@ API端点：
 - **反检测**: 人类行为模拟（逐字输入/随机延迟/鼠标轨迹）、随机UA/视口/地理位置、webdriver隐藏、3分钟频率限制
 - **敏感词**: 4类54词自动拦截，POST /api/xiaohongshu/check-compliance
 - **标签**: 限制5个以内
+- **半自动模式**（2026-05-06 新增）:
+  - 前端开关：「半自动模式」（橙色），默认关闭
+  - 后端参数：`publishNote()`/`publishVideo()` 新增 `semiAuto` 参数（默认 false）
+  - 行为：`semiAuto=true` → 填完标题/正文/标签/图片后**立即 return**，`不点发布按钮`；浏览器 `headless:false`（有头），且不调用 `xhs.close()`
+  - 全自动保留：`semiAuto=false`（默认）→ 原有逻辑完全不变
+  - 前端适配：`handlePublishNote`/`handlePublishVideo`/`handlePublishProduct` 均传 `semiAuto`；响应 `result.data?.semiAuto===true` 时不清表单，提示用户去浏览器窗口手动点发布
+  - 使用场景：降低平台检测风险，最后一步由用户手动完成
 - Git commit 后必须 push 才能触发自动部署
 - Render 监控 GitHub law-backend 仓库，不是 Gitee
 - Cloudflare Pages 可用 `npx wrangler pages deploy complete-deploy` 直接部署，无需 git push
