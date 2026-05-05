@@ -351,6 +351,27 @@ export const api = {
   },
 
   // ============================================================
+  // Crypto 加密支付 API (USDT)
+  // ============================================================
+  crypto: {
+    createOrder: async (data: { plan: string }) => {
+      const token = getToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetchWithTimeout(
+        `${BASE_URL}/api/crypto/create`,
+        { method: 'POST', headers, body: JSON.stringify(data) },
+        30000
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error || '创建USDT订单失败');
+      return result;
+    },
+    status: (orderNo: string) => authFetch(`/api/crypto/status/${orderNo}`),
+    wallet: () => authFetch('/api/crypto/wallet'),
+  },
+
+  // ============================================================
   // 收钱吧 API
   // ============================================================
   shouqianba: {

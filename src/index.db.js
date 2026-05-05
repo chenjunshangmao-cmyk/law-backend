@@ -34,6 +34,7 @@ import shouqianbaRoutes from './routes/shouqianba.db.js';
 import xiaohongshuRoutes from './routes/xiaohongshu.js';
 import ozonPublishRoutes from './routes/ozonPublish.js';
 import whatsappRoutes from './routes/whatsapp.js';
+import cryptoPaymentRoutes from './routes/cryptoPayment.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -234,6 +235,7 @@ app.use('/api/ozon-publish', ozonPublishRoutes);
 // WhatsApp 中继引流模块
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/go', whatsappRoutes); // 公共跳转页
+app.use('/api/crypto', cryptoPaymentRoutes); // USDT 加密支付
 
 // 发布任务队列（OpenClaw 客服自动执行）
 import publishQueueRoutes from './routes/publishQueue.js';

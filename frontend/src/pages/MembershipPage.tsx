@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Check, Crown, Zap, Building2, QrCode, RefreshCw, Bot, Shield, ChevronDown, ChevronUp, Users, XCircle } from 'lucide-react';
+import { Check, Crown, Zap, Building2, QrCode, RefreshCw, Bot, Shield, ChevronDown, ChevronUp, Users, XCircle, Coins, Copy, ExternalLink } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { PaymentOrder } from '../types';
@@ -89,6 +89,15 @@ export default function MembershipPage() {
   const [sqOrder, setSqOrder] = useState<{ sn: string; clientSn: string; payUrl: string; totalAmount: string } | null>(null);
   const [sqPolling, setSqPolling] = useState(false);
 
+  // USDT 加密支付
+  const [cryptoOrder, setCryptoOrder] = useState<{
+    orderNo: string; amountUSDT: number; walletAddress: string; chains: any[];
+    tip: string; createdAt: string;
+  } | null>(null);
+  const [cryptoPolling, setCryptoPolling] = useState(false);
+  const [cryptoPaid, setCryptoPaid] = useState(false);
+  const [copyAddressTip, setCopyAddressTip] = useState('');
+
   const handleShouqianbaPay = async (planId: string, price: number) => {
     setLoading(true);
     setError('');
@@ -114,6 +123,40 @@ export default function MembershipPage() {
       });
     } catch (e: any) {
       setError(e.message || '支付服务暂时不可用，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // USDT 加密支付
+  const handleCryptoPay = async (planId: string) => {
+    setLoading(true);
+    setError('');
+    setSelectedPlan(planId);
+    setCryptoOrder(null);
+    setCryptoPaid(false);
+
+    try {
+      const res = await api.crypto.createOrder({ plan: planId });
+      if (!res.success) throw new Error(res.error || '创建USDT订单失败');
+      setCryptoOrder(res.data);
+
+      // 启动轮询
+      setCryptoPolling(true);
+      const timer = setInterval(async () => {
+        try {
+          const statusRes = await api.crypto.status(res.data.orderNo);
+          if (statusRes?.data?.status === 'paid') {
+            setCryptoPaid(true);
+            setCryptoPolling(false);
+            clearInterval(timer);
+            refreshUser?.();
+          }
+        } catch (_) { /* 继续轮询 */ }
+      }, 8000); // 每 8 秒查一次
+      setPollTimer(timer);
+    } catch (e: any) {
+      setError(e.message || '加密支付服务暂不可用');
     } finally {
       setLoading(false);
     }
@@ -285,6 +328,124 @@ export default function MembershipPage() {
         </div>
       )}
 
+      {/* USDT 加密支付弹窗 */}
+      {cryptoOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Coins className="w-5 h-5 text-amber-500" />
+                USDT 付款
+              </h2>
+              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded font-mono">
+                {PLANS.find(p => p.id === selectedPlan)?.name} · ${cryptoOrder.amountUSDT}
+              </span>
+            </div>
+
+            {cryptoPaid ? (
+              /* 支付成功 */
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-lg font-bold text-green-700 mb-1">支付成功！</h3>
+                <p className="text-sm text-gray-500">会员已自动激活，有效期 30 天</p>
+                <button
+                  onClick={() => { setCryptoOrder(null); setCryptoPolling(false); setCryptoPaid(false); setSelectedPlan(''); }}
+                  className="mt-6 w-full py-2.5 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700"
+                >
+                  完成
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* 金额提示 */}
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-center">
+                  <p className="text-3xl font-bold text-amber-700">${cryptoOrder.amountUSDT}</p>
+                  <p className="text-sm text-amber-600 mt-1">USDT</p>
+                </div>
+
+                {/* 地址 + QR */}
+                <div className="mb-4">
+                  <p className="text-xs text-gray-500 mb-2 font-medium">向以下地址转入恰好 ${cryptoOrder.amountUSDT} USDT：</p>
+                  
+                  {/* 二维码 */}
+                  <div className="flex justify-center mb-3">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(cryptoOrder.walletAddress)}`}
+                      alt="USDT钱包地址二维码"
+                      className="rounded-lg border border-gray-200"
+                      style={{ width: 180, height: 180 }}
+                    />
+                  </div>
+
+                  {/* 地址 */}
+                  <div className="bg-gray-50 rounded-lg p-3 flex items-center gap-2">
+                    <code className="text-xs text-gray-700 break-all flex-1 font-mono">
+                      {cryptoOrder.walletAddress}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(cryptoOrder.walletAddress);
+                        setCopyAddressTip('已复制!');
+                        setTimeout(() => setCopyAddressTip(''), 2000);
+                      }}
+                      className="flex-shrink-0 p-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-100"
+                      title="复制地址"
+                    >
+                      <Copy className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
+                  {copyAddressTip && (
+                    <p className="text-xs text-green-600 mt-1 text-center">{copyAddressTip}</p>
+                  )}
+                </div>
+
+                {/* 支持的链 */}
+                <div className="mb-4">
+                  <p className="text-xs text-gray-500 mb-2 font-medium">支持链：</p>
+                  <div className="flex flex-wrap gap-2">
+                    {cryptoOrder.chains?.map((c: any) => (
+                      <span key={c.id} className="text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full">
+                        {c.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 提示 */}
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4">
+                  <p className="text-xs text-blue-700">{cryptoOrder.tip}</p>
+                  <p className="text-xs text-blue-500 mt-1">
+                    订单号：<code className="bg-blue-100 px-1 rounded">{cryptoOrder.orderNo}</code>
+                  </p>
+                </div>
+
+                {/* 轮询状态 */}
+                {cryptoPolling && (
+                  <div className="flex items-center justify-center gap-2 text-xs text-gray-400 mb-4">
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    等待区块链确认中...
+                  </div>
+                )}
+
+                <button
+                  onClick={() => { 
+                    if (pollTimer) clearInterval(pollTimer); 
+                    setCryptoOrder(null); 
+                    setCryptoPolling(false); 
+                    setSelectedPlan(''); 
+                  }}
+                  className="w-full py-2.5 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
+                >
+                  取消
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 支付弹窗 */}
       {order && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -374,13 +535,23 @@ export default function MembershipPage() {
               </ul>
               
               {!isCurrentPlan && (
-                <button
-                  onClick={() => handleShouqianbaPay(plan.id, plan.price)}
-                  disabled={loading && selectedPlan !== plan.id}
-                  className="w-full py-2.5 rounded-xl font-medium transition-colors text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                >
-                  {loading && selectedPlan === plan.id ? '处理中...' : '💚 微信/支付宝'}
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleShouqianbaPay(plan.id, plan.price)}
+                    disabled={loading && selectedPlan !== plan.id}
+                    className="w-full py-2.5 rounded-xl font-medium transition-colors text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {loading && selectedPlan === plan.id ? '处理中...' : '💚 微信/支付宝'}
+                  </button>
+                  <button
+                    onClick={() => handleCryptoPay(plan.id)}
+                    disabled={loading && selectedPlan !== plan.id}
+                    className="w-full py-2 rounded-xl font-medium transition-colors text-sm bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 flex items-center justify-center gap-1"
+                  >
+                    <Coins className="w-4 h-4" />
+                    {loading && selectedPlan === plan.id ? '处理中...' : 'USDT'}
+                  </button>
+                </div>
               )}
             </div>
           );
@@ -390,7 +561,7 @@ export default function MembershipPage() {
       {/* 联系方式 */}
       <div className="mt-8 p-4 bg-gray-50 rounded-xl text-center text-sm text-gray-600">
         <p>如有支付问题，请联系客服：<span className="font-medium text-blue-600">15119885271</span></p>
-        <p className="mt-1 text-xs text-gray-400">支持微信/支付宝支付</p>
+        <p className="mt-1 text-xs text-gray-400">支持微信/支付宝/USDT 支付</p>
       </div>
 
       {/* ========================================
