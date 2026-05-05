@@ -534,21 +534,6 @@ export class XiaohongshuAutomation {
 
     return { success: true, publishedAt: new Date().toISOString() };
   }
-    await this.page.waitForFunction(
-      () => {
-        const text = document.body.innerText;
-        return text.includes('发布成功') || text.includes('已发布') || text.includes('审核中');
-      },
-      { timeout: 30000 }
-    ).catch(() => {});
-
-    const resultUrl = this.page.url();
-    return {
-      success: true,
-      url: resultUrl,
-      publishedAt: new Date().toISOString(),
-    };
-  }
 
   // =============================================================
   // 视频发布
