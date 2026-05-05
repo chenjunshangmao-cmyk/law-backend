@@ -50,6 +50,9 @@ const xhsMcpApi = {
     content: string;
     images: string[];   // base64 data URLs
     tags?: string[];
+    location?: string;
+    isPrivate?: boolean;
+    semiAuto?: boolean;   // ✅ 半自动：填完不点发布
   }) =>
     bridgeFetch('/publish', {
       method: 'POST',
@@ -64,6 +67,7 @@ const xhsMcpApi = {
     videoBase64: string;
     coverBase64?: string;
     tags?: string[];
+    semiAuto?: boolean;   // ✅ 半自动：填完不点发布
   }) =>
     bridgeFetch('/publish/video', {
       method: 'POST',

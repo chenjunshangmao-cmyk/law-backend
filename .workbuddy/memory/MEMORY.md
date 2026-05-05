@@ -1,7 +1,15 @@
 # MEMORY.md - Claw 项目核心记忆
 
 ## 当前时间
-2026-04-20
+2026-05-04
+
+## 版本管理系统（2026-05-04 建立）
+- VERSION.md：版本记录本，记录当前版本号、构建者、Git提交、变更历史
+- deploy.bat：一键部署脚本（pull → build → 版本+1 → 验证chunk → wrangler部署）
+- 网站底部显示版本号（侧边栏，从 vite.config.ts 注入 `__CLAW_VERSION__`）
+- **构建输出目录**：只用 `complete-deploy/`（Vite 直接输出），`deploy-package/` 已废弃
+- **部署铁律**：pull → 重新构建 → 更新 VERSION.md → 部署，禁止直接用旧文件
+- 版本号格式：YYYY.MM.DD.NNN（如 2026.05.04.003）
 
 ## 团队配置（v2.1 实际运转版，真正在线运行）
 Claw 外贸网站维护团队，4AI+总指挥架构：
@@ -83,26 +91,63 @@ API端点：
 - GitHub（law-backend，触发Render部署）: git@github.com:chenjunshangmao-cmyk/law-backend.git
 - SSH key: id_ed25519（公钥 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOh4gc6ogBRCl4Q0DZXiyyGavaf3MvbvEwsvHl5RlELT）
 
-## 收钱吧核心配置（2026-04-23 正式可用）
-- 终端 SN：100111220054389553
-- terminalKey：96bfaf401367d934cb10a1cbe9773647（WAP签名+回调验签均用此密钥）
-- vendorKey：677da351628d3fe7664321669c3439b2（已废弃）
+## 收钱吧核心配置（2026-05-04 切换回旧终端 ✅）
+- **当前终端**: claw-web-new1（旧终端，已验证可用）
+- 终端 SN：100111220054361978
+- terminalKey：114d06c3f7f79d00d2ef022ab3d201af（2026-05-04 签到获取，WAP网关验证通过）
+- vendorSn：91803325
+- vendorKey：677da351628d3fe7664321669c3439b2
 - 金额单位：永远是分（199元=19900）
 - 完整文档：C:\Users\Administrator\WorkBuddy\Claw\收钱吧完整技术文档.md
 
-## 部署状态（2026-04-20 20:30 修复）
-- **前端**: Cloudflare Pages ✅ 修复后重新部署：https://df98523c.claw-app-2026.pages.dev
-  - 问题：complete-deploy缺少deploy-package的4个关键文件（chat-widget/platform-nav/app-styles/index-DmCeXBoo）
-  - 教训：构建后必须对比新旧deploy-package的所有文件
-- **后端**: GitHub已推送 ✅ → Render自动重新部署中（commit caed4a1）
-- **Gitee**: 需将SSH公钥添加到Gitee账户（备份仓，非关键）
+## 收钱吧故障记录（2026-05-04 v005 更新）
+- **claw-web-new3** (SN 100111220054389553) — ✅ 正确的工作终端（v005已切回）
+  - terminalKey: `96bfaf401367d934cb10a1cbe9773647`
+  - ⚠️ 密钥可能已被轮换，当前 WAP 网关返回 ILLEGAL_SIGN — 需要联系方健平
+  - 之前3笔¥1.99测试订单用的就是这个终端（4月下旬）
+- **claw-web-new1** (SN 100111220054361978) — ❌ 永久废弃
+  - 3份文档标记为"废弃/废了"，WAP网关返回错误页
+  - v004错误地切换到此终端 — v005已修正
+- **两个激活码均失效**: 66172491(EJ05已使用), 81119079(EJ06已过期)
+- **operator参数**: 官方文档要求必填，之前代码遗漏 — v005已修复
 
-## 部署前必做检查
-1. 构建后对比 complete-deploy/ 和 deploy-package/ 的文件列表，确保无遗漏
-2. 关键文件清单（必须包含）：app.js, app.css, app-styles.css, chat-widget.js, platform-nav.js, index-DmCeXBoo.js
-3. wrangler 部署命令：npx wrangler pages deploy complete-deploy --project-name=claw-app-2026
+## 部署状态（2026-05-05 最新）
+- **前端最新**: Cloudflare Pages ✅ https://7cefa155.claw-app-2026.pages.dev（v2026.05.06.001）
+- **主域名**: https://claw-app-2026.pages.dev（自动指向最新生产版）
+- **后端**: claw-backend-2026.onrender.com ✅（Render自动部署，commit 46c02f8）
+- **Gitee**: https://gitee.com/lyshlc/claw.git
+- **构建输出**: 只用 complete-deploy/，deploy-package/ 已废弃
+- **前端源码**: frontend/（不是 backend/frontend/）
 
-## 关键教训
+## USDT 加密支付（2026-05-05 上线）
+- **钱包地址**: 0xFd90b70AEC057B09b856508142070F96A69BDCD4
+- **私钥/助记词**: 保存在项目根目录 USDT钱包信息.md（机密，勿泄露）
+- **技术支持**: ethers.js v6.16，USDT ERC-20 合约
+- **支持链**: Ethereum(ERC-20) / BSC(BEP-20) / Polygon
+- **API路由**: /api/crypto/create, /api/crypto/status/:no, /api/crypto/wallet
+- **前端**: MembershipPage.tsx 套餐+业务卡片均有 USDT 支付按钮
+- **自动确认**: 前端 8 秒轮询 → 后端查 Transfer 事件 → 金额匹配 → paid
+- **必需环境变量**: PRIVATE_KEY、INFURA_PROJECT_ID（Render）
+- **数据库字段**: payment_orders 表新增 payment_method, crypto_chain, crypto_address, crypto_tx_hash
+- **汇率**: CoinGecko/ExchangeRate-API 实时 USD/CNY 汇率，缓存10分钟，失败兜底7.2
+- **价格换算**: CNY ÷ 汇率 = USDT（基础版 ¥199 ÷ 7.2 ≈ $27.6）
+
+## 部署前必做检查（v2 版本管理系统）
+1. **git pull** — 确保本地是最新代码
+2. **重新构建** — `cd frontend && npx vite build`，输出到 `complete-deploy/`
+3. **验证 chunk hash** — app.js 引用的文件名必须全部存在于 complete-deploy/assets/
+4. **更新 VERSION.md** — 版本号+1，填写变更内容
+5. **部署** — `npx wrangler pages deploy complete-deploy --project-name=claw-app-2026 --branch=master`
+6. **也可以直接用 deploy.bat** — 一键完成以上所有步骤
+
+## 废弃目录
+- `deploy-package/` — 已废弃，不要再使用。只用 `complete-deploy/`
+
+## 小红书合规系统（2026-05-06 建立）
+- **AI文案**: 去营销化（开箱/心得/日常/对比），禁推销话术/价格/链接
+- **反检测**: 人类行为模拟（逐字输入/随机延迟/鼠标轨迹）、随机UA/视口/地理位置、webdriver隐藏、3分钟频率限制
+- **敏感词**: 4类54词自动拦截，POST /api/xiaohongshu/check-compliance
+- **标签**: 限制5个以内
 - Git commit 后必须 push 才能触发自动部署
 - Render 监控 GitHub law-backend 仓库，不是 Gitee
 - Cloudflare Pages 可用 `npx wrangler pages deploy complete-deploy` 直接部署，无需 git push

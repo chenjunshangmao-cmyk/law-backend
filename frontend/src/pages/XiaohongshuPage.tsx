@@ -66,6 +66,7 @@ export default function XiaohongshuPage() {
   const [competitiveResult, setCompetitiveResult] = useState<any>(null); // 竞品分析结果
   const [selectedPlan, setSelectedPlan] = useState<'A' | 'B'>('A');     // 选择方案A/B
   const [autoPublish, setAutoPublish] = useState(false);                // 自动发布开关
+  const [semiAuto, setSemiAuto] = useState(false);                   // ✅ 半自动：后端填表后不点发布
 
   // 商品搬运流程步骤
   // 0=未开始, 1=抓取中, 2=抓取完成待分析, 3=分析中, 4=分析完成待选方案
@@ -745,14 +746,19 @@ export default function XiaohongshuPage() {
         content: content.trim(),
         images: publishImages,
         tags: tagList,
+        semiAuto: !!semiAuto,   // ✅ 传半自动标志
       });
       if (res?.success) {
-        setMessage({ type: 'success', text: '✅ 小红书发布成功！' });
-        // 清空表单
-        setTitle('');
-        setContent('');
-        setImages([]);
-        setTags('');
+        // 半自动模式：不清理表单，提示用户手动点发布
+        if (res.data?.semiAuto) {
+          setMessage({ type: 'success', text: '✅ 内容已自动填充！请在弹出的浏览器窗口中手动点击【发布】按钮' });
+        } else {
+          setMessage({ type: 'success', text: '✅ 小红书发布成功！' });
+          setTitle('');
+          setContent('');
+          setImages([]);
+          setTags('');
+        }
       } else {
         throw new Error(res?.error || '发布失败');
       }
@@ -886,10 +892,16 @@ export default function XiaohongshuPage() {
         title: videoTitle.trim(),
         content: videoDesc.trim(),
         videoBase64: videoFile,
+        semiAuto: !!semiAuto,   // ✅ 传半自动标志
       });
       if (result?.success) {
-        setMessage({ type: 'success', text: '✅ 视频笔记发布成功！' });
-        clearForm();
+        // 半自动模式：不清理表单，提示用户手动点发布
+        if (result.data?.semiAuto) {
+          setMessage({ type: 'success', text: '✅ 内容已自动填充！请在弹出的浏览器窗口中手动点击【发布】按钮' });
+        } else {
+          setMessage({ type: 'success', text: '✅ 视频笔记发布成功！' });
+          clearForm();
+        }
       } else {
         setMessage({ type: 'error', text: result?.error || '发布失败' });
       }
@@ -933,10 +945,15 @@ export default function XiaohongshuPage() {
         content: content.trim() || `推荐好物：${productUrl}`,
         images: publishImages,
         tags: tagList.length > 0 ? tagList : ['好物推荐', '产品分享'],
+        semiAuto: !!semiAuto,
       });
       if (result?.success) {
-        setMessage({ type: 'success', text: '✅ 商品发布成功！' });
-        clearForm();
+        if (result.data?.semiAuto) {
+          setMessage({ type: 'success', text: '✅ 内容已自动填充！请在弹出的浏览器窗口中手动点击【发布】按钮' });
+        } else {
+          setMessage({ type: 'success', text: '✅ 商品发布成功！' });
+          clearForm();
+        }
       } else {
         setMessage({ type: 'error', text: result?.error || '发布失败' });
       }
@@ -1995,6 +2012,20 @@ export default function XiaohongshuPage() {
                 </div>
                 <p className="text-xs text-gray-400">{autoPublish ? '✅ 自动发布：填表后自动提交到小红书' : '✋ 手动发布：填表后需手动点击发布按钮'}</p>
               </>
+            )}
+
+            {/* 半自动模式开关 */}
+            {tab === 'publish' && (
+              <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                <span className="text-sm">🖱️ 半自动模式</span>
+                <button
+                  onClick={() => setSemiAuto(!semiAuto)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${semiAuto ? 'bg-orange-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${semiAuto ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+                <span className="text-xs text-orange-700">{semiAuto ? '✅ 开启：后端填表后留给你手动点发布（降低检测风险）' : '🤖 关闭：后端自动填表+自动点发布'}</span>
+              </div>
             )}
 
             {/* 发布按钮 */}
