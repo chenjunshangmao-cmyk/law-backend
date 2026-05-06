@@ -123,6 +123,8 @@ router.post('/links', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, error: '客户名称和手机号必填' });
     }
 
+    const links = readLinks();
+
     // 会员限额检查
     const userLinks = links.filter(l => l.userId === req.user.userId);
     const limit = getLinkLimit(req.user);
@@ -158,7 +160,6 @@ router.post('/links', authenticateToken, (req, res) => {
       updatedAt: Date.now(),
     };
 
-    const links = readLinks();
     links.push(newLink);
     saveLinks(links);
 
