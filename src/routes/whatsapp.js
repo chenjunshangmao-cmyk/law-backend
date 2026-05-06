@@ -137,7 +137,7 @@ router.get('/links', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT * FROM whatsapp_links WHERE user_id = $1 ORDER BY created_at DESC',
-      [req.user.userId]
+      [req.userId]
     );
     res.json({ success: true, data: result.rows.map(dbToJs) });
   } catch (error) {
@@ -161,7 +161,7 @@ router.post('/links', authenticateToken, async (req, res) => {
     // 会员限额检查
     const countResult = await pool.query(
       'SELECT COUNT(*) FROM whatsapp_links WHERE user_id = $1',
-      [req.user.userId]
+      [req.userId]
     );
     const userLinkCount = parseInt(countResult.rows[0].count);
     const limit = getLinkLimit(req.user);
@@ -182,7 +182,7 @@ router.post('/links', authenticateToken, async (req, res) => {
       `INSERT INTO whatsapp_links (link_id, user_id, client_name, phone, msg, page_title, company_name, description, button_text)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
-        linkId, req.user.userId, clientName, cleanPhone,
+        linkId, req.userId, clientName, cleanPhone,
         msg || '',
         pageTitle || `${clientName} - 咨询客服`,
         companyName || 'CLAW 智能服务',
@@ -197,7 +197,7 @@ router.post('/links', authenticateToken, async (req, res) => {
       success: true,
       data: {
         linkId,
-        userId: req.user.userId,
+        userId: req.userId,
         clientName,
         phone: cleanPhone,
         msg: msg || '',
@@ -222,7 +222,7 @@ router.put('/links/:id', authenticateToken, async (req, res) => {
     // 先检查链接是否存在且属于该用户
     const check = await pool.query(
       'SELECT * FROM whatsapp_links WHERE link_id = $1 AND user_id = $2',
-      [req.params.id, req.user.userId]
+      [req.params.id, req.userId]
     );
 
     if (check.rows.length === 0) {
@@ -256,7 +256,7 @@ router.put('/links/:id', authenticateToken, async (req, res) => {
 
     updates.push('updated_at = NOW()');
     values.push(req.params.id);
-    values.push(req.user.userId);
+    values.push(req.userId);
 
     await pool.query(
       `UPDATE whatsapp_links SET ${updates.join(', ')} WHERE link_id = $${idx} AND user_id = $${idx + 1}`,
@@ -280,7 +280,7 @@ router.delete('/links/:id', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       'DELETE FROM whatsapp_links WHERE link_id = $1 AND user_id = $2 RETURNING link_id',
-      [req.params.id, req.user.userId]
+      [req.params.id, req.userId]
     );
 
     if (result.rowCount === 0) {
@@ -302,7 +302,7 @@ router.post('/links/:id/reset', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       'UPDATE whatsapp_links SET clicks = 0, last_click_at = NULL, updated_at = NOW() WHERE link_id = $1 AND user_id = $2 RETURNING *',
-      [req.params.id, req.user.userId]
+      [req.params.id, req.userId]
     );
 
     if (result.rowCount === 0) {
@@ -324,7 +324,7 @@ router.get('/stats', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT * FROM whatsapp_links WHERE user_id = $1',
-      [req.user.userId]
+      [req.userId]
     );
     const links = result.rows.map(dbToJs);
 
@@ -339,7 +339,7 @@ router.get('/stats', authenticateToken, async (req, res) => {
       const dayResult = await pool.query(
         `SELECT COALESCE(SUM(clicks), 0) as day_clicks FROM whatsapp_links 
          WHERE user_id = $1 AND last_click_at::date = $2`,
-        [req.user.userId, dayStr]
+        [req.userId, dayStr]
       );
       dailyStats.push({
         date: dayStr,
