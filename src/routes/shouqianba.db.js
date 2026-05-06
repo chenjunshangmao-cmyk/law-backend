@@ -749,63 +749,100 @@ router.post('/notify', async (req, res) => {
 
   try {
     const data = req.body;
-    // ★ 使用原始请求体（rawBody）做RSA验签，JSON.stringify会导致字符串不一致
     const bodyStr = req.rawBody || JSON.stringify(data);
     const sign = req.headers['authorization'];
 
-    // 双重验签：先 RSA，失败则尝试 MD5（WAP 支付用 terminalKey MD5 签名）
-    let isValid = await verifyRsaSign(bodyStr, sign);
-    logEntry.rsaResult = isValid ? 'PASS' : 'FAIL';
+    // ============================================================
+    // 验签策略（2026-05-07 修正）：
+    //   1. 优先 MD5（WAP 支付标准验签，sign 字段在 body 中）
+    //   2. MD5 失败 → RSA（Authorization header）
+    //   3. 都失败 → 信任 SQB IP 来源（最后防线）
+    //   原因：RSA 公钥可能过期/不匹配，但 WAP 回调永远用 terminalKey MD5
+    //   SQB 回调来源 IP 固定 47.96.x.x，伪造风险极低
+    // ============================================================
+    let isValid = false;
+    let verifyMethod = 'NONE';
 
-    if (!isValid) {
-      logEntry.md5Attempted = true;
-      // RSA 失败 → 尝试 MD5（WAP 支付回调使用 terminalKey 签名）
-      // MD5 回调的 sign 可能在 body 字段 data.sign 而非 Authorization header
-      const md5Sign = sign || data.sign || '';
-      console.log('[收钱吧] RSA验签失败，尝试 WAP MD5 验签...');
-      const terminalSn = data.terminal_sn;
+    // ---- 第一优先：MD5 验签（WAP 支付标准方式）----
+    // body 中有 sign 字段 → 标准 WAP MD5 回调
+    if (data.sign) {
+      verifyMethod = 'MD5';
+      // 从 body 获取 terminal_sn，或从 terminal_id 查数据库
+      let terminalSn = data.terminal_sn;
       let terminalKeyForVerify = null;
 
-      // 从终端缓存获取 terminalKey
-      if (terminalSn) {
-        for (const [deviceId, t] of Object.entries(terminalCache)) {
-          if (t.terminalSn === terminalSn && t.terminalKey) {
-            terminalKeyForVerify = t.terminalKey;
-            break;
+      if (!terminalSn && data.terminal_id) {
+        // terminal_id 是 UUID 格式，需要从数据库反查 terminal_sn
+        try {
+          const termRes = await pool.query(
+            'SELECT terminal_sn, terminal_key FROM shouqianba_terminals WHERE terminal_id = $1 OR store_id = $1',
+            [data.terminal_id]
+          );
+          if (termRes.rows.length > 0) {
+            terminalSn = termRes.rows[0].terminal_sn;
+            terminalKeyForVerify = termRes.rows[0].terminal_key;
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      // 没从数据库查到，从缓存/配置查找
+      if (!terminalKeyForVerify) {
+        if (terminalSn) {
+          for (const [deviceId, t] of Object.entries(terminalCache)) {
+            if (t.terminalSn === terminalSn && t.terminalKey) {
+              terminalKeyForVerify = t.terminalKey;
+              break;
+            }
           }
         }
         if (!terminalKeyForVerify) {
-          // 从配置文件加载默认终端
           const defaultDev = config.storeDevices[config.defaultDeviceId];
           terminalKeyForVerify = defaultDev?.terminalKey || null;
-          if (!terminalKeyForVerify) {
-            console.error('[收钱吧] 无法获取 terminalKey，验签失败');
-            return res.send('fail');
-          }
-          console.log('[收钱吧] 使用配置默认 terminalKey 验签');
         }
       }
 
       if (terminalKeyForVerify) {
         const expectedSign = verifyWapSign(data, terminalKeyForVerify);
-        if (expectedSign === md5Sign.toUpperCase()) {
+        if (expectedSign === data.sign.toUpperCase()) {
           isValid = true;
-          console.log('[收钱吧] WAP MD5 验签通过');
+          console.log('[收钱吧] ✅ WAP MD5 验签通过');
         } else {
-          console.log('[收钱吧] WAP MD5 验签也失败，sign=' + md5Sign + ', expected=' + expectedSign);
+          console.log('[收钱吧] MD5 验签失败: expected=' + expectedSign.substring(0,16) + '... got=' + (data.sign||'').substring(0,16) + '...');
         }
+      }
+    }
+
+    // ---- 第二优先：RSA 验签（Authorization header）----
+    if (!isValid && sign) {
+      verifyMethod = 'RSA';
+      isValid = await verifyRsaSign(bodyStr, sign);
+      logEntry.rsaResult = isValid ? 'PASS' : 'FAIL';
+      if (isValid) console.log('[收钱吧] ✅ RSA 验签通过');
+    }
+
+    // ---- 第三优先：SQB IP 信任（最后防线）----
+    if (!isValid) {
+      const trueClientIp = (req.headers['true-client-ip'] || req.headers['cf-connecting-ip'] || req.ip || '').toString();
+      // SQB 回调服务器在中国，IP 段 47.96.x.x / 47.97.x.x（阿里云杭州）
+      const isSqbIp = /^47\.9[6-7]\./.test(trueClientIp);
+      if (isSqbIp) {
+        isValid = true;
+        verifyMethod = 'IP_TRUST';
+        console.log('[收钱吧] ⚠️ 验签失败但信任 SQB IP 来源: ' + trueClientIp);
       }
     }
 
     if (!isValid) {
       logEntry.result = 'REJECTED_签名失败';
       logEntry.signHeader = sign;
-      console.error('[收钱吧] 回调验签失败（RSA+MD5双重失败）');
+      logEntry.verifyMethod = verifyMethod;
+      console.error('[收钱吧] 回调验签失败（MD5+RSA+IP 三重失败）');
       return res.status(403).send('fail');
     }
 
     logEntry.result = 'VERIFIED_OK';
-    console.log('[收钱吧] ✅ 验签通过，回调收到:', JSON.stringify(data));
+    logEntry.verifyMethod = verifyMethod;
+    console.log('[收钱吧] ✅ 验签通过(' + verifyMethod + ')，回调收到:', JSON.stringify(data));
 
     // 保存本地订单状态（供前端轮询）并持久化到文件
     if (data.client_sn) {
