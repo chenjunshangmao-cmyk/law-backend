@@ -316,7 +316,7 @@ router.post('/create-order', async (req, res) => {
     const terminal = getTerminal(deviceId || config.defaultDeviceId);
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活，请先调用 /activate' });
 
-    const baseUrl = process.env.RENDER_EXTERNAL_URL || (req.protocol + '://' + req.get('host'));
+    const baseUrl = process.env.API_BASE_URL || process.env.RENDER_EXTERNAL_URL || 'https://claw-backend-2026.onrender.com';
     const frontendBase = process.env.FRONTEND_URL || 'https://claw-app-2026.pages.dev';
     const amountFen = String(Math.round(Number(totalAmount) * 100));
 
@@ -330,6 +330,8 @@ router.post('/create-order', async (req, res) => {
       return_url: frontendBase + '/payment-result',
       notify_url: baseUrl + '/api/shouqianba/notify'
     };
+
+    console.log('[收钱吧] notify_url:', requestParams.notify_url);
 
     // WAP签名：参数排序 + &key= + MD5 + 大写
     const sign = wapSign(requestParams, terminal.terminalKey);
@@ -396,6 +398,7 @@ router.post('/create-order', async (req, res) => {
 
 // 查询订单
 // WAP 订单的收钱吧 /query 接口返回 404，故优先读本地文件（持久化）+ 内存缓存
+// ★ 兜底：同时查 payment_orders 数据库（payment.db.js 的回调处理可能已经写入）
 router.get('/query', async (req, res) => {
   try {
     const { sn, deviceId = config.defaultDeviceId } = req.query;
@@ -412,20 +415,46 @@ router.get('/query', async (req, res) => {
     const fileOrder = getOrder(sn);
     if (fileOrder) {
       console.log('[收钱吧] 订单 ' + sn + ' 从文件返回: ' + fileOrder.orderStatus);
-      // 如果文件里已经是 PAID 状态，说明支付成功了
       if (fileOrder.orderStatus === 'PAID' || fileOrder.orderStatus === 'TRADE_SUCCESS') {
         return res.json({ success: true, data: fileOrder });
       }
-      // 否则返回 pending 状态（WAP 订单的正常状态，收钱吧 query API 查不到）
+    }
+
+    // 3. ★ 兜底：查 payment_orders 数据库表（回调可能通过 webhook 更新了这里）
+    try {
+      const dbResult = await pool.query(
+        'SELECT status, plan_type, amount, paid_at FROM payment_orders WHERE order_no = $1',
+        [sn]
+      );
+      if (dbResult.rows.length > 0 && dbResult.rows[0].status === 'paid') {
+        const row = dbResult.rows[0];
+        const paidData = {
+          sn, clientSn: sn,
+          orderStatus: 'PAID', status: 'SUCCESS',
+          totalAmount: row.amount,
+          paidAt: row.paid_at
+        };
+        // 同步到内存缓存和文件
+        orderStatusCache.set(sn, paidData);
+        saveOrder(paidData);
+        console.log('[收钱吧] 订单 ' + sn + ' 从数据库找到已支付状态');
+        return res.json({ success: true, data: paidData });
+      }
+    } catch (dbErr) {
+      console.error('[收钱吧] 查数据库失败:', dbErr.message);
+    }
+
+    // 4. 本地都没有 → 返回 pending
+    if (fileOrder) {
       return res.json({
         success: true,
-        data: { ...fileOrder, orderStatus: 'PENDING', status: 'PENDING', note: 'WAP订单，收钱吧查询接口暂不支持，后台回调确认' }
+        data: { ...fileOrder, orderStatus: 'PENDING', status: 'PENDING', note: 'WAP订单，等待支付完成或回调通知' }
       });
     }
 
-    // 3. 尝试查收钱吧 API（仅用于兼容其他类型订单）
+    // 5. 尝试查收钱吧 API（仅用于兼容其他类型订单）
     const terminal = getTerminal(deviceId);
-    if (!terminal) return res.status(400).json({ success: false, error: '终端未激活' });
+    if (!terminal) return res.json({ success: false, error: '订单不存在，且终端未激活' });
     const body = { terminal_sn: terminal.terminalSn, sn };
     const result = await sqbRequest('/query', body, terminal.terminalSn, terminal.terminalKey);
     res.json({ success: true, data: { sn: result.sn, clientSn: result.client_sn, orderStatus: result.order_status, status: result.status, paywayName: result.payway_name, totalAmount: result.total_amount, netAmount: result.net_amount, tradeNo: result.trade_no } });
