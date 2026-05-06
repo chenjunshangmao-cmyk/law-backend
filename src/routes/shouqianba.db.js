@@ -475,11 +475,12 @@ router.get('/query', async (req, res) => {
   }
 });
 
-// 手动确认支付（WAP订单收钱吧查询接口不可用，回调也不稳定）
-// 前端「我已支付」按钮调用此接口，强制将订单标记为已支付并升级会员
-// ★ 加认证：防止未付款客户直接点「我已支付」绕过支付
+// 手动确认支付 — ⛔ 已禁用（2026-05-07，安全风险：用户可不付款直接确认）
+// 仅保留调用收钱吧查询接口验证真实支付状态，不再允许手动标记为已支付
 router.post('/force-confirm', authenticateToken, async (req, res) => {
   try {
+    // ⛔ 禁止手动确认 — 必须等收钱吧真实回调
+    return res.json({ success: false, error: '手动确认已禁用。请完成支付后等待系统自动确认（约5-15秒），或联系客服。' });
     const { sn, planId, totalAmount } = req.body;
     if (!sn) return res.status(400).json({ success: false, error: '缺少 sn' });
 
