@@ -44,7 +44,7 @@ const PLANS = {
   },
   basic: {
     name: '基础版',
-    price: 19900,         // ¥199/月
+    price: 10,              // 🔧 测试：0.1元，正式改回19900
     color: 'blue',
     storeLimit: 5,
     storePlatforms: ['taobao', 'pinduoduo', 'douyin'],

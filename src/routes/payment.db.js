@@ -124,7 +124,7 @@ async function ensurePaymentTables() {
 // 价格单位：分（fen），1元 = 100分
 // 套餐配置（与 membership.db.js 保持一致，2026-04-25 最终版）
 const PLANS = {
-  basic: { name: '基础版', price: 19900, duration: 30 },        // ¥199/月
+  basic: { name: '基础版(测试)', price: 10, duration: 30 },        // 🔧 测试中：0.1元，正式改回19900
   premium: { name: '专业版', price: 49900, duration: 30 },    // ¥499/月
   enterprise: { name: '企业版', price: 159900, duration: 30 }, // ¥1599/月
   flagship: { name: '旗舰版', price: 588800, duration: 30 }   // ¥5888/月
