@@ -586,8 +586,14 @@ router.post('/notify', async (req, res) => {
           }
         }
         if (!terminalKeyForVerify) {
-          terminalKeyForVerify = '96bfaf401367d934cb10a1cbe9773647';
-          console.log('[收钱吧] 使用硬编码 terminalKey 验签 (claw-web-new3)');
+          // 从配置文件加载默认终端
+          const defaultDev = config.storeDevices[config.defaultDeviceId];
+          terminalKeyForVerify = defaultDev?.terminalKey || null;
+          if (!terminalKeyForVerify) {
+            console.error('[收钱吧] 无法获取 terminalKey，验签失败');
+            return res.send('fail');
+          }
+          console.log('[收钱吧] 使用配置默认 terminalKey 验签');
         }
       }
 

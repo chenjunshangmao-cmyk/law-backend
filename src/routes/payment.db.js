@@ -141,26 +141,33 @@ const SERVICES = {
   'ads-account': { name: '广告户开户', amount: 50000 }        // ¥500
 };
 
-// 硬编码终端配置（claw-web-new3，2026-05-04 修复 ✅ WAP网关实测302成功）
-// terminalSn: 100111220054389553
-// terminalKey: 96bfaf401367d934cb10a1cbe9773647（技术文档记录，网关验证通过）
-const HARDCODE = {
-  terminalSn: '100111220054389553',
-  terminalKey: '96bfaf401367d934cb10a1cbe9773647',
+// 默认终端配置（2026-05-06 claw-pay-motecg24-0417 ✅ 新激活）
+// terminalSn: 100111220054798199
+// terminalKey: 4f6a8259619c559d1361a596949dce33
+const DEFAULT_TERMINAL = {
+  terminalSn: '100111220054798199',
+  terminalKey: '4f6a8259619c559d1361a596949dce33',
   merchantId: '18956397746',
   storeSn: '00010101001200200046406',
-  deviceId: 'claw-web-new3'
+  deviceId: 'claw-pay-motecg24-0417'
 };
 
 /**
  * 获取激活终端（支持多种配置来源）
- * 优先级：1. 硬编码 > 2. shouqianba.js > 3. 环境变量 > 4. 缓存 > 5. 数据库
+ * 优先级：1. 终端文件 > 2. 数据库 > 3. 默认配置
  */
 async function getActiveTerminal() {
-  // 1. 直接返回硬编码配置（最可靠，不依赖 import）
-  if (HARDCODE.terminalSn && HARDCODE.terminalKey) {
-    return HARDCODE;
-  }
+  // 1. 从终端数据文件读取
+  try {
+    const cached = loadTerminalCache();
+    const keys = Object.keys(cached);
+    if (keys.length > 0) {
+      const t = cached[keys[0]];
+      if (t.terminalSn && t.terminalKey) {
+        return { terminalSn: t.terminalSn, terminalKey: t.terminalKey, merchantId: t.merchantId, storeSn: t.storeSn, deviceId: t.deviceId };
+      }
+    }
+  } catch (e) { /* ignore */ }
 
   // 2. 尝试 shouqianba.js
   try {
@@ -466,14 +473,12 @@ router.post('/shouqianba', async (req, res) => {
 
     // 验签：WAP支付回调用 terminalKey（不是 vendorKey）
     // 1. 从回调参数中获取 terminal_sn
-    // 2. 从数据库 shouqianba_terminals 表查询对应的 terminal_key
+    // 2. 从数据库 / 终端文件 查询对应的 terminal_key
     // 3. 用 terminal_key 进行 MD5 验签
     const terminalSn = params.terminal_sn;
     let terminalKeyForVerify = null;
 
-    // ★ 修复1：terminalKey 回退优先级调整为：数据库 → HARDCODE.terminalKey → vendorKey
-    // 创建支付时用 HARDCODE.terminalKey，回调验签必须用相同密钥才能通过
-    const HARDCODE_KEY = '96bfaf401367d934cb10a1cbe9773647';
+    // 优先级：数据库 → 文件缓存 → 放弃验签
     if (terminalSn) {
       try {
         const termResult = await pool.query(
@@ -487,10 +492,20 @@ router.post('/shouqianba', async (req, res) => {
         console.warn('【收钱吧回调】查询终端密钥失败:', e.message);
       }
     }
+    // 数据库没找到 → 从终端数据文件中读取
     if (!terminalKeyForVerify) {
-      // 先用 HARDCODE.terminalKey（与 payment.create 使用相同的密钥）
-      terminalKeyForVerify = HARDCODE_KEY;
-      console.warn('【收钱吧回调】使用 HARDCODE.terminalKey 验签（终端密钥未在数据库中找到）:', terminalSn);
+      const cached = loadTerminalCache();
+      for (const [devId, t] of Object.entries(cached)) {
+        if (t.terminalSn === terminalSn && t.terminalKey) {
+          terminalKeyForVerify = t.terminalKey;
+          console.log('【收钱吧回调】从终端文件读取到密钥:', terminalSn);
+          break;
+        }
+      }
+    }
+    if (!terminalKeyForVerify) {
+      console.error('【收钱吧回调】无法获取终端密钥，无法验签 terminal_sn:', terminalSn);
+      return res.send('fail');
     }
 
     // 使用与创建支付时相同的验签方式：参数排序 + &key= + MD5
@@ -696,10 +711,10 @@ router.get('/debug/terminal', async (req, res) => {
       result.step1_shouqianba_js = { error: e.message };
     }
 
-    // Step 1b: 硬编码兜底
+    // Step 1b: 默认兜底
     const HARDCODED = {
-      terminalSn: '100111220054389553',
-      terminalKey: '96bfaf401367d934cb10a1cbe9773647'
+      terminalSn: '100111220054798199',
+      terminalKey: '4f6a8259619c559d1361a596949dce33'
     };
     result.step1b_hardcoded = HARDCODED;
 
