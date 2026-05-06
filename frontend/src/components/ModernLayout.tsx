@@ -25,7 +25,8 @@ import {
   BookOpen,
   Sparkles,
   ChevronRight,
-  MessageCircle
+  MessageCircle,
+  Youtube
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -35,7 +36,6 @@ const NAV_ITEMS = [
   { path: '/ads',         icon: Megaphone,       label: '广告采集', color: 'text-amber-500' },
   { path: '/products',    icon: Package,         label: '产品管理', color: 'text-emerald-500' },
   { path: '/accounts',    icon: Store,           label: '店铺账号', color: 'text-indigo-500' },
-  { path: '/services',    icon: Briefcase,       label: '业务服务', color: 'text-cyan-500' },
   { path: '/calculator',  icon: Calculator,      label: '利润计算', color: 'text-green-500' },
   { path: '/membership',  icon: Crown,           label: '会员中心', color: 'text-yellow-500' },
   { path: '/orders',     icon: Receipt,         label: '订单', color: 'text-orange-500' },
@@ -44,6 +44,7 @@ const NAV_ITEMS = [
   { path: '/ai-content',  icon: Sparkles,        label: 'AI智能图文', color: 'text-fuchsia-500' },
   { path: '/avatar',      icon: Bot,             label: 'AI数字人', color: 'text-violet-500' },
   { path: '/whatsapp',    icon: MessageCircle,    label: 'WhatsApp中继', color: 'text-green-500' },
+  { path: '/youtube',    icon: Youtube,          label: 'YouTube', color: 'text-red-600' },
   { path: '/settings',    icon: Settings,        label: '设置', color: 'text-gray-500' },
 ];
 
