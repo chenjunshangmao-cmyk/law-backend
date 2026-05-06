@@ -257,7 +257,6 @@ router.post('/create', authenticateToken, async (req, res) => {
         // notify_url 使用 Render 域名（api.chenjuntrading.cn 返回530不可用）
     const apiBase = process.env.API_BASE_URL || 'https://claw-backend-2026.onrender.com';
     const frontendBase = process.env.FRONTEND_URL || 'https://chenjuntrading.cn';
-    const frontendBase = process.env.FRONTEND_URL || 'https://chenjuntrading.cn';
     const notifyUrl = `${apiBase}/api/webhook/shouqianba`;
     const returnUrlFull = returnUrl || `${frontendBase}/payment/result`;
 
