@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { RefreshCw, CheckCircle, Clock, XCircle, CreditCard, ShoppingBag } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { RefreshCw, CheckCircle, Clock, XCircle, CreditCard, ShoppingBag, Sparkles } from 'lucide-react';
 import api from '../services/api';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
@@ -10,30 +11,55 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 };
 
 export default function OrdersPage() {
+  const [searchParams] = useSearchParams();
+  const highlightOrder = searchParams.get('new') || '';
+  
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [polling, setPolling] = useState(false);
   const limit = 10;
 
-  const loadOrders = async (p = 1) => {
+  const loadOrders = useCallback(async (p = 1) => {
     setLoading(true);
     setError('');
     try {
-      // api.payment.orders() → authFetch → 返回 data.data → { orders, total, page, limit }
       const res = await api.payment.orders(p, limit);
       setOrders(res.orders || []);
       setTotal(res.total || 0);
       setPage(p);
+
+      // 如果有待支付订单，启动自动轮询
+      const hasPending = (res.orders || []).some((o: any) => o.status === 'pending');
+      setPolling(hasPending);
     } catch (e: any) {
       setError(e.message || '加载订单失败');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { loadOrders(1); }, []);
+  useEffect(() => { loadOrders(1); }, [loadOrders]);
+
+  // 自动轮询：待支付订单每5秒刷新一次
+  useEffect(() => {
+    if (!polling) return;
+    const timer = setInterval(() => {
+      loadOrders(page);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [polling, page, loadOrders]);
+
+  // 高亮新订单（闪烁效果，3秒后消失）
+  const [flashOrder, setFlashOrder] = useState(highlightOrder);
+  useEffect(() => {
+    if (!highlightOrder) return;
+    setFlashOrder(highlightOrder);
+    const t = setTimeout(() => setFlashOrder(''), 5000);
+    return () => clearTimeout(t);
+  }, [highlightOrder]);
 
   const totalPages = Math.ceil(total / limit);
   const StatusIcon = (status: string) => {
@@ -56,7 +82,9 @@ export default function OrdersPage() {
             <ShoppingBag className="w-6 h-6 text-indigo-600" />
             我的订单
           </h1>
-          <p className="text-gray-500 mt-1">查看所有会员套餐和业务服务的购买记录</p>
+          <p className="text-gray-500 mt-1">
+            {polling ? '⏱️ 正在监控支付状态...' : '查看所有会员套餐和业务服务的购买记录'}
+          </p>
         </div>
         <button
           onClick={() => loadOrders(page)}
@@ -68,6 +96,16 @@ export default function OrdersPage() {
         </button>
       </div>
 
+      {/* 自动轮询提示 */}
+      {polling && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2">
+          <RefreshCw className="w-4 h-4 text-blue-600 animate-spin" />
+          <span className="text-sm text-blue-700">
+            您有待支付的订单，系统每5秒自动检查支付状态
+          </span>
+        </div>
+      )}
+
       {/* 错误提示 */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
@@ -76,7 +114,7 @@ export default function OrdersPage() {
       )}
 
       {/* 加载中 */}
-      {loading ? (
+      {loading && orders.length === 0 ? (
         <div className="flex items-center justify-center py-16">
           <RefreshCw className="w-6 h-6 text-indigo-600 animate-spin mr-3" />
           <span className="text-gray-500">加载订单中...</span>
@@ -100,11 +138,20 @@ export default function OrdersPage() {
           <div className="space-y-4">
             {orders.map((order) => {
               const statusKey = (order.status || 'pending').toLowerCase().replace('_', '');
+              const isNew = flashOrder && order.order_no === flashOrder;
               return (
                 <div
                   key={order.order_no}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow"
+                  className={`bg-white rounded-2xl shadow-sm border p-5 hover:shadow-md transition-shadow ${
+                    isNew ? 'border-indigo-400 ring-2 ring-indigo-200 shadow-lg shadow-indigo-100' : 'border-gray-100'
+                  }`}
                 >
+                  {isNew && (
+                    <div className="flex items-center gap-1 mb-2">
+                      <Sparkles className="w-3 h-3 text-indigo-500" />
+                      <span className="text-xs text-indigo-600 font-medium">新订单</span>
+                    </div>
+                  )}
                   <div className="flex items-start justify-between flex-wrap gap-3">
                     {/* 左侧：订单信息 */}
                     <div className="flex-1 min-w-0">
@@ -113,6 +160,9 @@ export default function OrdersPage() {
                           {order.plan_name || '未知套餐'}
                         </span>
                         {StatusIcon(statusKey)}
+                        {order.status === 'pending' && (
+                          <span className="text-xs text-yellow-600 animate-pulse">等待付款...</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
                         <span className="flex items-center gap-1">
@@ -141,6 +191,20 @@ export default function OrdersPage() {
                       </div>
                     </div>
                   </div>
+                  {/* 操作按钮 */}
+                  {order.status === 'pending' && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
+                      <a
+                        href="/membership"
+                        className="text-xs text-indigo-600 hover:text-indigo-800 underline"
+                      >
+                        返回支付
+                      </a>
+                      <span className="text-xs text-gray-400">
+                        或等待自动确认，无需重复操作
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })}

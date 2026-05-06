@@ -171,6 +171,7 @@ export default function MembershipPage() {
   // 收钱吧支付（微信/支付宝）
   const [sqOrder, setSqOrder] = useState<{ sn: string; clientSn: string; payUrl: string; totalAmount: string } | null>(null);
   const [sqPolling, setSqPolling] = useState(false);
+  const [sqRedirectCountdown, setSqRedirectCountdown] = useState(0);
 
   // USDT 加密支付
   const [cryptoOrder, setCryptoOrder] = useState<{
@@ -204,6 +205,20 @@ export default function MembershipPage() {
         payUrl: orderData.payUrl,
         totalAmount: String(orderData.totalAmount)
       });
+
+      // 启动自动跳转倒计时（5秒后跳订单页）
+      setSqRedirectCountdown(5);
+      const countdownTimer = setInterval(() => {
+        setSqRedirectCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownTimer);
+            // 跳转到订单页
+            window.location.href = '/orders?new=' + encodeURIComponent(orderData.clientSn);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
 
       // ★★★ 关键修复：启动轮询查支付状态 ★★★
       const timer = setInterval(async () => {
@@ -434,9 +449,20 @@ export default function MembershipPage() {
                   style={{ width: 200, height: 200 }}
                 />
                 <p className="text-xs text-gray-400 mt-1">订单号：{sqOrder.clientSn}</p>
-                <div className="flex items-center justify-center gap-1 text-xs text-gray-400 mt-2">
-                  <RefreshCw className="w-3 h-3 animate-spin" />
-                  等待支付中...（支付后自动确认）
+                {sqRedirectCountdown > 0 ? (
+                  <div className="mt-3 p-2 bg-blue-50 rounded-lg">
+                    <p className="text-xs text-blue-700">
+                      📱 请扫码支付，{sqRedirectCountdown}秒后自动跳转订单页
+                    </p>
+                  </div>
+                ) : null}
+                <div className="flex gap-2 mt-3">
+                  <a
+                    href={'/orders?new=' + encodeURIComponent(sqOrder.clientSn)}
+                    className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium text-center hover:bg-indigo-700"
+                  >
+                    📋 查看订单
+                  </a>
                 </div>
               </div>
             ) : null}
