@@ -399,6 +399,10 @@ export const api = {
       return result;
     },
     query: (sn: string) => authFetch(`/api/shouqianba/query?sn=${sn}`),
+    // ★ 重新扫码：复用原订单的支付链接
+    reopen: (sn: string) => authFetch(`/api/shouqianba/reopen/${sn}`),
+    // ★ 删除订单（仅 pending/cancelled 可删）
+    deleteOrder: (sn: string) => authFetch(`/api/shouqianba/order/${sn}`, { method: 'DELETE' }),
   },
 
   // ============================================================

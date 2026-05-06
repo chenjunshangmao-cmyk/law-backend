@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { RefreshCw, CheckCircle, Clock, XCircle, CreditCard, ShoppingBag, Sparkles } from 'lucide-react';
+import { RefreshCw, CheckCircle, Clock, XCircle, CreditCard, ShoppingBag, Sparkles, Trash2, QrCode, ExternalLink, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
@@ -22,17 +22,24 @@ export default function OrdersPage() {
   const [polling, setPolling] = useState(false);
   const limit = 10;
 
+  // ★ 重新扫码弹窗
+  const [reopenQR, setReopenQR] = useState<{ sn: string; payUrl: string; amount: number } | null>(null);
+  const [reopenError, setReopenError] = useState('');
+  const [deleting, setDeleting] = useState<string | null>(null); // 正在删除的订单号
+
   const loadOrders = useCallback(async (p = 1) => {
     setLoading(true);
     setError('');
     try {
       const res = await api.payment.orders(p, limit);
-      setOrders(res.orders || []);
-      setTotal(res.total || 0);
+      // API 返回 { success: true, data: { orders, total, page, limit } }
+      const data = res?.data || res;
+      setOrders(data.orders || []);
+      setTotal(data.total || 0);
       setPage(p);
 
       // 如果有待支付订单，启动自动轮询
-      const hasPending = (res.orders || []).some((o: any) => o.status === 'pending');
+      const hasPending = (data.orders || []).some((o: any) => o.status === 'pending');
       setPolling(hasPending);
     } catch (e: any) {
       setError(e.message || '加载订单失败');
@@ -42,6 +49,43 @@ export default function OrdersPage() {
   }, []);
 
   useEffect(() => { loadOrders(1); }, [loadOrders]);
+
+  // ★ 重新扫码：复用原订单的支付链接
+  const handleReopen = async (sn: string) => {
+    setReopenError('');
+    try {
+      const res = await api.shouqianba.reopen(sn);
+      if (res?.success && res?.data?.payUrl) {
+        setReopenQR({
+          sn: res.data.sn,
+          payUrl: res.data.payUrl,
+          amount: res.data.totalAmount || 0
+        });
+      } else {
+        setReopenError(res?.error || '无法重新打开该订单，请返回会员页重新下单');
+      }
+    } catch (e: any) {
+      setReopenError(e.message || '请求失败');
+    }
+  };
+
+  // ★ 删除订单
+  const handleDeleteOrder = async (sn: string) => {
+    if (!window.confirm('确定要删除该订单吗？删除后无法恢复。')) return;
+    setDeleting(sn);
+    try {
+      const res = await api.shouqianba.deleteOrder(sn);
+      if (res?.success) {
+        loadOrders(page);
+      } else {
+        alert(res?.error || '删除失败');
+      }
+    } catch (e: any) {
+      alert(e.message || '删除失败');
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   // 自动轮询：待支付订单每5秒刷新一次
   useEffect(() => {
@@ -110,6 +154,84 @@ export default function OrdersPage() {
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
           <p>{error}</p>
+        </div>
+      )}
+
+      {/* ★ 重新扫码弹窗 */}
+      {reopenQR && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-green-600" />
+                重新扫码支付
+              </h2>
+              <button
+                onClick={() => setReopenQR(null)}
+                className="p-1 rounded-lg hover:bg-gray-100"
+              >
+                <XCircle className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="text-center mb-4">
+              <p className="text-sm text-gray-600 mb-1">
+                订单号：<code className="bg-gray-100 px-2 py-0.5 rounded text-xs">{reopenQR.sn}</code>
+              </p>
+              <p className="text-lg font-bold text-gray-900">
+                ¥{(reopenQR.amount / 100).toFixed(2)}
+              </p>
+              <img
+                src={'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(reopenQR.payUrl)}
+                alt="支付二维码"
+                className="mx-auto rounded-lg border border-gray-200 mt-3"
+                style={{ width: 220, height: 220 }}
+              />
+              <p className="text-xs text-gray-400 mt-2">📱 请用手机微信/支付宝扫码支付</p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-blue-700">
+                <p className="font-medium mb-0.5">温馨提示</p>
+                <p>这是原订单的支付二维码，扫码后无需重新下单。支付成功后系统会自动确认。</p>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <a
+                href={reopenQR.payUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium text-center flex items-center justify-center gap-1 hover:bg-green-700"
+              >
+                <ExternalLink className="w-4 h-4" />
+                在浏览器中打开
+              </a>
+              <button
+                onClick={() => setReopenQR(null)}
+                className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 重新扫码错误提示 */}
+      {reopenError && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm text-amber-700">{reopenError}</p>
+            <button
+              onClick={() => setReopenError('')}
+              className="text-xs text-amber-600 underline mt-1"
+            >
+              关闭
+            </button>
+          </div>
         </div>
       )}
 
@@ -193,16 +315,26 @@ export default function OrdersPage() {
                   </div>
                   {/* 操作按钮 */}
                   {order.status === 'pending' && (
-                    <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
-                      <a
-                        href="/membership"
-                        className="text-xs text-indigo-600 hover:text-indigo-800 underline"
+                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => handleReopen(order.order_no)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors"
                       >
-                        返回支付
-                      </a>
+                        <QrCode className="w-3 h-3" />
+                        重新扫码
+                      </button>
                       <span className="text-xs text-gray-400">
-                        或等待自动确认，无需重复操作
+                        复用原订单，无需重复创建
                       </span>
+                      <div className="flex-1" />
+                      <button
+                        onClick={() => handleDeleteOrder(order.order_no)}
+                        disabled={deleting === order.order_no}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-500 rounded-lg text-xs hover:bg-red-50 disabled:opacity-50 transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        {deleting === order.order_no ? '删除中...' : '删除'}
+                      </button>
                     </div>
                   )}
                 </div>
