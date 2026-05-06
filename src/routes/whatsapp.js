@@ -80,6 +80,9 @@ router.get('/', (req, res) => {
   link.lastClickAt = Date.now();
   saveLinks(links);
 
+  // 覆盖全局 CSP：落地页需要内联样式和脚本
+  res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:;");
+
   // 渲染中间页
   const waUrl = `https://wa.me/${link.phone}${link.msg ? '?text=' + encodeURIComponent(link.msg) : ''}`;
   res.send(renderLandingPage({

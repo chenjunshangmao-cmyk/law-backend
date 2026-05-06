@@ -233,6 +233,7 @@ router.get('/callback', async (req, res) => {
     </script>
     <p>授权成功！正在关闭...</p>
     </body></html>`;
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline';");
     res.type('html').send(html);
 
   } catch (err) {
