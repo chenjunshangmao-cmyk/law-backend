@@ -5,23 +5,13 @@
  * 1. 用户创建 WhatsApp 跳转链接（绑定客户名称、WhatsApp号码、欢迎语）
  * 2. 公共跳转页面 /go?id=xxx → 展示页 → 跳转 WhatsApp
  * 3. 点击数据统计
+ * 
+ * ⚡ v2: 数据存储从本地文件迁移到 PostgreSQL，防止 Render 部署丢失
  */
 
 import express from 'express';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { pool } from '../config/database.js';
 import { authenticateToken } from '../middleware/auth.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.resolve(__dirname, '../../data');
-const WHATSAPP_FILE = path.join(DATA_DIR, 'whatsapp-links.json');
-
-// 确保数据文件存在
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(WHATSAPP_FILE)) {
-  fs.writeFileSync(WHATSAPP_FILE, JSON.stringify([], null, 2));
-}
 
 const router = express.Router();
 
@@ -45,14 +35,39 @@ function generateId() {
   return 'wa_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 9);
 }
 
-function readLinks() {
-  try {
-    return JSON.parse(fs.readFileSync(WHATSAPP_FILE, 'utf8'));
-  } catch { return []; }
-}
+// 字段映射：数据库列名 → JS 驼峰名
+const FIELD_MAP = {
+  link_id: 'linkId',
+  user_id: 'userId',
+  client_name: 'clientName',
+  phone: 'phone',
+  msg: 'msg',
+  page_title: 'pageTitle',
+  company_name: 'companyName',
+  description: 'description',
+  button_text: 'buttonText',
+  logo_url: 'logoUrl',
+  bg_color: 'bgColor',
+  accent_color: 'accentColor',
+  auto_redirect_ms: 'autoRedirectMs',
+  clicks: 'clicks',
+  last_click_at: 'lastClickAt',
+  disabled: 'disabled',
+  created_at: 'createdAt',
+  updated_at: 'updatedAt',
+};
 
-function saveLinks(links) {
-  fs.writeFileSync(WHATSAPP_FILE, JSON.stringify(links, null, 2));
+function dbToJs(row) {
+  if (!row) return null;
+  const obj = {};
+  for (const [dbKey, jsKey] of Object.entries(FIELD_MAP)) {
+    obj[jsKey] = row[dbKey];
+  }
+  // 时间戳转为毫秒
+  if (obj.lastClickAt) obj.lastClickAt = new Date(obj.lastClickAt).getTime();
+  if (obj.createdAt) obj.createdAt = new Date(obj.createdAt).getTime();
+  if (obj.updatedAt) obj.updatedAt = new Date(obj.updatedAt).getTime();
+  return obj;
 }
 
 // ======== 公开接口：跳转页面（不需要登录） ========
@@ -62,40 +77,54 @@ function saveLinks(links) {
  * 公共跳转页 - 展示品牌页后跳转 WhatsApp
  * 返回完整的 HTML 页面（TK 广告落地页）
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { id } = req.query;
   if (!id) {
     return res.status(400).send(renderErrorPage('缺少链接ID'));
   }
 
-  const links = readLinks();
-  const link = links.find(l => l.linkId === id);
+  try {
+    const result = await pool.query(
+      'SELECT * FROM whatsapp_links WHERE link_id = $1',
+      [id]
+    );
 
-  if (!link || link.disabled) {
-    return res.status(404).send(renderErrorPage('链接不存在或已停用'));
+    if (result.rows.length === 0) {
+      return res.status(404).send(renderErrorPage('链接不存在或已停用'));
+    }
+
+    const link = dbToJs(result.rows[0]);
+
+    if (link.disabled) {
+      return res.status(404).send(renderErrorPage('链接不存在或已停用'));
+    }
+
+    // 增加点击计数
+    await pool.query(
+      'UPDATE whatsapp_links SET clicks = clicks + 1, last_click_at = NOW() WHERE link_id = $1',
+      [id]
+    );
+
+    // 覆盖全局 CSP：落地页需要内联样式和脚本
+    res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:;");
+
+    // 渲染中间页
+    const waUrl = `https://wa.me/${link.phone}${link.msg ? '?text=' + encodeURIComponent(link.msg) : ''}`;
+    res.send(renderLandingPage({
+      title: link.pageTitle || '咨询客服',
+      logo: link.logoUrl || '',
+      companyName: link.companyName || 'CLAW',
+      description: link.description || '点击下方按钮，立即咨询',
+      buttonText: link.buttonText || '立即咨询',
+      waUrl,
+      bgColor: link.bgColor || '#f5f7fa',
+      accentColor: link.accentColor || '#25D366',
+      autoRedirectMs: link.autoRedirectMs || 3000,
+    }));
+  } catch (error) {
+    console.error('获取链接失败:', error);
+    res.status(500).send(renderErrorPage('服务器错误'));
   }
-
-  // 增加点击计数
-  link.clicks = (link.clicks || 0) + 1;
-  link.lastClickAt = Date.now();
-  saveLinks(links);
-
-  // 覆盖全局 CSP：落地页需要内联样式和脚本
-  res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:;");
-
-  // 渲染中间页
-  const waUrl = `https://wa.me/${link.phone}${link.msg ? '?text=' + encodeURIComponent(link.msg) : ''}`;
-  res.send(renderLandingPage({
-    title: link.pageTitle || '咨询客服',
-    logo: link.logoUrl || '',
-    companyName: link.companyName || 'CLAW',
-    description: link.description || '点击下方按钮，立即咨询',
-    buttonText: link.buttonText || '立即咨询',
-    waUrl,
-    bgColor: link.bgColor || '#f5f7fa',
-    accentColor: link.accentColor || '#25D366',
-    autoRedirectMs: link.autoRedirectMs || 3000,
-  }));
 });
 
 // ======== 需要登录的管理接口 ========
@@ -104,10 +133,13 @@ router.get('/', (req, res) => {
  * GET /api/whatsapp/links
  * 获取当前用户的所有 WhatsApp 链接
  */
-router.get('/links', authenticateToken, (req, res) => {
+router.get('/links', authenticateToken, async (req, res) => {
   try {
-    const links = readLinks().filter(l => l.userId === req.user.userId);
-    res.json({ success: true, data: links });
+    const result = await pool.query(
+      'SELECT * FROM whatsapp_links WHERE user_id = $1 ORDER BY created_at DESC',
+      [req.user.userId]
+    );
+    res.json({ success: true, data: result.rows.map(dbToJs) });
   } catch (error) {
     console.error('获取链接列表失败:', error);
     res.status(500).json({ success: false, error: '获取链接列表失败' });
@@ -118,7 +150,7 @@ router.get('/links', authenticateToken, (req, res) => {
  * POST /api/whatsapp/links
  * 创建新的 WhatsApp 跳转链接
  */
-router.post('/links', authenticateToken, (req, res) => {
+router.post('/links', authenticateToken, async (req, res) => {
   try {
     const { clientName, phone, msg, pageTitle, companyName, description, buttonText } = req.body;
 
@@ -126,53 +158,52 @@ router.post('/links', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, error: '客户名称和手机号必填' });
     }
 
-    const links = readLinks();
-
     // 会员限额检查
-    const userLinks = links.filter(l => l.userId === req.user.userId);
+    const countResult = await pool.query(
+      'SELECT COUNT(*) FROM whatsapp_links WHERE user_id = $1',
+      [req.user.userId]
+    );
+    const userLinkCount = parseInt(countResult.rows[0].count);
     const limit = getLinkLimit(req.user);
-    if (userLinks.length >= limit) {
+    if (userLinkCount >= limit) {
       return res.status(403).json({
         success: false,
         error: `您的${req.user.membership_type === 'free' ? '免费' : ''}会员最多可创建 ${limit} 个链接`,
         code: 'LINK_LIMIT_REACHED',
         limit,
-        current: userLinks.length,
+        current: userLinkCount,
       });
     }
 
     const linkId = generateId();
-    const newLink = {
-      linkId,
-      userId: req.user.userId,
-      clientName,
-      phone: phone.replace(/[^0-9]/g, ''), // 只保留数字
-      msg: msg || '',
-      pageTitle: pageTitle || `${clientName} - 咨询客服`,
-      companyName: companyName || 'CLAW 智能服务',
-      description: description || '您好！欢迎咨询，点击下方按钮立即联系客服',
-      buttonText: buttonText || '立即咨询',
-      logoUrl: '',
-      bgColor: '#f5f7fa',
-      accentColor: '#25D366',
-      autoRedirectMs: 3000,
-      clicks: 0,
-      lastClickAt: null,
-      disabled: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
 
-    links.push(newLink);
-    saveLinks(links);
+    await pool.query(
+      `INSERT INTO whatsapp_links (link_id, user_id, client_name, phone, msg, page_title, company_name, description, button_text)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        linkId, req.user.userId, clientName, cleanPhone,
+        msg || '',
+        pageTitle || `${clientName} - 咨询客服`,
+        companyName || 'CLAW 智能服务',
+        description || '您好！欢迎咨询，点击下方按钮立即联系客服',
+        buttonText || '立即咨询'
+      ]
+    );
+
+    const baseUrl = process.env.API_BASE_URL || process.env.RENDER_EXTERNAL_URL || `https://${req.get('host')}`;
 
     res.json({
       success: true,
       data: {
-        ...newLink,
-        // 直接返回可用链接
-        url: `${req.protocol}://${req.get('host')}/go?id=${linkId}`,
-        fullUrl: `${req.protocol}://${req.get('host')}/api/whatsapp/?id=${linkId}`
+        linkId,
+        userId: req.user.userId,
+        clientName,
+        phone: cleanPhone,
+        msg: msg || '',
+        pageTitle: pageTitle || `${clientName} - 咨询客服`,
+        url: `${baseUrl}/go?id=${linkId}`,
+        fullUrl: `${baseUrl}/api/whatsapp/?id=${linkId}`
       },
       message: '链接创建成功'
     });
@@ -186,34 +217,55 @@ router.post('/links', authenticateToken, (req, res) => {
  * PUT /api/whatsapp/links/:id
  * 更新链接配置
  */
-router.put('/links/:id', authenticateToken, (req, res) => {
+router.put('/links/:id', authenticateToken, async (req, res) => {
   try {
-    const links = readLinks();
-    const index = links.findIndex(l => l.linkId === req.params.id && l.userId === req.user.userId);
+    // 先检查链接是否存在且属于该用户
+    const check = await pool.query(
+      'SELECT * FROM whatsapp_links WHERE link_id = $1 AND user_id = $2',
+      [req.params.id, req.user.userId]
+    );
 
-    if (index === -1) {
+    if (check.rows.length === 0) {
       return res.status(404).json({ success: false, error: '链接不存在' });
     }
 
-    const allowedFields = [
-      'clientName', 'phone', 'msg', 'pageTitle', 'companyName',
-      'description', 'buttonText', 'logoUrl', 'bgColor', 'accentColor',
-      'autoRedirectMs', 'disabled'
+    const allowedDbFields = [
+      'client_name', 'phone', 'msg', 'page_title', 'company_name',
+      'description', 'button_text', 'logo_url', 'bg_color', 'accent_color',
+      'auto_redirect_ms', 'disabled'
     ];
 
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) {
-        if (field === 'phone') {
-          links[index][field] = req.body[field].replace(/[^0-9]/g, '');
-        } else {
-          links[index][field] = req.body[field];
-        }
+    const updates = [];
+    const values = [];
+    let idx = 1;
+
+    for (const dbField of allowedDbFields) {
+      const jsField = FIELD_MAP[dbField];
+      if (req.body[jsField] !== undefined) {
+        let val = req.body[jsField];
+        if (dbField === 'phone') val = String(val).replace(/[^0-9]/g, '');
+        updates.push(`${dbField} = $${idx}`);
+        values.push(val);
+        idx++;
       }
     }
-    links[index].updatedAt = Date.now();
-    saveLinks(links);
 
-    res.json({ success: true, data: links[index], message: '更新成功' });
+    if (updates.length === 0) {
+      return res.json({ success: true, message: '无需更新' });
+    }
+
+    updates.push('updated_at = NOW()');
+    values.push(req.params.id);
+    values.push(req.user.userId);
+
+    await pool.query(
+      `UPDATE whatsapp_links SET ${updates.join(', ')} WHERE link_id = $${idx} AND user_id = $${idx + 1}`,
+      values
+    );
+
+    // 返回更新后的数据
+    const updated = await pool.query('SELECT * FROM whatsapp_links WHERE link_id = $1', [req.params.id]);
+    res.json({ success: true, data: dbToJs(updated.rows[0]), message: '更新成功' });
   } catch (error) {
     console.error('更新链接失败:', error);
     res.status(500).json({ success: false, error: '更新链接失败' });
@@ -224,16 +276,17 @@ router.put('/links/:id', authenticateToken, (req, res) => {
  * DELETE /api/whatsapp/links/:id
  * 删除链接
  */
-router.delete('/links/:id', authenticateToken, (req, res) => {
+router.delete('/links/:id', authenticateToken, async (req, res) => {
   try {
-    const links = readLinks();
-    const filtered = links.filter(l => !(l.linkId === req.params.id && l.userId === req.user.userId));
+    const result = await pool.query(
+      'DELETE FROM whatsapp_links WHERE link_id = $1 AND user_id = $2 RETURNING link_id',
+      [req.params.id, req.user.userId]
+    );
 
-    if (filtered.length === links.length) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ success: false, error: '链接不存在' });
     }
 
-    saveLinks(filtered);
     res.json({ success: true, message: '删除成功' });
   } catch (error) {
     console.error('删除链接失败:', error);
@@ -245,21 +298,18 @@ router.delete('/links/:id', authenticateToken, (req, res) => {
  * POST /api/whatsapp/links/:id/reset
  * 重置点击计数
  */
-router.post('/links/:id/reset', authenticateToken, (req, res) => {
+router.post('/links/:id/reset', authenticateToken, async (req, res) => {
   try {
-    const links = readLinks();
-    const link = links.find(l => l.linkId === req.params.id && l.userId === req.user.userId);
+    const result = await pool.query(
+      'UPDATE whatsapp_links SET clicks = 0, last_click_at = NULL, updated_at = NOW() WHERE link_id = $1 AND user_id = $2 RETURNING *',
+      [req.params.id, req.user.userId]
+    );
 
-    if (!link) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ success: false, error: '链接不存在' });
     }
 
-    link.clicks = 0;
-    link.lastClickAt = null;
-    link.updatedAt = Date.now();
-    saveLinks(links);
-
-    res.json({ success: true, data: link, message: '计数已重置' });
+    res.json({ success: true, data: dbToJs(result.rows[0]), message: '计数已重置' });
   } catch (error) {
     console.error('重置计数失败:', error);
     res.status(500).json({ success: false, error: '重置计数失败' });
@@ -270,31 +320,30 @@ router.post('/links/:id/reset', authenticateToken, (req, res) => {
  * GET /api/whatsapp/stats
  * 获取统计概览
  */
-router.get('/stats', authenticateToken, (req, res) => {
+router.get('/stats', authenticateToken, async (req, res) => {
   try {
-    const links = readLinks().filter(l => l.userId === req.user.userId);
+    const result = await pool.query(
+      'SELECT * FROM whatsapp_links WHERE user_id = $1',
+      [req.user.userId]
+    );
+    const links = result.rows.map(dbToJs);
+
     const totalClicks = links.reduce((sum, l) => sum + (l.clicks || 0), 0);
     const activeLinks = links.filter(l => !l.disabled).length;
 
     // 按日统计点击（最近7天）
-    const now = Date.now();
     const dayMs = 86400000;
     const dailyStats = [];
     for (let i = 6; i >= 0; i--) {
-      const dayStart = new Date(now - i * dayMs);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart.getTime() + dayMs);
-      
-      const dayClicks = links.reduce((sum, l) => {
-        if (l.lastClickAt && l.lastClickAt >= dayStart.getTime() && l.lastClickAt < dayEnd.getTime()) {
-          return sum + (l.clicks || 0);
-        }
-        return sum;
-      }, 0);
-
+      const dayStr = new Date(Date.now() - i * dayMs).toISOString().split('T')[0];
+      const dayResult = await pool.query(
+        `SELECT COALESCE(SUM(clicks), 0) as day_clicks FROM whatsapp_links 
+         WHERE user_id = $1 AND last_click_at::date = $2`,
+        [req.user.userId, dayStr]
+      );
       dailyStats.push({
-        date: dayStart.toISOString().split('T')[0],
-        clicks: dayClicks,
+        date: dayStr,
+        clicks: parseInt(dayResult.rows[0].day_clicks),
       });
     }
 
