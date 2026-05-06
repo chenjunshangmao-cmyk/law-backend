@@ -9,34 +9,22 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.04.005** |
-| 构建时间 | 2026-05-04 12:50 CST |
+| 版本号 | **2026.05.06.001** |
+| 构建时间 | 2026-05-06 22:20 CST |
 | 构建者 | WorkBuddy AI |
-| Git 提交 | c6b412c (后端) / 本地 (前端) |
-| 前端地址 | https://93ff2356.claw-app-2026.pages.dev |
-| 后端状态 | ✅ Render 已部署 (c6b412c) |
+| Git 提交 | eaad7b6 (前端) / db35e1a (后端) |
+| 后端状态 | ✅ Render 自动部署中 (db35e1a) |
 
 ### 本次变更
 
-**🔴 收钱吧支付修复（根因分析 + 代码修复）：**
+**🐛 WhatsApp 创建链接500错误修复：**
+- 根因：`POST /api/whatsapp/links` 中 `links` 变量在第127行 `.filter()` 前未赋值，导致 ReferenceError → 500
+- 修复：将 `const links = readLinks()` 移到 filter 之前
+- 前端：`getLinkUrl` 中的 `VITE_API_BASE` 也改为 `VITE_API_URL`
 
-**发现的问题：**
-1. **终端错误切换**：调试时将终端从 claw-web-new3 错切到 claw-web-new1
-   - claw-web-new1 在3份文档中均标记为"废弃"
-   - WAP网关实测：claw-web-new1→错误页 / claw-web-new3→302成功
-2. **缺少必填参数 operator**：官方文档明确要求 operator 参数
-3. **密钥不一致**：多个文件中 terminalKey 各不相同
-
-**已应用的修复：**
-- ✅ 切回 claw-web-new3（SN: 100111220054389553）
-- ✅ 添加 operator='claw_admin' 参数
-- ✅ 统一所有文件 terminalKey 为 96bfaf401367d934cb10a1cbe9773647
-- ✅ 更新文件：shouqianba.js ×2, shouqianba.db.js ×2, payment.db.js ×2
-
-**⚠️ 仍需处理：**
-- terminalKey `96bfaf401367d934cb10a1cbe9773647` 已被轮换，当前返回 ILLEGAL_SIGN
-- 两个激活码均失效（66172491=EJ05已使用，81119079=EJ06已过期）
-- **需要联系方健平获取新激活码或当前正确的terminalKey**
+**✅ YouTube OAuth 按钮确认：**
+- 前端 OAuth 授权按钮已在页面上，点击正常弹出 Google 授权窗口
+- 后端 `/api/auth/youtube` 正常返回授权 URL
 
 ---
 
@@ -44,6 +32,7 @@
 
 | 版本 | 时间 | 构建者 | 变更摘要 |
 |------|------|--------|----------|
+| 2026.05.04.005 | 12:50 | WorkBuddy | 收钱吧支付修复（终端切回+operator参数+密钥统一） |
 | 2026.05.04.003 | 10:05 | WorkBuddy | 广告采集+AI内容+TikTok/WhatsApp+OZON修复整合+版本管理系统 |
 | 2026.05.04.002 | 09:21 | WorkBuddy | OZON type_id类目选择器修复 + 1688反爬抓取 |
 | 2026.05.04.001 | ~01:00 | WorkBuddy | 小红书系统完结（V1.4） |
