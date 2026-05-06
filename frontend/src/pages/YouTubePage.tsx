@@ -81,6 +81,33 @@ export default function YouTubePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<{ type: 'info' | 'success' | 'error'; text: string } | null>(null);
 
+  // OAuth 授权
+  const [authAccounts, setAuthAccounts] = useState<any[]>([]);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authMsg, setAuthMsg] = useState<{ type: 'info' | 'success' | 'error'; text: string } | null>(null);
+
+  const loadAuthAccounts = useCallback(async () => {
+    try { const r = await api.browser.youtube.listAccounts(); if (r?.accounts) setAuthAccounts(r.accounts); } catch {}
+  }, []);
+  const startOAuth = async () => {
+    setAuthLoading(true); setAuthMsg(null);
+    try {
+      const res = await api.browser.youtube.getAuthUrl();
+      if (!res?.authUrl) { setAuthMsg({type:'error',text:'获取授权链接失败'}); return; }
+      const w=600,h=700,popup=window.open(res.authUrl,'YouTubeOAuth',`width=${w},height=${h},left=${(screen.width-w)/2},top=${(screen.height-h)/2}`);
+      const handler = (e:MessageEvent) => {
+        if (e.data?.type==='youtube_auth_success') {
+          setAuthMsg({type:'success',text:`✅ ${e.data.data?.email||'授权成功'}！`});
+          loadAuthAccounts(); window.removeEventListener('message',handler);
+        }
+      };
+      window.addEventListener('message',handler);
+      setTimeout(()=>{ if(popup&&!popup.closed){ setAuthMsg({type:'error',text:'授权超时'}); window.removeEventListener('message',handler); } },30000);
+    } catch(e:any) { setAuthMsg({type:'error',text:e.message||'授权失败'}); }
+    finally { setAuthLoading(false); }
+  };
+  useEffect(() => { loadAuthAccounts(); }, [loadAuthAccounts]);
+
   // 加载系统状态
   const loadSystemStatus = useCallback(async () => {
     setLoadingSystem(true);
@@ -328,6 +355,28 @@ export default function YouTubePage() {
             💡 服务器环境会自动在后台运行浏览器。本地开发环境会打开可见窗口。
           </div>
         )}
+      </div>
+
+      {/* ========== Google OAuth 授权（推荐）========== */}
+      <div style={{background:'linear-gradient(135deg,#f0f7ff,#e8f0fe)',borderRadius:14,padding:24,marginBottom:20,boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:'2px solid #4285f4'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+          <div>
+            <h2 style={{fontSize:16,fontWeight:700,color:'#1a1a2e',margin:'0 0 4px'}}>🔐 Google 授权登录 <span style={{fontSize:11,background:'#4285f4',color:'#fff',padding:'2px 8px',borderRadius:10}}>推荐</span></h2>
+            <p style={{color:'#64748b',fontSize:13,margin:0}}>一键授权，无需密码，Token 自动刷新</p>
+          </div>
+          <button onClick={startOAuth} disabled={authLoading}
+            style={{padding:'10px 22px',background:'#4285f4',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',opacity:authLoading?0.6:1}}>
+            {authLoading?'授权中...':'🔑 Google 授权'}
+          </button>
+        </div>
+        {authMsg&&(<div style={{marginTop:12,padding:'8px 14px',borderRadius:8,fontSize:13,background:authMsg.type==='error'?'#fef2f2':authMsg.type==='success'?'#f0fdf4':'#eff6ff',color:authMsg.type==='error'?'#dc2626':authMsg.type==='success'?'#16a34a':'#2563eb'}}>{authMsg.text}</div>)}
+        {authAccounts.length>0&&(<div style={{marginTop:16}}><div style={{fontSize:13,fontWeight:600,color:'#64748b',marginBottom:8}}>已授权账号：</div>
+          {authAccounts.map((a:any)=>(<div key={a.channelId||a.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'#fff',borderRadius:8,marginBottom:6,border:'1px solid #e5e7eb'}}>
+            {a.thumbnail&&<img src={a.thumbnail} alt="" style={{width:28,height:28,borderRadius:'50%'}}/>}
+            <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:'#1a1a2e'}}>{a.channelTitle||a.email}</div><div style={{fontSize:12,color:'#94a3b8'}}>{a.email}</div></div>
+            <StatusBadge ok={a.valid!==false}>{a.valid!==false?'有效':'已过期'}</StatusBadge>
+          </div>))}
+        </div>)}
       </div>
 
       {/* ========== 登录区域 ========== */}

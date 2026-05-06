@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
-const API_BASE = import.meta.env.VITE_API_BASE || '';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://claw-backend-2026.onrender.com';
 
 /** 带认证token的 fetch */
 async function authFetch(path: string, options: RequestInit = {}): Promise<any> {

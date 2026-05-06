@@ -542,6 +542,8 @@ export const api = {
         authFetch('/api/browser/tiktok/publish', { method: 'POST', body: JSON.stringify(data) }),
     },
     youtube: {
+      getAuthUrl: () => authFetch('/api/auth/youtube'),
+      listAccounts: () => authFetch('/api/auth/youtube/accounts'),
       login: (email: string, accountId?: string) =>
         authFetch('/api/browser/youtube/login', {
           method: 'POST',

@@ -1,0 +1,89 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - img [ref=e10]
+        - generic [ref=e12]:
+          - heading "Claw 跨境智造" [level=1] [ref=e13]
+          - paragraph [ref=e14]: AI驱动的外贸电商平台
+      - generic [ref=e15]:
+        - heading "欢迎回来 👋" [level=2] [ref=e16]
+        - paragraph [ref=e17]: 请登录您的账户继续使用
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - generic [ref=e21]:
+            - img [ref=e22]
+            - text: 邮箱地址
+          - textbox "请输入您的邮箱" [ref=e25]
+        - generic [ref=e26]:
+          - generic [ref=e28]:
+            - img [ref=e29]
+            - text: 密码
+          - generic [ref=e32]:
+            - textbox "请输入密码" [ref=e33]
+            - button [ref=e34] [cursor=pointer]:
+              - img [ref=e35]
+        - generic [ref=e38]:
+          - generic [ref=e39] [cursor=pointer]:
+            - checkbox "记住我" [ref=e40]
+            - generic [ref=e41]: 记住我
+          - button "忘记密码？" [ref=e42] [cursor=pointer]
+        - button "登录账户" [ref=e43] [cursor=pointer]:
+          - generic [ref=e44]:
+            - img [ref=e45]
+            - text: 登录账户
+        - button "使用 Google 账号登录" [ref=e48] [cursor=pointer]:
+          - img [ref=e49]
+          - text: 使用 Google 账号登录
+        - paragraph [ref=e55]: 💡 测试账户：admin@claw.com / admin123
+      - paragraph [ref=e57]:
+        - text: 还没有账户？
+        - button "立即注册 →" [ref=e58] [cursor=pointer]
+    - generic [ref=e60]:
+      - generic [ref=e61]:
+        - heading "开启智能外贸新时代" [level=2] [ref=e62]
+        - paragraph [ref=e63]: Claw 为您提供一站式跨境电商解决方案，让全球贸易更简单
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - img [ref=e67]
+          - generic [ref=e70]:
+            - heading "多平台管理" [level=3] [ref=e71]
+            - paragraph [ref=e72]: 支持 TikTok、OZON、YouTube 等主流平台
+        - generic [ref=e73]:
+          - img [ref=e75]
+          - generic [ref=e79]:
+            - heading "智能上架" [level=3] [ref=e80]
+            - paragraph [ref=e81]: AI自动生成产品标题、描述和标签
+        - generic [ref=e82]:
+          - img [ref=e84]
+          - generic [ref=e87]:
+            - heading "数据分析" [level=3] [ref=e88]
+            - paragraph [ref=e89]: 实时销售数据与竞品分析
+        - generic [ref=e90]:
+          - img [ref=e92]
+          - generic [ref=e94]:
+            - heading "AI助手" [level=3] [ref=e95]
+            - paragraph [ref=e96]: 24小时智能客服与运营建议
+      - generic [ref=e97]:
+        - generic [ref=e98]:
+          - generic [ref=e99]:
+            - generic [ref=e100]: 5000+
+            - generic [ref=e101]: 活跃商家
+          - generic [ref=e102]:
+            - generic [ref=e103]: ¥2.8亿
+            - generic [ref=e104]: 平台交易额
+          - generic [ref=e105]:
+            - generic [ref=e106]: 98%
+            - generic [ref=e107]: 客户满意度
+        - generic [ref=e109]:
+          - img [ref=e111]
+          - generic [ref=e114]:
+            - paragraph [ref=e115]: "\"使用 Claw 后，我们的跨境电商业务效率提升了 300%，AI助手真的太智能了！\""
+            - paragraph [ref=e116]: — 深圳某珠宝贸易公司
+  - paragraph [ref=e118]:
+    - text: © 2026 Claw 跨境智造平台. 保留所有权利.•
+    - link "隐私政策" [ref=e119] [cursor=pointer]:
+      - /url: "#"
+    - text: •
+    - link "服务条款" [ref=e120] [cursor=pointer]:
+      - /url: "#"
