@@ -50,13 +50,12 @@ export default function WhatsAppPage() {
         authFetch('/api/whatsapp/links'),
         authFetch('/api/whatsapp/stats'),
       ]);
-      if (linksRes.ok) {
-        const data = await linksRes.json();
-        setLinks(data.data || []);
+      // authFetch 直接返回解析后的 JSON，不是 Response 对象
+      if (linksRes?.success) {
+        setLinks(linksRes.data || []);
       }
-      if (statsRes.ok) {
-        const data = await statsRes.json();
-        setStats(data.data);
+      if (statsRes?.success) {
+        setStats(statsRes.data);
       }
     } catch (err) {
       console.error('获取数据失败:', err);
@@ -84,15 +83,14 @@ export default function WhatsAppPage() {
         body: JSON.stringify(formData),
       });
 
-      if (res.ok) {
+      if (res?.success) {
         showToast(editingId ? '更新成功' : '创建成功', 'success');
         setShowForm(false);
         setEditingId(null);
         resetForm();
         fetchData();
       } else {
-        const data = await res.json();
-        showToast(data.error || '操作失败', 'error');
+        showToast(res?.error || '操作失败', 'error');
       }
     } catch (err) {
       showToast('网络错误', 'error');
@@ -103,7 +101,7 @@ export default function WhatsAppPage() {
     if (!confirm('确定删除这条链接吗？删除后不可恢复。')) return;
     try {
       const res = await authFetch(`/api/whatsapp/links/${linkId}`, { method: 'DELETE' });
-      if (res.ok) {
+      if (res?.success) {
         showToast('删除成功', 'success');
         fetchData();
       }
@@ -115,7 +113,7 @@ export default function WhatsAppPage() {
   async function handleReset(linkId) {
     try {
       const res = await authFetch(`/api/whatsapp/links/${linkId}/reset`, { method: 'POST' });
-      if (res.ok) {
+      if (res?.success) {
         showToast('计数已重置', 'success');
         fetchData();
       }
