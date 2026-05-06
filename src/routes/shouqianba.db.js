@@ -23,6 +23,9 @@ const router = express.Router();
 // 不依赖收钱吧 query API，收到回调即确认支付成功
 const orderStatusCache = new Map();
 
+// 回调日志（最近50条，用于调试回调是否到达）
+const notifyLogs = [];
+
 // ========== 文件持久化工具（保证重启后数据不丢失）==========
 function ensureDataDir() {
   const dir = path.dirname(ORDERS_FILE);
@@ -732,6 +735,18 @@ function verifyWapSign(params, terminalKey) {
 
 // 回调通知（收钱吧主动推送支付结果）
 router.post('/notify', async (req, res) => {
+  // ★ 第一时间记录：无论验签是否通过，先记下
+  const logEntry = {
+    time: new Date().toISOString(),
+    headers: JSON.stringify(req.headers),
+    body: JSON.stringify(req.body),
+    clientSn: req.body?.client_sn || 'N/A',
+    orderStatus: req.body?.order_status || 'N/A'
+  };
+  notifyLogs.unshift(logEntry);
+  if (notifyLogs.length > 50) notifyLogs.pop();
+  console.log('[收钱吧] 📥 收到回调请求:', JSON.stringify(logEntry));
+
   try {
     const data = req.body;
     const bodyStr = JSON.stringify(data);
@@ -739,8 +754,10 @@ router.post('/notify', async (req, res) => {
 
     // 双重验签：先 RSA，失败则尝试 MD5（WAP 支付用 terminalKey MD5 签名）
     let isValid = await verifyRsaSign(bodyStr, sign);
+    logEntry.rsaResult = isValid ? 'PASS' : 'FAIL';
 
     if (!isValid) {
+      logEntry.md5Attempted = true;
       // RSA 失败 → 尝试 MD5（WAP 支付回调使用 terminalKey 签名）
       // MD5 回调的 sign 可能在 body 字段 data.sign 而非 Authorization header
       const md5Sign = sign || data.sign || '';
@@ -780,11 +797,14 @@ router.post('/notify', async (req, res) => {
     }
 
     if (!isValid) {
+      logEntry.result = 'REJECTED_签名失败';
+      logEntry.signHeader = sign;
       console.error('[收钱吧] 回调验签失败（RSA+MD5双重失败）');
       return res.status(403).send('fail');
     }
 
-    console.log('[收钱吧] 回调收到:', JSON.stringify(data));
+    logEntry.result = 'VERIFIED_OK';
+    console.log('[收钱吧] ✅ 验签通过，回调收到:', JSON.stringify(data));
 
     // 保存本地订单状态（供前端轮询）并持久化到文件
     if (data.client_sn) {
@@ -1021,6 +1041,11 @@ router.post('/link-order', async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// 查看回调日志（调试用，看收钱吧回调是否到达）
+router.get('/notify-logs', (req, res) => {
+  res.json({ success: true, count: notifyLogs.length, data: notifyLogs });
 });
 
 export default router;
