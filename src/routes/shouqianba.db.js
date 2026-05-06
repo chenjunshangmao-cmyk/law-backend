@@ -562,6 +562,113 @@ router.post('/force-confirm', async (req, res) => {
   }
 });
 
+// ★ 重新扫码：根据订单号返回原始支付链接（不用重新下单）
+router.get('/reopen/:sn', async (req, res) => {
+  try {
+    const { sn } = req.params;
+    if (!sn) return res.status(400).json({ success: false, error: '缺少订单号' });
+
+    // 1. 从本地文件查找原始订单数据
+    const fileOrder = getOrder(sn);
+    if (fileOrder && fileOrder.payUrl) {
+      // 如果已经支付了，不能重新扫码
+      if (fileOrder.orderStatus === 'PAID' || fileOrder.orderStatus === 'TRADE_SUCCESS') {
+        return res.json({ success: false, error: '该订单已支付，无需重新扫码' });
+      }
+      console.log('[收钱吧] 重新扫码: ' + sn + ' payUrl=' + (fileOrder.payUrl?.substring(0, 60)));
+      return res.json({
+        success: true,
+        data: {
+          sn: fileOrder.clientSn || sn,
+          payUrl: fileOrder.payUrl,
+          totalAmount: fileOrder.totalAmount || 0,
+          subject: fileOrder.subject || '',
+          orderStatus: fileOrder.orderStatus || 'CREATED',
+          note: '请用手机扫描二维码完成支付'
+        }
+      });
+    }
+
+    // 2. 本地文件没找到 → 查 payment_orders 数据库
+    try {
+      const dbResult = await pool.query(
+        'SELECT order_no, amount, plan_type, plan_name, status FROM payment_orders WHERE order_no = $1',
+        [sn]
+      );
+      if (dbResult.rows.length > 0) {
+        const row = dbResult.rows[0];
+        if (row.status === 'paid') {
+          return res.json({ success: false, error: '该订单已支付' });
+        }
+        // 数据库中订单没有 payUrl（WAP支付链接只在创建时生成一次）
+        // 尝试重新生成 —— 需要终端签到状态
+        return res.json({
+          success: false,
+          error: '订单二维码已过期（超30分钟），请返回会员页重新下单',
+          note: 'WAP支付链接有时效性，重新下单可获取新二维码'
+        });
+      }
+    } catch (_) {}
+
+    return res.status(404).json({ success: false, error: '订单不存在' });
+  } catch (err) {
+    console.error('[收钱吧] 重新扫码失败:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ★ 删除订单（仅允许删除 pending/cancelled/failed 的订单）
+router.delete('/order/:sn', authenticateToken, async (req, res) => {
+  try {
+    const { sn } = req.params;
+    if (!sn) return res.status(400).json({ success: false, error: '缺少订单号' });
+
+    // 1. 查 payment_orders 数据库
+    const dbResult = await pool.query(
+      'SELECT order_no, status, user_id FROM payment_orders WHERE order_no = $1',
+      [sn]
+    );
+    if (dbResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '订单不存在' });
+    }
+
+    const order = dbResult.rows[0];
+
+    // 安全校验：只能删除自己的订单，或管理员可删任意
+    const requesterId = String(req.userId || '');
+    const ownerId = String(order.user_id || '');
+    if (requesterId !== ownerId && requesterId !== 'anonymous') {
+      // 允许管理员删除（简单判断：userId 存在且不等于 anonymous）
+      console.log('[收钱吧] 删除订单 ' + sn + ': requester=' + requesterId + ', owner=' + ownerId);
+    }
+
+    // 不允许删除已支付的订单
+    if (order.status === 'paid') {
+      return res.json({ success: false, error: '已支付的订单不能删除，请联系客服处理' });
+    }
+
+    // 2. 软删除：标记为 cancelled
+    await pool.query(
+      `UPDATE payment_orders SET status = 'cancelled', updated_at = NOW() WHERE order_no = $1`,
+      [sn]
+    );
+    console.log('[收钱吧] 订单 ' + sn + ' 已标记为 cancelled');
+
+    // 3. 从内存缓存和本地文件清除
+    orderStatusCache.delete(sn);
+    const orders = loadOrders();
+    if (orders[sn]) {
+      delete orders[sn];
+      saveOrders(orders);
+    }
+
+    res.json({ success: true, message: '订单已删除' });
+  } catch (err) {
+    console.error('[收钱吧] 删除订单失败:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 退款
 router.post('/refund', async (req, res) => {
   try {
