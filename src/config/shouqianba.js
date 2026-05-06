@@ -25,7 +25,7 @@ const config = {
       merchantId: '18956397746',
       storeSn: '00010101001200200046406',
       terminalSn: '100111220054798199',
-      terminalKey: '4f6a8259619c559d1361a596949dce33'
+      terminalKey: 'aeedfa867be08fd915cfc39f7e281908'
     }
   },
 
