@@ -254,8 +254,9 @@ router.post('/create', authenticateToken, async (req, res) => {
     const orderNo = `CLAW${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
     const expiredAt = new Date(Date.now() + 4 * 60 * 1000);
     const clientIp = (req.headers['x-forwarded-for'] || req.ip || '127.0.0.1').split(',')[0].trim();
-        // 修复：notify_url 优先使用 chenjuntrading.cn API 域名，避免 Render 冷启动和 HTTP 问题
-    const apiBase = process.env.API_BASE_URL || 'https://api.chenjuntrading.cn';
+        // notify_url 使用 Render 域名（api.chenjuntrading.cn 返回530不可用）
+    const apiBase = process.env.API_BASE_URL || 'https://claw-backend-2026.onrender.com';
+    const frontendBase = process.env.FRONTEND_URL || 'https://chenjuntrading.cn';
     const frontendBase = process.env.FRONTEND_URL || 'https://chenjuntrading.cn';
     const notifyUrl = `${apiBase}/api/webhook/shouqianba`;
     const returnUrlFull = returnUrl || `${frontendBase}/payment/result`;
