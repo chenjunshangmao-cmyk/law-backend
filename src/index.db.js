@@ -104,8 +104,11 @@ app.use(cors({
   maxAge: 86400,
 }));
 
-// 请求解析
-app.use(express.json({ limit: '10mb' }));
+// 请求解析（verify回调捕获rawBody，供收钱吧回调RSA验签使用）
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => { req.rawBody = buf.toString('utf8'); }
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 安全头

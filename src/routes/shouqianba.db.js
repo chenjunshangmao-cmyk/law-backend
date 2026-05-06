@@ -749,7 +749,8 @@ router.post('/notify', async (req, res) => {
 
   try {
     const data = req.body;
-    const bodyStr = JSON.stringify(data);
+    // ★ 使用原始请求体（rawBody）做RSA验签，JSON.stringify会导致字符串不一致
+    const bodyStr = req.rawBody || JSON.stringify(data);
     const sign = req.headers['authorization'];
 
     // 双重验签：先 RSA，失败则尝试 MD5（WAP 支付用 terminalKey MD5 签名）
