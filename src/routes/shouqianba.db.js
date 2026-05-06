@@ -11,6 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { pool } from '../config/database.js';
 import config from '../config/shouqianba.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TERMINAL_FILE = path.join(__dirname, '../../data/shouqianba-terminal.json');
@@ -299,10 +300,13 @@ router.post('/checkin', async (req, res) => {
 });
 
 // 创建支付订单（WAP跳转支付 - 调用收钱吧 REST API）
-router.post('/create-order', async (req, res) => {
+// ★ 加认证：确保 user_id 不为空
+router.post('/create-order', authenticateToken, async (req, res) => {
   try {
     const { deviceId = config.defaultDeviceId, clientSn, totalAmount, subject, userId } = req.body || {};
-    console.log('[收钱吧] create-order 请求体:', JSON.stringify(req.body));
+    // ★ 从 auth token 获取 userId（保证不为空），body 里的 userId 作为备用
+    const effectiveUserId = userId || req.userId;
+    console.log('[收钱吧] create-order 请求体:', JSON.stringify(req.body), 'userId:', effectiveUserId);
     if (!clientSn || !totalAmount || !subject) {
       return res.status(400).json({ success: false, error: '缺少必要参数' });
     }
@@ -361,21 +365,20 @@ router.post('/create-order', async (req, res) => {
       createdAt: Date.now()
     });
 
-    // 写入 payment_orders 表（无条件写入，即使 userId 暂缺）
-    // 回调时根据 order_no 找到此记录，再升级会员
+    // 写入 payment_orders 表（★ 使用从 auth token 获取的 userId）
     try {
-      const effectiveUserId = userId || null;
+      const dbUserId = effectiveUserId || 'anonymous';
       const effectivePlan = planType || 'unknown';
-      console.log('[收钱吧] 写入 payment_orders: order_no=' + clientSn + ', userId=' + effectiveUserId + ', plan=' + effectivePlan);
+      console.log('[收钱吧] 写入 payment_orders: order_no=' + clientSn + ', userId=' + dbUserId + ', plan=' + effectivePlan);
       await pool.query(`
-        INSERT INTO payment_orders (order_no, user_id, amount, plan_type, status, created_at)
-        VALUES ($1, $2, $3, $4, 'pending', NOW())
+        INSERT INTO payment_orders (order_no, user_id, amount, plan_type, plan_name, subject, status, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
         ON CONFLICT (order_no) DO UPDATE SET
-          user_id = COALESCE($2, payment_orders.user_id),
+          user_id = EXCLUDED.user_id,
           plan_type = EXCLUDED.plan_type,
           amount = EXCLUDED.amount,
           status = 'pending'
-      `, [clientSn, effectiveUserId, parseInt(amountFen), effectivePlan]);
+      `, [clientSn, String(dbUserId), parseInt(amountFen), effectivePlan, subject || '收钱吧支付', subject || 'Claw会员']);
     } catch (dbErr) {
       console.error('[收钱吧] 写入 payment_orders 表失败:', dbErr.message);
     }
