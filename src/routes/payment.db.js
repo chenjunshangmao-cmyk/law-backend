@@ -597,15 +597,15 @@ router.get('/orders', authenticateToken, async (req, res) => {
     const result = await pool.query(
       `SELECT order_no, plan_name, amount, status, payway, paid_at, created_at
        FROM payment_orders 
-       WHERE user_id = $1 
+       WHERE user_id = $1 AND status != 'cancelled'
        ORDER BY created_at DESC 
        LIMIT $2 OFFSET $3`,
       [userId, limit, offset]
     );
 
     const countResult = await pool.query(
-      'SELECT COUNT(*) FROM payment_orders WHERE user_id = $1',
-      [userId]
+      'SELECT COUNT(*) FROM payment_orders WHERE user_id = $1 AND status != $2',
+      [userId, 'cancelled']
     );
 
     res.json({
