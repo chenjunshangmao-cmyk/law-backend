@@ -753,6 +753,190 @@ class YouTubeAutomation extends BrowserAutomation {
     }
   }
 
+  // 发布社区帖子（图文）
+  async postToCommunity(postData) {
+    const { email, accountId, proxyConfig, text, images, title } = postData;
+
+    if (!this.hasSession(email, accountId)) {
+      return {
+        success: false,
+        error: '未找到登录状态，请先登录',
+        needLogin: true,
+        instruction: `请调用 POST /api/browser/youtube/login 进行登录`,
+      };
+    }
+
+    const validation = await this.validateSession(email, accountId);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: `Session已过期（${validation.reason}），请重新登录`,
+        needLogin: true,
+      };
+    }
+
+    let browser = null;
+    try {
+      const result = await this.launchWithSession(email, accountId, proxyConfig);
+      browser = result.browser;
+      const context = result.context;
+      const page = await context.newPage();
+
+      // 导航到 YouTube Studio 社区页面
+      const communityUrl = 'https://studio.youtube.com/channel/community';
+      console.log('📝 正在打开 YouTube 社区页面...');
+      await page.goto(communityUrl, {
+        waitUntil: 'networkidle',
+        timeout: 60000,
+      });
+      await page.waitForTimeout(3000);
+
+      // 点击 "创建帖子" 按钮
+      console.log('🔍 寻找"创建帖子"按钮...');
+      let clicked = false;
+      const createSelectors = [
+        'button:has-text("创建帖子")',
+        'button:has-text("Create post")',
+        'button:has-text("新建帖子")',
+        'button:has-text("New post")',
+        '[aria-label="创建帖子"]',
+        '[aria-label="Create post"]',
+        'ytcp-button:has-text("创建")',
+      ];
+
+      for (const sel of createSelectors) {
+        const btn = await page.$(sel);
+        if (btn && await btn.isVisible()) {
+          await btn.click();
+          clicked = true;
+          console.log(`  ✓ 已点击: ${sel}`);
+          await page.waitForTimeout(2000);
+          break;
+        }
+      }
+
+      if (!clicked) {
+        console.log('  ⚠ 未找到创建按钮，尝试直接找到输入框...');
+      }
+
+      // 等待编辑器出现
+      await page.waitForTimeout(1500);
+
+      // 填写帖子内容
+      console.log('✏️ 填写帖子内容...');
+      const textSelectors = [
+        'div[contenteditable="true"]',
+        '[contenteditable="true"]',
+        'textarea',
+        'div[role="textbox"]',
+      ];
+
+      let textInput = null;
+      for (const sel of textSelectors) {
+        textInput = await page.$(sel);
+        if (textInput && await textInput.isVisible()) {
+          break;
+        }
+        textInput = null;
+      }
+
+      if (textInput) {
+        await textInput.click();
+        await page.waitForTimeout(500);
+        await textInput.fill(text || '');
+        await page.waitForTimeout(500);
+        console.log('  ✓ 文本已填写');
+      } else {
+        // 尝试用键盘输入
+        console.log('  ⚠ 未找到输入框，尝试键盘输入...');
+        await page.keyboard.type(text || '', { delay: 30 });
+      }
+
+      // 上传图片（如果有）
+      if (images && images.length > 0) {
+        console.log(`📷 上传 ${images.length} 张图片...`);
+        // 先点击添加图片按钮
+        const imgBtnSelectors = [
+          'button:has-text("添加图片")',
+          'button:has-text("Add image")',
+          'button[aria-label*="图片"]',
+          'button[aria-label*="image" i]',
+          'input[type="file"][accept*="image"]',
+        ];
+
+        for (const sel of imgBtnSelectors) {
+          const btn = await page.$(sel);
+          if (btn && await btn.isVisible()) {
+            if (sel.includes('input')) {
+              await btn.setInputFiles(images);
+              console.log('  ✓ 图片已选择');
+              await page.waitForTimeout(3000);
+            } else {
+              await btn.click();
+              await page.waitForTimeout(1000);
+              // 等待文件选择器出现
+              const fileInput = await page.$('input[type="file"]');
+              if (fileInput) {
+                await fileInput.setInputFiles(images);
+                console.log('  ✓ 图片已选择');
+                await page.waitForTimeout(3000);
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      // 点击发布
+      console.log('🚀 发布帖子...');
+      const publishSelectors = [
+        'button:has-text("发布")',
+        'button:has-text("Post")',
+        'button:has-text("提交")',
+        'button:has-text("Submit")',
+        'ytcp-button:has-text("发布")',
+        '[aria-label="发布"]',
+        '[aria-label="Post"]',
+        '#post-button',
+      ];
+
+      let published = false;
+      for (const sel of publishSelectors) {
+        const btn = await page.$(sel);
+        if (btn && await btn.isVisible()) {
+          await btn.click();
+          published = true;
+          console.log(`  ✓ 已点击发布: ${sel}`);
+          await page.waitForTimeout(3000);
+          break;
+        }
+      }
+
+      if (!published) {
+        console.log('  ⚠ 未找到发布按钮，请手动操作');
+      }
+
+      await page.waitForTimeout(2000);
+      await browser.close();
+      browser = null;
+
+      return {
+        success: true,
+        message: published ? '社区帖子已发布！' : '帖子内容已填写，可能需要手动点击发布',
+        environment: isServerEnvironment() ? 'server' : 'local',
+      };
+
+    } catch (error) {
+      console.error('❌ 发布帖子失败:', error.message);
+      if (browser) await browser.close().catch(() => {});
+      return {
+        success: false,
+        error: error.message,
+        hint: '请确保已登录 YouTube 并尝试重新发布',
+      };
+    }
+  }
+
   // 检查登录状态
   async checkLogin(email, accountId = null) {
     const sessionExists = this.hasSession(email, accountId);
