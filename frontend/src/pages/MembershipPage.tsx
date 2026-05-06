@@ -8,7 +8,7 @@ const PLANS = [
   {
     id: 'basic',
     name: '基础版',
-    price: 0.1,    // 🔧 测试中，正式改回199
+    price: 199,    // ✅ 正式价格 (2026-05-07 验收通过)
     priceUnit: '/月',
     icon: Zap,
     color: 'blue',
@@ -206,8 +206,8 @@ export default function MembershipPage() {
         totalAmount: String(orderData.totalAmount)
       });
 
-      // 启动自动跳转倒计时（5秒后跳订单页）
-      setSqRedirectCountdown(5);
+      // 启动自动跳转倒计时（20秒后跳订单页，够客户拿手机扫码）
+      setSqRedirectCountdown(20);
       const countdownTimer = setInterval(() => {
         setSqRedirectCountdown(prev => {
           if (prev <= 1) {
@@ -452,7 +452,7 @@ export default function MembershipPage() {
                 {sqRedirectCountdown > 0 ? (
                   <div className="mt-3 p-2 bg-blue-50 rounded-lg">
                     <p className="text-xs text-blue-700">
-                      📱 请扫码支付，{sqRedirectCountdown}秒后自动跳转订单页
+                      📱 请用手机扫码支付 · {sqRedirectCountdown}秒后自动跳转订单页
                     </p>
                   </div>
                 ) : null}
