@@ -617,6 +617,22 @@ export const api = {
   },
 
   // ============================================================
+  // YouTube Data API v3（无需浏览器）
+  // ============================================================
+  youtube: {
+    accounts: () => authFetch('/api/youtube/accounts'),
+    oauthUrl: (mode = 'popup') => authFetch(`/api/youtube/oauth-url?mode=${mode}`),
+    channelInfo: (channelId: string) => authFetch(`/api/youtube/channel/${encodeURIComponent(channelId)}`),
+    upload: (data: { channelId: string; videoPath: string; title: string; description?: string; tags?: string[]; privacyStatus?: string; thumbnailPath?: string }) =>
+      authFetch('/api/youtube/upload', { method: 'POST', body: JSON.stringify(data) }),
+    videos: (channelId: string, maxResults = 10) =>
+      authFetch(`/api/youtube/videos?channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}`),
+    videoDetail: (videoId: string, channelId: string) =>
+      authFetch(`/api/youtube/video/${encodeURIComponent(videoId)}?channelId=${encodeURIComponent(channelId)}`),
+    quota: () => authFetch('/api/youtube/quota'),
+  },
+
+  // ============================================================
   // Avatar API (AI数字人)
   // ============================================================
   avatar: {
