@@ -186,7 +186,7 @@ router.get('/callback', async (req, res) => {
           access_token, refresh_token, expires_at,
           thumbnail_url, created_at
         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
-        ON CONFLICT (user_id, channel_id)
+        ON CONFLICT (channel_id)
         DO UPDATE SET
           access_token = EXCLUDED.access_token,
           refresh_token = EXCLUDED.refresh_token,
