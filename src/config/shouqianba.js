@@ -1,7 +1,7 @@
 ﻿/**
  * 收钱吧配置
  * 敏感凭证不提交到 Git！
- * 2026-04-22：claw-web-new3 新激活成功 ✅
+ * 2026-05-06：新终端 claw-pay-motecg24-0417 激活成功 ✅
  */
 
 const config = {
@@ -13,20 +13,19 @@ const config = {
   vendorKey: process.env.SHOUQIANBA_VENDOR_KEY || '677da351628d3fe7664321669c3439b2',
   appId: process.env.SHOUQIANBA_APP_ID || '2026041600011122',
 
-  // 主设备ID（claw-web-new3，2026-05-04 修复：切回已验证可用的终端 ✅）
-  // WAP网关实测：claw-web-new3→302成功 / claw-web-new1→错误页
-  defaultDeviceId: 'claw-web-new3',
+  // 主设备ID（2026-05-06 新激活）
+  defaultDeviceId: 'claw-pay-motecg24-0417',
 
-  // 激活码（claw-web-new3用81119079激活）
-  testCode: '81119079',
+  // 激活码（已使用）
+  testCode: '40513957',
 
   storeDevices: {
-    'claw-web-new3': {
-      code: '81119079',           // 有效期至2026-04-30，已激活
+    'claw-pay-motecg24-0417': {
+      code: '40513957',
       merchantId: '18956397746',
       storeSn: '00010101001200200046406',
-      terminalSn: '100111220054389553',    // 当前有效终端 ✅
-      terminalKey: '96bfaf401367d934cb10a1cbe9773647'  // 技术文档记录密钥，网关验证通过 ✅
+      terminalSn: '100111220054798199',
+      terminalKey: 'a3988721bc4198bc13375202614da32d'
     }
   },
 
@@ -35,4 +34,3 @@ const config = {
 };
 
 export default config;
-
