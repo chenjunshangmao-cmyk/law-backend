@@ -9,30 +9,25 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.06.002** |
-| 构建时间 | 2026-05-06 22:50 CST |
+| 版本号 | **2026.05.07.001** |
+| 构建时间 | 2026-05-07 00:08 CST |
 | 构建者 | WorkBuddy AI |
-| Git 提交 | 6026108 (前端) / 1e9b056 (后端) |
-| 后端状态 | ✅ Render 自动部署中 (1e9b056) |
+| Git 提交 | 待推送 |
+| 后端状态 | ⏳ 待推送 Render |
 
 ### 本次变更
 
-**🐛 WhatsApp 创建链接500错误修复：**
-- 根因：`POST /api/whatsapp/links` 中 `links` 变量在第127行 `.filter()` 前未赋值，导致 ReferenceError → 500
-- 修复：将 `const links = readLinks()` 移到 filter 之前
-- 前端：`getLinkUrl` 中的 `VITE_API_BASE` 也改为 `VITE_API_URL`
+**🔧 YouTube 授权 + 图文发布 三项修复：**
+1. **YouTubePage 上传下拉框修复** — 合并 OAuth 授权账号 + 浏览器账号，上传时自动路由到对应方式
+2. **店铺账号页修复** — AccountsPage 加载时同步查询 youtube_authorizations 表，OAuth 账号正常显示
+3. **YouTube 图文发布（Community Post）** — 新增浏览器自动化发布社区帖子（标题+正文+图片）
 
-**✅ YouTube OAuth 按钮确认：**
-- 前端 OAuth 授权按钮已在页面上，点击正常弹出 Google 授权窗口
-- 后端 `/api/auth/youtube` 正常返回授权 URL
-
-### v2026.05.06.002 变更
-
-**🐛 CSP 拦截修复（WhatsApp 落地页 + YouTube OAuth 回调）：**
-- 根因：全局 `securityHeaders` 中间件设置 `Content-Security-Policy: default-src 'self'`
-- 影响1：WhatsApp `/go` 落地页内联 `<style>` 和 `<script>`（自动跳转）被拦截 → 页面裸奔、不跳转
-- 影响2：YouTube OAuth 回调 `window.opener.postMessage()` 内联脚本被拦截 → 授权超时
-- 修复：在 whatsapp.js 和 auth.youtube.js 的路由处理中覆盖 CSP，允许 `'unsafe-inline'`
+**详细变更：**
+- 前端 YouTubePage.tsx：上传下拉框分组显示（OAuth + 浏览器），OAuth 账号走 YouTube Data API 直传
+- 前端 AccountsPage.tsx：loadAccounts() 增加 api.browser.youtube.listAccounts()，自动合并 OAuth 账号
+- 前端 api.ts：新增 api.youtube.* (Data API) + api.browser.youtube.post (图文)
+- 后端 browser.js：新增 POST /api/browser/youtube/post 路由
+- 后端 browserAutomation.js：YouTubeAutomation 新增 postToCommunity() 方法
 
 ---
 

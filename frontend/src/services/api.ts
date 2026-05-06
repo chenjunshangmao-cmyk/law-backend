@@ -570,6 +570,26 @@ export const api = {
         }
         return response.json();
       },
+
+      /** 发布社区帖子（图文） */
+      post: async (data: { email: string; text: string; images?: string[]; title?: string; accountId?: string }) => {
+        const token = getToken();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        
+        let response: Response;
+        try {
+          response = await fetchWithTimeout(
+            `${BASE_URL}/api/browser/youtube/post`,
+            { method: 'POST', headers, body: JSON.stringify(data) },
+            120000 // 2 分钟超时
+          );
+        } catch (err: any) {
+          if (err.name === 'AbortError') throw new Error('发布超时，请重试');
+          throw new Error(`发布失败：${err.message}`);
+        }
+        return response.json();
+      },
     },
     ozon: {
       login: (email: string, accountId?: string) =>
@@ -870,6 +890,50 @@ export const api = {
           body: JSON.stringify(data),
         }),
     },
+  },
+
+  // ============================================================
+  // YouTube Data API v3（OAuth 直传，无需浏览器）
+  // ============================================================
+  youtube: {
+    /** 用 Data API 直接上传视频 */
+    upload: async (data: {
+      channelId: string;
+      videoPath: string;
+      title: string;
+      description?: string;
+      tags?: string[];
+      categoryId?: string;
+      privacyStatus?: string;
+    }) => {
+      const token = getToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetchWithTimeout(
+        `${BASE_URL}/api/youtube/upload`,
+        { method: 'POST', headers, body: JSON.stringify(data) },
+        300000 // 5 分钟超时（大视频上传慢）
+      );
+      return response.json();
+    },
+
+    /** 获取授权账号列表 */
+    listAccounts: () => authFetch('/api/youtube/accounts'),
+
+    /** 视频列表 */
+    listVideos: (channelId: string, maxResults = 10) =>
+      authFetch(`/api/youtube/videos?channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}`),
+
+    /** 视频详情 */
+    getVideo: (videoId: string, channelId: string) =>
+      authFetch(`/api/youtube/video/${encodeURIComponent(videoId)}?channelId=${encodeURIComponent(channelId)}`),
+
+    /** 频道信息 */
+    getChannel: (channelId: string) =>
+      authFetch(`/api/youtube/channel/${encodeURIComponent(channelId)}`),
+
+    /** 配额检查 */
+    checkQuota: () => authFetch('/api/youtube/quota'),
   },
 
   // 发布任务队列（OpenClaw 客服自动执行）

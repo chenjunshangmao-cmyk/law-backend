@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Play, RefreshCw, CheckCircle, XCircle, Upload, Video, Zap, Globe, Lock, EyeOff } from 'lucide-react';
+import { Play, RefreshCw, CheckCircle, XCircle, Upload, Video, Zap, Globe, Lock, EyeOff, Image, Send } from 'lucide-react';
 import api from '../services/api';
 
 // ============================================================
@@ -85,6 +85,16 @@ export default function YouTubePage() {
   const [authAccounts, setAuthAccounts] = useState<any[]>([]);
   const [authLoading, setAuthLoading] = useState(false);
   const [authMsg, setAuthMsg] = useState<{ type: 'info' | 'success' | 'error'; text: string } | null>(null);
+
+  // 图文发布
+  const [communityForm, setCommunityForm] = useState({
+    email: '',
+    text: '',
+    title: '',
+    images: '',
+  });
+  const [posting, setPosting] = useState(false);
+  const [postMsg, setPostMsg] = useState<{ type: 'info' | 'success' | 'error'; text: string } | null>(null);
 
   const loadAuthAccounts = useCallback(async () => {
     try { const r = await api.browser.youtube.listAccounts(); if (r?.accounts) setAuthAccounts(r.accounts); } catch {}
@@ -257,30 +267,92 @@ export default function YouTubePage() {
     }
     setUploading(true);
     setUploadMsg(null);
-    try {
-      const res = await api.browser.youtube.upload({
-        email: uploadEmail.trim(),
-        videoPath: uploadForm.videoPath.trim(),
-        title: uploadForm.title.trim(),
-        description: uploadForm.description.trim(),
-        privacy: uploadForm.privacy,
-      });
 
-      if (res.success) {
-        setUploadMsg({
-          type: 'success',
-          text: res.message || '视频上传请求已提交！请等待浏览器自动化完成上传',
+    // 判断是 OAuth 账号还是浏览器账号
+    const oauthAcc = authAccounts.find((a: any) => a.email === uploadEmail.trim());
+    
+    try {
+      if (oauthAcc?.channelId) {
+        // ✅ OAuth 账号 → 使用 YouTube Data API 直接上传（无需浏览器）
+        setUploadMsg({ type: 'info', text: '📡 使用 YouTube API 上传中...' });
+        const res = await api.youtube.upload({
+          channelId: oauthAcc.channelId,
+          videoPath: uploadForm.videoPath.trim(),
+          title: uploadForm.title.trim(),
+          description: uploadForm.description.trim(),
+          privacyStatus: uploadForm.privacy,
         });
-        setUploadForm({ videoPath: '', title: '', description: '', privacy: 'public' });
-      } else if (res.needLogin) {
-        setUploadMsg({ type: 'error', text: '该账号未登录，请先完成 YouTube 登录' });
+        if (res.success) {
+          setUploadMsg({ type: 'success', text: `✅ 上传成功！视频ID: ${res.data?.videoId || ''}` });
+          setUploadForm({ videoPath: '', title: '', description: '', privacy: 'public' });
+        } else {
+          setUploadMsg({ type: 'error', text: res.error || '上传失败' });
+        }
       } else {
-        setUploadMsg({ type: 'error', text: res.error || '上传失败' });
+        // 🖥️ 浏览器账号 → 使用浏览器自动化上传
+        const res = await api.browser.youtube.upload({
+          email: uploadEmail.trim(),
+          videoPath: uploadForm.videoPath.trim(),
+          title: uploadForm.title.trim(),
+          description: uploadForm.description.trim(),
+          privacy: uploadForm.privacy,
+        });
+        if (res.success) {
+          setUploadMsg({
+            type: 'success',
+            text: res.message || '视频上传请求已提交！请等待浏览器自动化完成上传',
+          });
+          setUploadForm({ videoPath: '', title: '', description: '', privacy: 'public' });
+        } else if (res.needLogin) {
+          setUploadMsg({ type: 'error', text: '该账号未登录，请先完成 YouTube 登录' });
+        } else {
+          setUploadMsg({ type: 'error', text: res.error || '上传失败' });
+        }
       }
     } catch (err: any) {
       setUploadMsg({ type: 'error', text: err.message });
     } finally {
       setUploading(false);
+    }
+  };
+
+  // 发布图文帖子
+  const handlePostCommunity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!communityForm.email.trim()) {
+      setPostMsg({ type: 'error', text: '请先选择要发布的 YouTube 账号' });
+      return;
+    }
+    if (!communityForm.text.trim()) {
+      setPostMsg({ type: 'error', text: '请输入帖子内容' });
+      return;
+    }
+    setPosting(true);
+    setPostMsg(null);
+    try {
+      const imageList = communityForm.images.trim()
+        ? communityForm.images.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+
+      const res = await api.browser.youtube.post({
+        email: communityForm.email.trim(),
+        text: communityForm.text.trim(),
+        title: communityForm.title.trim() || undefined,
+        images: imageList.length > 0 ? imageList : undefined,
+      });
+
+      if (res.success) {
+        setPostMsg({ type: 'success', text: res.message || '社区帖子已发布！' });
+        setCommunityForm({ email: '', text: '', title: '', images: '' });
+      } else if (res.needLogin) {
+        setPostMsg({ type: 'error', text: '该账号未登录，请先完成 YouTube 登录' });
+      } else {
+        setPostMsg({ type: 'error', text: res.error || '发布失败' });
+      }
+    } catch (err: any) {
+      setPostMsg({ type: 'error', text: err.message });
+    } finally {
+      setPosting(false);
     }
   };
 
@@ -457,14 +529,15 @@ export default function YouTubePage() {
         )}
 
         {/* 已登录账号列表 */}
-        {accounts.length > 0 && (
+        {(accounts.length > 0 || authAccounts.length > 0) && (
           <div style={{ marginTop: 20 }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, color: '#64748b', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 1 }}>
               已管理的账号
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* 浏览器自动化账号 */}
               {accounts.map((acc, i) => (
-                <div key={i} style={{
+                <div key={`browser-${i}`} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '10px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e5e7eb',
                 }}>
@@ -519,6 +592,36 @@ export default function YouTubePage() {
                   </div>
                 </div>
               ))}
+              {/* OAuth 授权账号 */}
+              {authAccounts.map((a: any, i: number) => (
+                <div key={`oauth-${i}`} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 14px', background: '#f0f7ff', borderRadius: 10, border: '1px solid #4285f4',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {a.thumbnail ? <img src={a.thumbnail} alt="" style={{width:32,height:32,borderRadius:'50%'}}/> : <span style={{fontSize:20}}>📺</span>}
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: '#1a1a2e' }}>{a.channelTitle || a.email}</div>
+                      <div style={{ fontSize: 12, color: '#94a3b8' }}>{a.email}{a.channelId ? ` · ${a.channelId}` : ''}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <StatusBadge ok={a.valid !== false}>{a.valid !== false ? '有效' : '已过期'}</StatusBadge>
+                    <button
+                      onClick={() => setUploadEmail(a.email)}
+                      disabled={a.valid === false}
+                      style={{
+                        background: a.valid !== false ? '#FF0000' : '#e5e7eb',
+                        border: 'none', borderRadius: 6,
+                        padding: '4px 10px', fontSize: 12, cursor: a.valid !== false ? 'pointer' : 'not-allowed',
+                        color: '#fff', fontWeight: 600,
+                      }}
+                    >
+                      上传
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -550,12 +653,27 @@ export default function YouTubePage() {
                 background: '#fff', cursor: 'pointer',
               }}
             >
-              <option value="">-- 选择已登录的 YouTube 账号 --</option>
-              {accounts.filter(a => a.status === 'logged_in').map((acc, i) => (
-                <option key={i} value={acc.email}>
-                  📹 {acc.email}{acc.accountId ? ` (${acc.accountId})` : ''}
-                </option>
-              ))}
+              <option value="">-- 选择 YouTube 账号 --</option>
+              {/* 浏览器自动化账号（已登录） */}
+              {accounts.filter(a => a.status === 'logged_in').length > 0 && (
+                <optgroup label="🖥️ 浏览器登录账号">
+                  {accounts.filter(a => a.status === 'logged_in').map((acc, i) => (
+                    <option key={`browser-${i}`} value={acc.email}>
+                      📹 {acc.email}{acc.accountId ? ` (${acc.accountId})` : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {/* Google OAuth 授权账号 */}
+              {authAccounts.length > 0 && (
+                <optgroup label="🔐 Google OAuth 授权账号">
+                  {authAccounts.filter(a => a.valid !== false).map((a: any, i: number) => (
+                    <option key={`oauth-${i}`} value={a.email}>
+                      📺 {a.channelTitle || a.email} {a.valid === false ? '(Token 已过期)' : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
@@ -694,11 +812,168 @@ export default function YouTubePage() {
 
         <div style={{ marginTop: 16, padding: '12px 14px', background: '#f8fafc', borderRadius: 8, fontSize: 13, color: '#64748b', lineHeight: 1.6 }}>
           <strong style={{ color: '#334155' }}>使用流程：</strong><br />
-          1️⃣ 在上方输入 YouTube 账号邮箱，点击「打开浏览器登录」<br />
-          2️⃣ 在弹出的浏览器中手动登录 Google/YouTube（只需操作一次）<br />
-          3️⃣ 登录成功后，选择该账号，填写视频路径、标题等信息并上传<br />
-          ⚠️ videoPath 必须是服务器上存在的视频文件路径（如 /videos/output.mp4）<br />
-          ⚠️ 首次使用需手动登录，之后浏览器会自动复用 Session
+          1️⃣ 点击上方「🔑 Google 授权」完成 OAuth 一键授权<br />
+          2️⃣ 或在上方输入 YouTube 账号邮箱，点击「打开浏览器登录」<br />
+          3️⃣ 授权/登录成功后，选择该账号，填写视频路径、标题等信息并上传<br />
+          ⚠️ OAuth 账号走 YouTube API 直传（支持），浏览器账号走浏览器自动化<br />
+          ⚠️ videoPath 必须是服务器上存在的视频文件路径（如 /videos/output.mp4）
+        </div>
+      </div>
+
+      {/* ========== 图文发布（Community Post）========== */}
+      <div style={{
+        background: '#fff', borderRadius: 14, padding: 24, marginTop: 20,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+        border: '1px solid #e5e7eb',
+      }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a2e', margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Image size={18} color="#FF0000" />
+          发布社区帖子（图文）
+        </h2>
+
+        <form onSubmit={handlePostCommunity}>
+          {/* 账号选择 */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 5, fontWeight: 500 }}>
+              发布到账号 *
+            </label>
+            <select
+              value={communityForm.email}
+              onChange={e => setCommunityForm(f => ({ ...f, email: e.target.value }))}
+              style={{
+                width: '100%', padding: '9px 13px', borderRadius: 8,
+                border: '1.5px solid #e5e7eb', fontSize: 14, outline: 'none',
+                background: '#fff', cursor: 'pointer',
+              }}
+            >
+              <option value="">-- 选择 YouTube 账号 --</option>
+              {/* 浏览器自动化账号 */}
+              {accounts.filter(a => a.status === 'logged_in').length > 0 && (
+                <optgroup label="🖥️ 浏览器登录账号">
+                  {accounts.filter(a => a.status === 'logged_in').map((acc, i) => (
+                    <option key={`cm-browser-${i}`} value={acc.email}>
+                      📹 {acc.email}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {/* OAuth 授权账号 */}
+              {authAccounts.length > 0 && (
+                <optgroup label="🔐 OAuth 授权账号">
+                  {authAccounts.filter(a => a.valid !== false).map((a: any, i: number) => (
+                    <option key={`cm-oauth-${i}`} value={a.email}>
+                      📺 {a.channelTitle || a.email}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </div>
+
+          {/* 帖子标题 */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 5, fontWeight: 500 }}>
+              帖子标题 <span style={{ fontWeight: 400, color: '#94a3b8' }}>（选填）</span>
+            </label>
+            <input
+              type="text"
+              value={communityForm.title}
+              onChange={e => setCommunityForm(f => ({ ...f, title: e.target.value }))}
+              placeholder="新品发布、限时优惠..."
+              style={{
+                width: '100%', padding: '9px 13px', borderRadius: 8,
+                border: '1.5px solid #e5e7eb', fontSize: 14, outline: 'none',
+                boxSizing: 'border-box',
+              }}
+              onFocus={e => e.target.style.borderColor = '#FF0000'}
+              onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+            />
+          </div>
+
+          {/* 帖子内容 */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 5, fontWeight: 500 }}>
+              帖子内容 *
+            </label>
+            <textarea
+              value={communityForm.text}
+              onChange={e => setCommunityForm(f => ({ ...f, text: e.target.value }))}
+              placeholder="写点什么吧... 可以加emoji、换行&#10;支持多段文字哦~"
+              rows={5}
+              style={{
+                width: '100%', padding: '9px 13px', borderRadius: 8,
+                border: '1.5px solid #e5e7eb', fontSize: 14, outline: 'none',
+                boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit',
+              }}
+              onFocus={e => e.target.style.borderColor = '#FF0000'}
+              onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+            />
+          </div>
+
+          {/* 图片路径 */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 5, fontWeight: 500 }}>
+              图片路径 <span style={{ fontWeight: 400, color: '#94a3b8' }}>（选填，逗号分隔，服务器路径）</span>
+            </label>
+            <input
+              type="text"
+              value={communityForm.images}
+              onChange={e => setCommunityForm(f => ({ ...f, images: e.target.value }))}
+              placeholder="/uploads/product1.jpg, /uploads/product2.jpg"
+              style={{
+                width: '100%', padding: '9px 13px', borderRadius: 8,
+                border: '1.5px solid #e5e7eb', fontSize: 14, outline: 'none',
+                boxSizing: 'border-box',
+              }}
+              onFocus={e => e.target.style.borderColor = '#FF0000'}
+              onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={posting}
+            style={{
+              width: '100%', padding: '12px', background: '#FF0000', color: '#fff',
+              border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700,
+              cursor: posting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', gap: 8, opacity: posting ? 0.7 : 1,
+            }}
+          >
+            {posting ? (
+              <>
+                <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                发布中...
+              </>
+            ) : (
+              <>
+                <Send size={18} />
+                发布图文帖子
+              </>
+            )}
+          </button>
+        </form>
+
+        {postMsg && (
+          <div style={{
+            marginTop: 14, padding: '12px 16px', borderRadius: 8, fontSize: 14,
+            background: postMsg.type === 'success' ? 'rgba(34,197,94,0.1)' : postMsg.type === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)',
+            color: postMsg.type === 'success' ? '#16a34a' : postMsg.type === 'error' ? '#dc2626' : '#2563eb',
+            border: `1px solid ${postMsg.type === 'success' ? 'rgba(34,197,94,0.3)' : postMsg.type === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(59,130,246,0.3)'}`,
+          }}>
+            {postMsg.type === 'success' && <CheckCircle size={15} style={{ display: 'inline', marginRight: 6 }} />}
+            {postMsg.type === 'error' && <XCircle size={15} style={{ display: 'inline', marginRight: 6 }} />}
+            {postMsg.text}
+          </div>
+        )}
+
+        <div style={{ marginTop: 16, padding: '12px 14px', background: '#f8fafc', borderRadius: 8, fontSize: 13, color: '#64748b', lineHeight: 1.6 }}>
+          <strong style={{ color: '#334155' }}>图文发布流程：</strong><br />
+          1️⃣ 先完成 YouTube 登录或 OAuth 授权<br />
+          2️⃣ 选择已登录/已授权的账号<br />
+          3️⃣ 填写帖子内容（支持 emoji、换行、@提及）<br />
+          4️⃣ 可选：添加图片路径（服务器上图片文件的路径，逗号分隔，最多5张）<br />
+          ⚠️ 图文发布使用浏览器自动化，需在步骤1先完成登录
         </div>
       </div>
     </div>

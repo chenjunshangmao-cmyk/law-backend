@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, RefreshCw, Trash2, TestTube2, Settings, CheckCircle, XCircle, AlertCircle, ExternalLink, Key, ShieldCheck } from 'lucide-react';
-import api from '../services/api';
+import api, { authFetch } from '../services/api';
 import { Account, PLATFORM_CONFIG } from '../types';
 
 const PLATFORMS = Object.keys(PLATFORM_CONFIG);
@@ -44,6 +44,29 @@ export default function AccountsPage() {
       const res = await api.accounts.list();
       const backendAccounts: Account[] = res.data || [];
       
+      // 🔵 同时加载 YouTube OAuth 授权的账号（存在 youtube_authorizations 表，不在 accounts 表）
+      let ytOauthAccounts: Account[] = [];
+      try {
+        const ytRes = await api.browser.youtube.listAccounts();
+        const oauthList = ytRes?.accounts || [];
+        ytOauthAccounts = oauthList.map((a: any) => ({
+          id: `yt-oauth-${a.channelId || a.id}`,
+          platform: 'youtube',
+          name: a.channelTitle || a.email || 'YouTube 频道',
+          username: a.email || '',
+          status: (a.tokenValid !== false && a.valid !== false) ? 'active' as Account['status'] : 'expired' as Account['status'],
+          createdAt: a.createdAt || new Date().toISOString(),
+          authMethod: 'oauth',
+          account_data: {
+            channelId: a.channelId,
+            channelTitle: a.channelTitle,
+            email: a.email,
+            thumbnail: a.thumbnail,
+            expiresAt: a.expiresAt,
+          },
+        }));
+      } catch { /* YouTube OAuth 不可用时忽略 */ }
+      
       // 同时加载小红书账号（仅从 localStorage 读取，不查桥接状态避免触发浏览器导航）
       const xhsAccounts: Account[] = [];
       try {
@@ -62,7 +85,12 @@ export default function AccountsPage() {
         }
       } catch { /* localStorage 读取失败 */ }
       
-      setAccounts([...backendAccounts, ...xhsAccounts]);
+      // 合并：backend + YouTube OAuth + 小红书（去重：如果 backend 已有 YouTube OAuth 账号则跳过）
+      const existingYtIds = new Set(backendAccounts
+        .filter(a => a.platform === 'youtube')
+        .map(a => a.id));
+      const dedupedYt = ytOauthAccounts.filter(a => !existingYtIds.has(a.id));
+      setAccounts([...backendAccounts, ...dedupedYt, ...xhsAccounts]);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -197,6 +225,19 @@ export default function AccountsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('确定删除此账号？')) return;
     
+    // YouTube OAuth 账号：调用撤销授权 API
+    if (id.startsWith('yt-oauth-')) {
+      try {
+        // Extract channelId from id format: yt-oauth-{channelId}
+        const channelId = id.replace('yt-oauth-', '');
+        await authFetch(`/api/auth/youtube/accounts/${encodeURIComponent(channelId)}`, { method: 'DELETE' });
+        await loadAccounts();
+      } catch (e: any) {
+        alert(e.message);
+      }
+      return;
+    }
+    
     // 小红书账号：从 localStorage 删除
     if (id.startsWith('xhs-')) {
       const accountId = id.replace('xhs-', '');
@@ -251,6 +292,12 @@ export default function AccountsPage() {
   };
 
   const handleLogin = async (account: Account) => {
+    // YouTube OAuth 账号 → 不需要登录
+    if (account.platform === 'youtube' && account.authMethod === 'oauth') {
+      alert('🔵 这是通过 Google OAuth 授权的账号，Token 自动管理，无需手动登录。');
+      return;
+    }
+    
     try {
       let res;
       if (account.platform === 'tiktok') {
@@ -456,13 +503,20 @@ export default function AccountsPage() {
                   
                   {/* 登录按钮（TikTok/YouTube/OZON 平台，排除小红书） */}
                   {['tiktok', 'youtube', 'ozon'].includes(account.platform) && (
-                    <button
-                      onClick={() => handleLogin(account)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      登录
-                    </button>
+                    account.platform === 'youtube' && account.authMethod === 'oauth' ? (
+                      <span className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-green-600 border border-green-200 rounded-lg bg-green-50">
+                        <CheckCircle className="w-3 h-3" />
+                        已授权
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleLogin(account)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        登录
+                      </button>
+                    )
                   )}
                   
                   {/* 测试按钮（排除小红书） */}
