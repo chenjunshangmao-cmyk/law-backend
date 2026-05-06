@@ -9,11 +9,11 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.06.001** |
-| 构建时间 | 2026-05-06 22:20 CST |
+| 版本号 | **2026.05.06.002** |
+| 构建时间 | 2026-05-06 22:50 CST |
 | 构建者 | WorkBuddy AI |
-| Git 提交 | eaad7b6 (前端) / db35e1a (后端) |
-| 后端状态 | ✅ Render 自动部署中 (db35e1a) |
+| Git 提交 | 6026108 (前端) / 1e9b056 (后端) |
+| 后端状态 | ✅ Render 自动部署中 (1e9b056) |
 
 ### 本次变更
 
@@ -25,6 +25,14 @@
 **✅ YouTube OAuth 按钮确认：**
 - 前端 OAuth 授权按钮已在页面上，点击正常弹出 Google 授权窗口
 - 后端 `/api/auth/youtube` 正常返回授权 URL
+
+### v2026.05.06.002 变更
+
+**🐛 CSP 拦截修复（WhatsApp 落地页 + YouTube OAuth 回调）：**
+- 根因：全局 `securityHeaders` 中间件设置 `Content-Security-Policy: default-src 'self'`
+- 影响1：WhatsApp `/go` 落地页内联 `<style>` 和 `<script>`（自动跳转）被拦截 → 页面裸奔、不跳转
+- 影响2：YouTube OAuth 回调 `window.opener.postMessage()` 内联脚本被拦截 → 授权超时
+- 修复：在 whatsapp.js 和 auth.youtube.js 的路由处理中覆盖 CSP，允许 `'unsafe-inline'`
 
 ---
 
