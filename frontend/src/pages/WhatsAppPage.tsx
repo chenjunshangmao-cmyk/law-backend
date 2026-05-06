@@ -170,7 +170,7 @@ export default function WhatsAppPage() {
 
   const getLinkUrl = (linkId) => {
     // 跳转链接走后端（/go 路由在 claw-backend）
-    const backendHost = import.meta.env.VITE_API_BASE || 'https://claw-backend-2026.onrender.com';
+    const backendHost = import.meta.env.VITE_API_URL || 'https://claw-backend-2026.onrender.com';
     return `${backendHost}/go?id=${linkId}`;
   };
 
