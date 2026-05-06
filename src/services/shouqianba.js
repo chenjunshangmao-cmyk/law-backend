@@ -206,13 +206,15 @@ export async function createWapPayment(params) {
 }
 
 /**
- * 查询订单状态
+ * 查询订单状态（支持 sn 或 client_sn）
  */
-export async function queryOrder(terminalSn, terminalKey, sn) {
-  const body = {
-    terminal_sn: terminalSn,
-    sn: sn
-  };
+export async function queryOrder(terminalSn, terminalKey, orderSn) {
+  // 如果 orderSn 以 CLAW 开头，说明是 client_sn（我们的订单号）
+  // 否则是收钱吧的 sn
+  const isClientSn = orderSn && orderSn.startsWith('CLAW');
+  const body = isClientSn
+    ? { terminal_sn: terminalSn, client_sn: orderSn }
+    : { terminal_sn: terminalSn, sn: orderSn };
 
   const result = await shouqianbaRequest('/query', body, terminalSn, terminalKey);
 
