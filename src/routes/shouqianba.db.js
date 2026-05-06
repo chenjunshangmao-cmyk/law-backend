@@ -781,6 +781,36 @@ router.get('/status', (req, res) => {
   res.json({ success: true, data: { activated: !!terminal, deviceId: deviceId || config.defaultDeviceId, terminalSn: terminal?.terminalSn || null } });
 });
 
+// 调试端点：查询指定订单完整数据（含 payway 判断回调是否真实到达）
+// payway 不为空 = 收钱吧回调真实到达；payway 为空 = 仅手动确认
+router.get('/debug-order', async (req, res) => {
+  try {
+    const { sn } = req.query;
+    if (!sn) return res.status(400).json({ success: false, error: '缺少 sn' });
+    const result = await pool.query(
+      'SELECT order_no, user_id, amount, plan_type, status, payway, created_at, paid_at, updated_at FROM payment_orders WHERE order_no = $1',
+      [sn]
+    );
+    if (result.rows.length === 0) return res.json({ success: true, data: null, message: '订单不存在于数据库' });
+    const row = result.rows[0];
+    const fileOrder = getOrder(sn);
+    const cached = orderStatusCache.get(sn);
+    res.json({
+      success: true,
+      data: {
+        database: row,
+        localFile: fileOrder || null,
+        memoryCache: cached || null,
+        conclusion: row.payway
+          ? `✅ 收钱吧回调已真实到达！支付方式=${row.payway}，支付时间=${row.paid_at}`
+          : `⚠️ 收钱吧回调未到达（payway为空），订单可能仅通过手动确认变为paid`
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 查询所有已支付但未关联用户的订单（孤儿订单，供AI客服手动关联）
 router.get('/orphan-orders', async (req, res) => {
   try {
