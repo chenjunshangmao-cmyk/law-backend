@@ -474,15 +474,47 @@ router.get('/query', async (req, res) => {
 
 // 手动确认支付（WAP订单收钱吧查询接口不可用，回调也不稳定）
 // 前端「我已支付」按钮调用此接口，强制将订单标记为已支付并升级会员
-router.post('/force-confirm', async (req, res) => {
+// ★ 加认证：防止未付款客户直接点「我已支付」绕过支付
+router.post('/force-confirm', authenticateToken, async (req, res) => {
   try {
     const { sn, planId, totalAmount } = req.body;
     if (!sn) return res.status(400).json({ success: false, error: '缺少 sn' });
 
-    console.log('[收钱吧] 手动确认订单:', sn);
+    console.log('[收钱吧] 手动确认订单:', sn, ' 请求用户:', req.userId);
+
+    // 0. ★ 安全校验：订单必须属于当前用户（防止未付款客户蹭会员）
+    try {
+      const orderCheck = await pool.query(
+        'SELECT user_id, status FROM payment_orders WHERE order_no = $1',
+        [sn]
+      );
+      if (orderCheck.rows.length === 0) {
+        return res.status(404).json({ success: false, error: '订单不存在' });
+      }
+      const dbUserId = orderCheck.rows[0].user_id;
+      const dbStatus = orderCheck.rows[0].status;
+      
+      // 已支付的不能重复确认
+      if (dbStatus === 'paid') {
+        return res.json({ success: true, message: '订单已支付，无需重复确认', data: { sn, orderStatus: 'PAID' } });
+      }
+      
+      // 订单必须属于当前用户（或管理员）
+      const authUserId = String(req.userId);
+      const isOwner = (dbUserId === authUserId);
+      const isAdmin = (req.user?.membership_type === 'admin' || req.user?.role === 'admin' || req.user?.role === 'super_admin');
+      
+      if (!isOwner && !isAdmin) {
+        console.warn('[收钱吧] ⚠️ 安全警告: 用户 ' + authUserId + ' 尝试确认不属于自己的订单 ' + sn + ' (订单所属: ' + dbUserId + ')');
+        return res.status(403).json({ success: false, error: '无权操作此订单' });
+      }
+    } catch (checkErr) {
+      console.error('[收钱吧] 安全校验失败:', checkErr.message);
+      return res.status(500).json({ success: false, error: '订单校验失败' });
+    }
 
     // 1. 先查 payment_orders 表获取 userId 和 planType（如果传入的话可以直接用）
-    let userId = req.body.userId;
+    let userId = req.userId;  // ★ 直接使用认证后的 userId
     let planType = planId;
     if (!userId || !planType) {
       try {
