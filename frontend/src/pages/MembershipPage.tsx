@@ -204,6 +204,20 @@ export default function MembershipPage() {
         payUrl: orderData.payUrl,
         totalAmount: String(orderData.totalAmount)
       });
+
+      // ★★★ 关键修复：启动轮询查支付状态 ★★★
+      const timer = setInterval(async () => {
+        try {
+          const statusRes = await api.shouqianba.query(orderData.clientSn);
+          if (statusRes?.data?.orderStatus === 'PAID' || statusRes?.data?.status === 'SUCCESS') {
+            setSqPolling(true); // 标记支付成功，弹窗显示已付款
+            clearInterval(timer);
+            setPollTimer(null);
+            refreshUser?.();
+          }
+        } catch (_) { /* 继续轮询 */ }
+      }, 3000); // 每3秒查一次
+      setPollTimer(timer);
     } catch (e: any) {
       setError(e.message || '支付服务暂时不可用，请稍后重试');
     } finally {
@@ -401,9 +415,17 @@ export default function MembershipPage() {
               <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">收钱吧</span>
             </div>
 
-
-
-            {sqOrder.payUrl && (
+            {sqPolling ? (
+              /* 支付成功 */
+              <div className="text-center py-4">
+                <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle className="w-8 h-8 text-green-500" />
+                </div>
+                <p className="text-lg font-bold text-green-700 mb-1">✅ 支付成功！</p>
+                <p className="text-xs text-gray-400">订单号：{sqOrder.clientSn}</p>
+                <p className="text-xs text-gray-400 mt-1">会员将在几秒内自动生效</p>
+              </div>
+            ) : sqOrder.payUrl ? (
               <div className="text-center mb-4">
                 <img
                   src={'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(sqOrder.payUrl)}
@@ -412,16 +434,22 @@ export default function MembershipPage() {
                   style={{ width: 200, height: 200 }}
                 />
                 <p className="text-xs text-gray-400 mt-1">订单号：{sqOrder.clientSn}</p>
+                <div className="flex items-center justify-center gap-1 text-xs text-gray-400 mt-2">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  等待支付中...（支付后自动确认）
+                </div>
               </div>
-            )}
-
+            ) : null}
 
 
             <button
-              onClick={() => { setSqOrder(null); setSqPolling(false); setSelectedPlan(''); }}
+              onClick={() => { 
+                if (pollTimer) clearInterval(pollTimer);
+                setSqOrder(null); setSqPolling(false); setSelectedPlan(''); 
+              }}
               className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
             >
-              取消
+              {sqPolling ? '关闭' : '取消'}
             </button>
           </div>
         </div>

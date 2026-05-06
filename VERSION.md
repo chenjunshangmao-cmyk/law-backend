@@ -12,8 +12,10 @@
 | 版本号 | **2026.05.07.001** |
 | 构建时间 | 2026-05-07 00:08 CST |
 | 构建者 | WorkBuddy AI |
-| Git 提交 | 待推送 |
-| 后端状态 | ⏳ 待推送 Render |
+| Git 提交 | e607322 (前端) / 5ea1471 (后端) |
+| 后端状态 | ✅ Render 自动部署中 (5ea1471) |
+| 前端部署 | https://c91bff4f.claw-app-2026.pages.dev |
+| 主域名 | https://claw-app-2026.pages.dev (自动指向最新)
 
 ### 本次变更
 
