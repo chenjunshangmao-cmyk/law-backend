@@ -8,7 +8,7 @@ const PLANS = [
   {
     id: 'basic',
     name: '基础版',
-    price: 199,
+    price: 0.1,    // 🔧 测试中，正式改回199
     priceUnit: '/月',
     icon: Zap,
     color: 'blue',
