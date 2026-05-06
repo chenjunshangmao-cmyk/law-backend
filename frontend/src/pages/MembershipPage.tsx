@@ -140,7 +140,27 @@ export default function MembershipPage() {
     try {
       const res = await api.payment.createOrder({ plan: planId });
       if (!res.success) throw new Error(res.error || '创建订单失败');
-      setOrder(res.data);
+      
+      const orderData = res.data;
+      setOrder(orderData);
+
+      // 启动轮询查支付状态
+      if (orderData.orderNo && !orderData.testMode) {
+        const timer = setInterval(async () => {
+          try {
+            const statusRes = await api.payment.status(orderData.orderNo);
+            if (statusRes?.data?.status === 'paid') {
+              setOrder((prev: any) => prev ? { ...prev, status: 'paid', paidAt: statusRes.data.paidAt } : prev);
+              setPolling(true); // 标记支付成功
+              if (pollTimer) clearInterval(pollTimer);
+              setPollTimer(null);
+              clearInterval(timer);
+              refreshUser?.();
+            }
+          } catch (_) { /* 继续轮询 */ }
+        }, 3000); // 3秒查一次
+        setPollTimer(timer);
+      }
     } catch (e: any) {
       setError(e.message || '支付服务暂时不可用，请稍后重试');
     } finally {
@@ -545,9 +565,16 @@ export default function MembershipPage() {
                 <p className="text-yellow-800 text-sm font-medium">⚠️ 测试模式</p>
                 <p className="text-yellow-700 text-xs mt-1">支付网关未配置，当前为测试订单</p>
               </div>
-            ) : null}
-            
-            {order.payUrl && !order.testMode ? (
+            ) : (order as any).status === 'paid' || polling ? (
+              <div className="text-center py-4">
+                <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle className="w-8 h-8 text-green-500" />
+                </div>
+                <p className="text-lg font-bold text-green-700 mb-1">支付成功！</p>
+                <p className="text-xs text-gray-400">订单号：{order.orderNo}</p>
+                <p className="text-xs text-gray-400 mt-1">联系客服开通会员</p>
+              </div>
+            ) : order.payUrl ? (
               <div className="text-center">
                 <div className="mb-4 p-4 bg-gray-50 rounded-lg flex flex-col items-center">
                   <img
@@ -556,6 +583,10 @@ export default function MembershipPage() {
                     className="w-48 h-48 mx-auto mb-2"
                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
+                  <div className="flex items-center gap-1 text-xs text-gray-400">
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    等待支付中...
+                  </div>
                 </div>
               </div>
             ) : (
@@ -564,14 +595,12 @@ export default function MembershipPage() {
                 {order.message && <p className="text-xs mt-2 text-gray-400">{order.message}</p>}
               </div>
             )}
-            
 
-            
             <button
               onClick={cancelPayment}
-              className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 mt-3"
             >
-              取消
+              {polling ? '关闭' : '取消'}
             </button>
           </div>
         </div>
