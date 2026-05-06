@@ -1049,4 +1049,51 @@ router.get('/notify-logs', (req, res) => {
   res.json({ success: true, count: notifyLogs.length, data: notifyLogs });
 });
 
+// 手动重放回调（处理被验签拒绝但数据真实的有效回调）
+router.post('/replay-callback', async (req, res) => {
+  try {
+    const { sn, clientSn } = req.body;
+    if (!clientSn) return res.status(400).json({ success: false, error: '缺少 clientSn' });
+
+    // 从回调日志中找到匹配的记录
+    const logEntry = notifyLogs.find(l => l.clientSn === clientSn);
+    if (!logEntry) return res.status(404).json({ success: false, error: '未找到匹配的回调日志' });
+
+    const data = JSON.parse(logEntry.body);
+    if (data.order_status !== 'PAID') return res.json({ success: false, error: '回调状态非PAID' });
+
+    // 更新 payment_orders
+    const orderResult = await pool.query('SELECT * FROM payment_orders WHERE order_no = $1', [clientSn]);
+    if (orderResult.rows.length === 0) return res.status(404).json({ success: false, error: '订单不存在' });
+    const order = orderResult.rows[0];
+
+    if (order.status !== 'paid') {
+      await pool.query(
+        `UPDATE payment_orders SET status = 'paid', payway = $1, paid_at = NOW(), updated_at = NOW() WHERE order_no = $2`,
+        [data.payway_name || data.payway || 'UNKNOWN', clientSn]
+      );
+      console.log('[收钱吧] 手动重放: 订单 ' + clientSn + ' 已标记为 paid');
+
+      // 升级会员
+      if (order.user_id) {
+        await upgradeMembershipDirect(order.user_id, order.plan_type);
+        console.log('[收钱吧] 手动重放: 会员已升级 user=' + order.user_id + ' plan=' + order.plan_type);
+      }
+
+      // 更新本地文件
+      updateOrder(clientSn, { orderStatus: 'PAID', status: 'SUCCESS' });
+      orderStatusCache.set(clientSn, {
+        sn: data.sn, clientSn, orderStatus: 'PAID', status: 'SUCCESS',
+        totalAmount: Number(data.total_amount) / 100, payway: data.payway_name
+      });
+
+      res.json({ success: true, message: `订单 ${clientSn} 已处理，会员已升级`, payway: data.payway_name });
+    } else {
+      res.json({ success: true, message: '订单已处理过，跳过' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;
