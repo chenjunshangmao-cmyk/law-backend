@@ -373,6 +373,60 @@ router.post('/youtube/upload', parseAccountId, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/browser/youtube/post — 发布社区帖子（图文）
+ */
+router.post('/youtube/post', parseAccountId, async (req, res) => {
+  try {
+    const { email, text, images, title, accountId } = req.body;
+
+    if (!email || !text) {
+      return res.json({
+        success: false,
+        error: '缺少必要参数：email, text',
+        example: {
+          email: 'user@example.com',
+          text: '新品上市！超美夏季连衣裙 👗\n限时优惠，手慢无！',
+          images: ['./uploads/product1.jpg', './uploads/product2.jpg'],
+          title: '新品发布',
+        },
+      });
+    }
+
+    // 读取账号绑定的代理配置
+    const aid = accountId || req.accountId;
+    let proxyConfig = null;
+    if (aid) {
+      const account = await getAccountById(aid);
+      if (account && account.proxy_id) {
+        const proxy = await getProxyById(account.proxy_id);
+        if (proxy && proxy.is_active) {
+          proxyConfig = { protocol: proxy.protocol, host: proxy.host, port: proxy.port, username: proxy.username, password: proxy.password };
+        }
+      }
+    }
+
+    const result = await youtube.postToCommunity({
+      email,
+      accountId: aid,
+      proxyConfig,
+      text,
+      images: images || [],
+      title: title || '',
+    });
+
+    res.json({
+      ...result,
+      instructions: result.needLogin
+        ? { login: 'POST /api/browser/youtube/login', params: { email, accountId: aid } }
+        : null,
+    });
+
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // ============================================================
 // OZON 接口
 // ============================================================

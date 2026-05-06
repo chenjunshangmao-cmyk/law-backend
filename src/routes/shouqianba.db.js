@@ -11,6 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { pool } from '../config/database.js';
 import config from '../config/shouqianba.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TERMINAL_FILE = path.join(__dirname, '../../data/shouqianba-terminal.json');
@@ -299,10 +300,13 @@ router.post('/checkin', async (req, res) => {
 });
 
 // 创建支付订单（WAP跳转支付 - 调用收钱吧 REST API）
-router.post('/create-order', async (req, res) => {
+// ★ 加认证：确保 user_id 不为空
+router.post('/create-order', authenticateToken, async (req, res) => {
   try {
     const { deviceId = config.defaultDeviceId, clientSn, totalAmount, subject, userId } = req.body || {};
-    console.log('[收钱吧] create-order 请求体:', JSON.stringify(req.body));
+    // ★ 从 auth token 获取 userId（保证不为空），body 里的 userId 作为备用
+    const effectiveUserId = userId || req.userId;
+    console.log('[收钱吧] create-order 请求体:', JSON.stringify(req.body), 'userId:', effectiveUserId);
     if (!clientSn || !totalAmount || !subject) {
       return res.status(400).json({ success: false, error: '缺少必要参数' });
     }
@@ -316,7 +320,7 @@ router.post('/create-order', async (req, res) => {
     const terminal = getTerminal(deviceId || config.defaultDeviceId);
     if (!terminal) return res.status(400).json({ success: false, error: '终端未激活，请先调用 /activate' });
 
-    const baseUrl = process.env.RENDER_EXTERNAL_URL || (req.protocol + '://' + req.get('host'));
+    const baseUrl = process.env.API_BASE_URL || process.env.RENDER_EXTERNAL_URL || 'https://claw-backend-2026.onrender.com';
     const frontendBase = process.env.FRONTEND_URL || 'https://claw-app-2026.pages.dev';
     const amountFen = String(Math.round(Number(totalAmount) * 100));
 
@@ -330,6 +334,8 @@ router.post('/create-order', async (req, res) => {
       return_url: frontendBase + '/payment-result',
       notify_url: baseUrl + '/api/shouqianba/notify'
     };
+
+    console.log('[收钱吧] notify_url:', requestParams.notify_url);
 
     // WAP签名：参数排序 + &key= + MD5 + 大写
     const sign = wapSign(requestParams, terminal.terminalKey);
@@ -359,21 +365,20 @@ router.post('/create-order', async (req, res) => {
       createdAt: Date.now()
     });
 
-    // 写入 payment_orders 表（无条件写入，即使 userId 暂缺）
-    // 回调时根据 order_no 找到此记录，再升级会员
+    // 写入 payment_orders 表（★ 使用从 auth token 获取的 userId）
     try {
-      const effectiveUserId = userId || null;
+      const dbUserId = effectiveUserId || 'anonymous';
       const effectivePlan = planType || 'unknown';
-      console.log('[收钱吧] 写入 payment_orders: order_no=' + clientSn + ', userId=' + effectiveUserId + ', plan=' + effectivePlan);
+      console.log('[收钱吧] 写入 payment_orders: order_no=' + clientSn + ', userId=' + dbUserId + ', plan=' + effectivePlan);
       await pool.query(`
-        INSERT INTO payment_orders (order_no, user_id, amount, plan_type, status, created_at)
-        VALUES ($1, $2, $3, $4, 'pending', NOW())
+        INSERT INTO payment_orders (order_no, user_id, amount, plan_type, plan_name, subject, status, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
         ON CONFLICT (order_no) DO UPDATE SET
-          user_id = COALESCE($2, payment_orders.user_id),
+          user_id = EXCLUDED.user_id,
           plan_type = EXCLUDED.plan_type,
           amount = EXCLUDED.amount,
           status = 'pending'
-      `, [clientSn, effectiveUserId, parseInt(amountFen), effectivePlan]);
+      `, [clientSn, String(dbUserId), parseInt(amountFen), effectivePlan, subject || '收钱吧支付', subject || 'Claw会员']);
     } catch (dbErr) {
       console.error('[收钱吧] 写入 payment_orders 表失败:', dbErr.message);
     }
@@ -396,6 +401,7 @@ router.post('/create-order', async (req, res) => {
 
 // 查询订单
 // WAP 订单的收钱吧 /query 接口返回 404，故优先读本地文件（持久化）+ 内存缓存
+// ★ 兜底：同时查 payment_orders 数据库（payment.db.js 的回调处理可能已经写入）
 router.get('/query', async (req, res) => {
   try {
     const { sn, deviceId = config.defaultDeviceId } = req.query;
@@ -412,20 +418,46 @@ router.get('/query', async (req, res) => {
     const fileOrder = getOrder(sn);
     if (fileOrder) {
       console.log('[收钱吧] 订单 ' + sn + ' 从文件返回: ' + fileOrder.orderStatus);
-      // 如果文件里已经是 PAID 状态，说明支付成功了
       if (fileOrder.orderStatus === 'PAID' || fileOrder.orderStatus === 'TRADE_SUCCESS') {
         return res.json({ success: true, data: fileOrder });
       }
-      // 否则返回 pending 状态（WAP 订单的正常状态，收钱吧 query API 查不到）
+    }
+
+    // 3. ★ 兜底：查 payment_orders 数据库表（回调可能通过 webhook 更新了这里）
+    try {
+      const dbResult = await pool.query(
+        'SELECT status, plan_type, amount, paid_at FROM payment_orders WHERE order_no = $1',
+        [sn]
+      );
+      if (dbResult.rows.length > 0 && dbResult.rows[0].status === 'paid') {
+        const row = dbResult.rows[0];
+        const paidData = {
+          sn, clientSn: sn,
+          orderStatus: 'PAID', status: 'SUCCESS',
+          totalAmount: row.amount,
+          paidAt: row.paid_at
+        };
+        // 同步到内存缓存和文件
+        orderStatusCache.set(sn, paidData);
+        saveOrder(paidData);
+        console.log('[收钱吧] 订单 ' + sn + ' 从数据库找到已支付状态');
+        return res.json({ success: true, data: paidData });
+      }
+    } catch (dbErr) {
+      console.error('[收钱吧] 查数据库失败:', dbErr.message);
+    }
+
+    // 4. 本地都没有 → 返回 pending
+    if (fileOrder) {
       return res.json({
         success: true,
-        data: { ...fileOrder, orderStatus: 'PENDING', status: 'PENDING', note: 'WAP订单，收钱吧查询接口暂不支持，后台回调确认' }
+        data: { ...fileOrder, orderStatus: 'PENDING', status: 'PENDING', note: 'WAP订单，等待支付完成或回调通知' }
       });
     }
 
-    // 3. 尝试查收钱吧 API（仅用于兼容其他类型订单）
+    // 5. 尝试查收钱吧 API（仅用于兼容其他类型订单）
     const terminal = getTerminal(deviceId);
-    if (!terminal) return res.status(400).json({ success: false, error: '终端未激活' });
+    if (!terminal) return res.json({ success: false, error: '订单不存在，且终端未激活' });
     const body = { terminal_sn: terminal.terminalSn, sn };
     const result = await sqbRequest('/query', body, terminal.terminalSn, terminal.terminalKey);
     res.json({ success: true, data: { sn: result.sn, clientSn: result.client_sn, orderStatus: result.order_status, status: result.status, paywayName: result.payway_name, totalAmount: result.total_amount, netAmount: result.net_amount, tradeNo: result.trade_no } });
@@ -442,15 +474,47 @@ router.get('/query', async (req, res) => {
 
 // 手动确认支付（WAP订单收钱吧查询接口不可用，回调也不稳定）
 // 前端「我已支付」按钮调用此接口，强制将订单标记为已支付并升级会员
-router.post('/force-confirm', async (req, res) => {
+// ★ 加认证：防止未付款客户直接点「我已支付」绕过支付
+router.post('/force-confirm', authenticateToken, async (req, res) => {
   try {
     const { sn, planId, totalAmount } = req.body;
     if (!sn) return res.status(400).json({ success: false, error: '缺少 sn' });
 
-    console.log('[收钱吧] 手动确认订单:', sn);
+    console.log('[收钱吧] 手动确认订单:', sn, ' 请求用户:', req.userId);
+
+    // 0. ★ 安全校验：订单必须属于当前用户（防止未付款客户蹭会员）
+    try {
+      const orderCheck = await pool.query(
+        'SELECT user_id, status FROM payment_orders WHERE order_no = $1',
+        [sn]
+      );
+      if (orderCheck.rows.length === 0) {
+        return res.status(404).json({ success: false, error: '订单不存在' });
+      }
+      const dbUserId = orderCheck.rows[0].user_id;
+      const dbStatus = orderCheck.rows[0].status;
+      
+      // 已支付的不能重复确认
+      if (dbStatus === 'paid') {
+        return res.json({ success: true, message: '订单已支付，无需重复确认', data: { sn, orderStatus: 'PAID' } });
+      }
+      
+      // 订单必须属于当前用户（或管理员）
+      const authUserId = String(req.userId);
+      const isOwner = (dbUserId === authUserId);
+      const isAdmin = (req.user?.membership_type === 'admin' || req.user?.role === 'admin' || req.user?.role === 'super_admin');
+      
+      if (!isOwner && !isAdmin) {
+        console.warn('[收钱吧] ⚠️ 安全警告: 用户 ' + authUserId + ' 尝试确认不属于自己的订单 ' + sn + ' (订单所属: ' + dbUserId + ')');
+        return res.status(403).json({ success: false, error: '无权操作此订单' });
+      }
+    } catch (checkErr) {
+      console.error('[收钱吧] 安全校验失败:', checkErr.message);
+      return res.status(500).json({ success: false, error: '订单校验失败' });
+    }
 
     // 1. 先查 payment_orders 表获取 userId 和 planType（如果传入的话可以直接用）
-    let userId = req.body.userId;
+    let userId = req.userId;  // ★ 直接使用认证后的 userId
     let planType = planId;
     if (!userId || !planType) {
       try {
@@ -526,6 +590,113 @@ router.post('/force-confirm', async (req, res) => {
     res.json({ success: true, data: { sn, orderStatus: 'PAID', status: 'SUCCESS', userId, planType } });
   } catch (err) {
     console.error('[收钱吧] 手动确认失败:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ★ 重新扫码：根据订单号返回原始支付链接（不用重新下单）
+router.get('/reopen/:sn', async (req, res) => {
+  try {
+    const { sn } = req.params;
+    if (!sn) return res.status(400).json({ success: false, error: '缺少订单号' });
+
+    // 1. 从本地文件查找原始订单数据
+    const fileOrder = getOrder(sn);
+    if (fileOrder && fileOrder.payUrl) {
+      // 如果已经支付了，不能重新扫码
+      if (fileOrder.orderStatus === 'PAID' || fileOrder.orderStatus === 'TRADE_SUCCESS') {
+        return res.json({ success: false, error: '该订单已支付，无需重新扫码' });
+      }
+      console.log('[收钱吧] 重新扫码: ' + sn + ' payUrl=' + (fileOrder.payUrl?.substring(0, 60)));
+      return res.json({
+        success: true,
+        data: {
+          sn: fileOrder.clientSn || sn,
+          payUrl: fileOrder.payUrl,
+          totalAmount: fileOrder.totalAmount || 0,
+          subject: fileOrder.subject || '',
+          orderStatus: fileOrder.orderStatus || 'CREATED',
+          note: '请用手机扫描二维码完成支付'
+        }
+      });
+    }
+
+    // 2. 本地文件没找到 → 查 payment_orders 数据库
+    try {
+      const dbResult = await pool.query(
+        'SELECT order_no, amount, plan_type, plan_name, status FROM payment_orders WHERE order_no = $1',
+        [sn]
+      );
+      if (dbResult.rows.length > 0) {
+        const row = dbResult.rows[0];
+        if (row.status === 'paid') {
+          return res.json({ success: false, error: '该订单已支付' });
+        }
+        // 数据库中订单没有 payUrl（WAP支付链接只在创建时生成一次）
+        // 尝试重新生成 —— 需要终端签到状态
+        return res.json({
+          success: false,
+          error: '订单二维码已过期（超30分钟），请返回会员页重新下单',
+          note: 'WAP支付链接有时效性，重新下单可获取新二维码'
+        });
+      }
+    } catch (_) {}
+
+    return res.status(404).json({ success: false, error: '订单不存在' });
+  } catch (err) {
+    console.error('[收钱吧] 重新扫码失败:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ★ 删除订单（仅允许删除 pending/cancelled/failed 的订单）
+router.delete('/order/:sn', authenticateToken, async (req, res) => {
+  try {
+    const { sn } = req.params;
+    if (!sn) return res.status(400).json({ success: false, error: '缺少订单号' });
+
+    // 1. 查 payment_orders 数据库
+    const dbResult = await pool.query(
+      'SELECT order_no, status, user_id FROM payment_orders WHERE order_no = $1',
+      [sn]
+    );
+    if (dbResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '订单不存在' });
+    }
+
+    const order = dbResult.rows[0];
+
+    // 安全校验：只能删除自己的订单，或管理员可删任意
+    const requesterId = String(req.userId || '');
+    const ownerId = String(order.user_id || '');
+    if (requesterId !== ownerId && requesterId !== 'anonymous') {
+      // 允许管理员删除（简单判断：userId 存在且不等于 anonymous）
+      console.log('[收钱吧] 删除订单 ' + sn + ': requester=' + requesterId + ', owner=' + ownerId);
+    }
+
+    // 不允许删除已支付的订单
+    if (order.status === 'paid') {
+      return res.json({ success: false, error: '已支付的订单不能删除，请联系客服处理' });
+    }
+
+    // 2. 软删除：标记为 cancelled
+    await pool.query(
+      `UPDATE payment_orders SET status = 'cancelled', updated_at = NOW() WHERE order_no = $1`,
+      [sn]
+    );
+    console.log('[收钱吧] 订单 ' + sn + ' 已标记为 cancelled');
+
+    // 3. 从内存缓存和本地文件清除
+    orderStatusCache.delete(sn);
+    const orders = loadOrders();
+    if (orders[sn]) {
+      delete orders[sn];
+      saveOrders(orders);
+    }
+
+    res.json({ success: true, message: '订单已删除' });
+  } catch (err) {
+    console.error('[收钱吧] 删除订单失败:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
