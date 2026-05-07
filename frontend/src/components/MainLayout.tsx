@@ -18,6 +18,8 @@ const NAV_ITEMS = [
   { path: '/youtube',    icon: '📹', label: 'YouTube' },
   { path: '/xiaohongshu', icon: '📕', label: '小红书' },
   { path: '/avatar',    icon: '🤖', label: 'AI数字人' },
+  { path: '/writer',    icon: '✍️', label: 'AI文案' },
+  { path: '/video-factory', icon: '🎬', label: '短视频' },
   { path: '/whatsapp',   icon: '💬', label: 'WhatsApp' },
 ];
 

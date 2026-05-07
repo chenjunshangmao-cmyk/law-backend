@@ -1,7 +1,7 @@
 # MEMORY.md - Claw 项目核心记忆
 
 ## 当前时间
-2026-05-06
+2026-05-08
 
 ## 🚨 部署铁律（2026-05-06 血的教训）
 **每次部署前必须遵守，违反一条就出事故：**
@@ -11,6 +11,25 @@
 4. **只改 `frontend/src/`** — 不碰 `backend/frontend/`（旧副本）
 5. **禁止 `git rebase`** — 冲突时无法恢复
 6. 详细流程见 skill: `claw-deploy`
+
+## 🛡️ 三层部署保障体系（2026-05-08 上线）
+**每次部署自动执行，防止锁定功能被意外破坏：**
+
+### Layer 1: CODELOCK 部署前门禁 (`scripts/pre-deploy-check.js`)
+- 解析 CODELOCK.md → 提取锁定文件列表 → `git diff HEAD -- <file>` 检测变更
+- 锁定文件被修改 → **中止部署** + 打印红色警告（白名单：FORCE_DEPLOY 环境变量）
+- AI 更新 AI工具箱/利润计算器等非锁定功能 → 无影响，正常部署
+- 接入: deploy.bat Step 2/9
+
+### Layer 2: 部署后烟雾测试 (`scripts/smoke-test.js`)
+- 6项自动检查: 后端健康 / 数据库连通 / 登录认证 / 支付系统 / WhatsApp落地页 / 前端可达
+- 接入: deploy.bat Step 9/9
+- 失败不会中止部署，但打印警告
+
+### Layer 3: 持续心跳监控 (automation)
+- `src/routes/heartbeat.js`: GET /api/heartbeat — 数据库+WhatsApp+支付+内存+运行时间
+- 自动化: 每5分钟检查，异常时告警（P0: 数据库/WhatsApp/支付挂）
+- 正常时静默，只在异常时汇报
 
 ## 版本管理系统（2026-05-04 建立）
 - VERSION.md：版本记录本，记录当前版本号、构建者、Git提交、变更历史
@@ -100,14 +119,18 @@ API端点：
 - GitHub（law-backend，触发Render部署）: git@github.com:chenjunshangmao-cmyk/law-backend.git
 - SSH key: id_ed25519（公钥 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOh4gc6ogBRCl4Q0DZXiyyGavaf3MvbvEwsvHl5RlELT）
 
-## 收钱吧核心配置（2026-05-04 切换回旧终端 ✅）
-- **当前终端**: claw-web-new1（旧终端，已验证可用）
-- 终端 SN：100111220054361978
-- terminalKey：114d06c3f7f79d00d2ef022ab3d201af（2026-05-04 签到获取，WAP网关验证通过）
+## 收钱吧核心配置（2026-05-07 正式激活 ✅）
+- **当前终端**: claw-pay-prod-0507（正式激活码 64307934）
+- 终端 SN：100111220054832254
+- terminalKey：b68483ae92623c03d5c41d5b40931209
 - vendorSn：91803325
 - vendorKey：677da351628d3fe7664321669c3439b2
+- appId：2026041600011122
+- storeSn：1580000011101653
 - 金额单位：永远是分（199元=19900）
 - 完整文档：C:\Users\Administrator\WorkBuddy\Claw\收钱吧完整技术文档.md
+- **验收报告**：C:\Users\Administrator\WorkBuddy\Claw\收钱吧支付系统验收报告.md
+- **验签策略**：MD5优先(body.sign) → RSA备选(Authorization) → IP信任(47.96.x.x)
 
 ## 收钱吧故障记录（2026-05-04 v005 更新）
 - **claw-web-new3** (SN 100111220054389553) — ✅ 正确的工作终端（v005已切回）
@@ -120,11 +143,13 @@ API端点：
 - **两个激活码均失效**: 66172491(EJ05已使用), 81119079(EJ06已过期)
 - **operator参数**: 官方文档要求必填，之前代码遗漏 — v005已修复
 
-## 部署状态（2026-05-05 最新）
-- **前端最新**: Cloudflare Pages ✅ https://7cefa155.claw-app-2026.pages.dev（v2026.05.06.001）
+## 部署状态（2026-05-07 最新）
+- **前端最新**: Cloudflare Pages ✅ https://df35750b.claw-app-2026.pages.dev（v2026.05.07.009）
 - **主域名**: https://claw-app-2026.pages.dev（自动指向最新生产版）
-- **后端**: claw-backend-2026.onrender.com ✅（Render自动部署，commit 46c02f8）
+- **后端**: claw-backend-2026.onrender.com ✅（Render自动部署，commit 9ace012）
+- **后端源码路径**: **根目录 `src/`**（不是 `backend/src/`！Render 用 `src/`）
 - **Gitee**: https://gitee.com/lyshlc/claw.git
+- **GitHub**: git@github.com:chenjunshangmao-cmyk/law-backend.git
 - **构建输出**: 只用 complete-deploy/，deploy-package/ 已废弃
 - **前端源码**: frontend/（不是 backend/frontend/）
 
@@ -167,3 +192,10 @@ API端点：
 - Git commit 后必须 push 才能触发自动部署
 - Render 监控 GitHub law-backend 仓库，不是 Gitee
 - Cloudflare Pages 可用 `npx wrangler pages deploy complete-deploy` 直接部署，无需 git push
+
+## AI工具成本核算（2026-05-08）
+- **均衡方案月成本**: ¥1,988（AI抠图¥50 + 去水印¥0 + 图片¥108 + 短视频¥288 + 数字人¥497 + 服务器¥500 + WhatsApp¥150 + 预留¥395）
+- **自建AI数字人**: ¥1,300-2,850/月（GPU¥800-1,500 + LLM API¥200-500 + RTMP¥300-800），比第三方省60-70%
+- **自建技术栈**: OpenClaw Agent总控 + VRM/Three.js渲染 + Edge TTS + Whisper STT + Rhubarb口型同步 + FFmpeg/RTMP推流 + OBS分发
+- **旗舰版¥5,888覆盖**: 1个客户净利润¥1,888-4,588；2个¥8,000+；5个¥25,000+/月
+- **成本模型**: AI工具是固定开支（共享基础设施），会员收入是线性叠加 → 客户越多利润率越高

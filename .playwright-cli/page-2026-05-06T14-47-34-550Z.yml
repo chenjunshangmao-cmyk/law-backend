@@ -1,0 +1,11 @@
+- generic [ref=e2]:
+  - generic [ref=e3]: 💬
+  - heading "CLAW 智能服务" [level=1] [ref=e4]
+  - paragraph [ref=e5]: 飞哥 - 咨询客服
+  - paragraph [ref=e6]: 您好！欢迎咨询，点击下方按钮立即联系客服
+  - link "立即咨询" [ref=e7] [cursor=pointer]:
+    - /url: https://wa.me/8615119885271?text=%E4%BD%A0%E5%A5%BD%EF%BC%8C%E6%88%91%E6%83%B3%E5%92%A8%E8%AF%A2
+    - img [ref=e8]
+    - text: 立即咨询
+  - paragraph [ref=e10]: ⏳ 页面将在 3 秒后自动跳转...
+  - generic [ref=e11]: Powered by CLAW

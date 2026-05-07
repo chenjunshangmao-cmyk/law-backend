@@ -8,11 +8,11 @@ const PLANS = [
   {
     id: 'basic',
     name: '基础版',
-    price: 199,    // ✅ 正式价格 (2026-05-07 验收通过)
+    price: 199,
     priceUnit: '/月',
     icon: Zap,
     color: 'blue',
-    features: ['5个店铺绑定', 'AI文案：50次/月', 'AI图片：20次/月', 'AI视频：1次/天', '仅限国内平台'],
+    features: ['短视频工厂：30条/月', 'AI文案工厂：50篇/月', 'WhatsApp中继：50条', 'AI抠图：50张/月', '去水印：20张/月', '利润计算器：5次/天'],
   },
   {
     id: 'premium',
@@ -22,7 +22,7 @@ const PLANS = [
     icon: Crown,
     color: 'purple',
     popular: true,
-    features: ['10个店铺绑定', 'AI文案：无限次', 'AI图片：100次/月', 'AI视频：2次/天', '代理服务：1个国家'],
+    features: ['短视频工厂：100条/月', 'AI文案：200篇+直播脚本', 'AI数字人：1频道(录制)', 'WhatsApp中继：200条', 'AI抠图+去水印：无限', '平台发布：TikTok+OZON'],
   },
   {
     id: 'enterprise',
@@ -31,7 +31,7 @@ const PLANS = [
     priceUnit: '/月',
     icon: Building2,
     color: 'amber',
-    features: ['店铺绑定：无限', 'AI文案：无限次', 'AI图片：500次/月', 'AI视频：10次/天', '代理服务：6个国家'],
+    features: ['短视频工厂：300条+连续剧', 'AI文案：500篇+小说连载', 'AI数字人：3频道(实时)', 'WhatsApp中继：500条', '全平台发布', '利润计算器：无限'],
   },
   {
     id: 'flagship',
@@ -40,7 +40,7 @@ const PLANS = [
     priceUnit: '/月',
     icon: Crown,
     color: 'red',
-    features: ['店铺绑定：无限', 'AI文案：无限次', 'AI图片：无限次', 'AI视频：无限次', '代理服务：12个国家', '专属客服：7×24小时'],
+    features: ['三大系统全部无限制', 'AI数字人：5频道+定制3套', 'AI文案：无限+长篇小说', 'WhatsApp中继：无限制', '全平台+自动排期', '7x24专属客服+定制开发'],
   },
 ];
 

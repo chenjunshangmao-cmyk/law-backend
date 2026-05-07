@@ -672,6 +672,27 @@ export const api = {
   },
 
   // ============================================================
+  // Writer API - AI文案工厂
+  // ============================================================
+  writer: {
+    novel: {
+      outline: (data: any) => authFetch('/api/writer/novel/outline', { method: 'POST', body: JSON.stringify(data) }),
+      chapter: (data: any) => authFetch('/api/writer/novel/chapter', { method: 'POST', body: JSON.stringify(data) }),
+      full: (data: any) => authFetch('/api/writer/novel/full', { method: 'POST', body: JSON.stringify(data) }),
+      continue: (data: any) => authFetch('/api/writer/novel/continue', { method: 'POST', body: JSON.stringify(data) }),
+    },
+    script: {
+      live: (data: any) => authFetch('/api/writer/script/live', { method: 'POST', body: JSON.stringify(data) }),
+      video: (data: any) => authFetch('/api/writer/script/video', { method: 'POST', body: JSON.stringify(data) }),
+      drama: (data: any) => authFetch('/api/writer/script/drama', { method: 'POST', body: JSON.stringify(data) }),
+    },
+    copy: {
+      marketing: (data: any) => authFetch('/api/writer/copy/marketing', { method: 'POST', body: JSON.stringify(data) }),
+      product: (data: any) => authFetch('/api/writer/copy/product', { method: 'POST', body: JSON.stringify(data) }),
+    },
+  },
+
+  // ============================================================
   // Tasks API
   // ============================================================
   tasks: {

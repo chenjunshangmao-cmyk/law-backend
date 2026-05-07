@@ -1,0 +1,137 @@
+- generic [ref=e121]:
+  - complementary [ref=e122]:
+    - generic [ref=e124]:
+      - img [ref=e126]
+      - generic [ref=e128]:
+        - heading "Claw 跨境智造" [level=1] [ref=e129]
+        - paragraph [ref=e130]: AI驱动的外贸电商平台
+      - button [ref=e131] [cursor=pointer]:
+        - img [ref=e132]
+    - generic [ref=e135]:
+      - img [ref=e137]
+      - generic [ref=e140]:
+        - paragraph [ref=e141]: Admin
+        - generic [ref=e143]: 免费版
+    - navigation [ref=e144]:
+      - generic [ref=e145]:
+        - link "工作台" [ref=e146] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e147]
+          - generic [ref=e152]: 工作台
+        - link "爆款选品" [ref=e153] [cursor=pointer]:
+          - /url: /trending
+          - img [ref=e154]
+          - generic [ref=e157]: 爆款选品
+        - link "广告采集" [ref=e158] [cursor=pointer]:
+          - /url: /ads
+          - img [ref=e159]
+          - generic [ref=e162]: 广告采集
+        - link "产品管理" [ref=e163] [cursor=pointer]:
+          - /url: /products
+          - img [ref=e164]
+          - generic [ref=e168]: 产品管理
+        - link "店铺账号" [ref=e169] [cursor=pointer]:
+          - /url: /accounts
+          - img [ref=e170]
+          - generic [ref=e175]: 店铺账号
+        - link "利润计算" [ref=e176] [cursor=pointer]:
+          - /url: /calculator
+          - img [ref=e177]
+          - generic [ref=e179]: 利润计算
+        - link "会员中心" [ref=e180] [cursor=pointer]:
+          - /url: /membership
+          - img [ref=e181]
+          - generic [ref=e183]: 会员中心
+        - link "订单" [ref=e184] [cursor=pointer]:
+          - /url: /orders
+          - img [ref=e185]
+          - generic [ref=e188]: 订单
+        - link "小红书" [ref=e189] [cursor=pointer]:
+          - /url: /xiaohongshu
+          - img [ref=e190]
+          - generic [ref=e192]: 小红书
+        - link "OZON发布" [ref=e193] [cursor=pointer]:
+          - /url: /ozon-publish
+          - img [ref=e194]
+          - generic [ref=e197]: OZON发布
+        - link "AI智能图文" [ref=e198] [cursor=pointer]:
+          - /url: /ai-content
+          - img [ref=e199]
+          - generic [ref=e201]: AI智能图文
+        - link "AI数字人" [ref=e202] [cursor=pointer]:
+          - /url: /avatar
+          - img [ref=e203]
+          - generic [ref=e206]: AI数字人
+        - link "WhatsApp中继" [ref=e207] [cursor=pointer]:
+          - /url: /whatsapp
+          - img [ref=e208]
+          - generic [ref=e210]: WhatsApp中继
+        - link "YouTube" [ref=e211] [cursor=pointer]:
+          - /url: /youtube
+          - img [ref=e212]
+          - generic [ref=e215]: YouTube
+        - link "设置" [ref=e216] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e217]
+          - generic [ref=e220]: 设置
+      - generic [ref=e221]:
+        - generic [ref=e222]:
+          - img [ref=e223]
+          - generic [ref=e226]: 跨境特色
+        - paragraph [ref=e227]: 支持 TikTok Shop、OZON、YouTube 等多平台
+    - paragraph [ref=e229]: v2026.05.04.005
+    - button "退出登录" [ref=e231] [cursor=pointer]:
+      - img [ref=e232]
+      - generic [ref=e235]: 退出登录
+  - main [ref=e236]:
+    - generic [ref=e238]:
+      - generic [ref=e239]:
+        - generic [ref=e240]:
+          - heading "晚上好，Admin 👋" [level=1] [ref=e241]
+          - paragraph [ref=e242]: OZON 店铺已绑定：0 个 | 企业版会员
+        - button "开始选品 →" [ref=e243] [cursor=pointer]
+      - generic [ref=e244]:
+        - generic [ref=e245] [cursor=pointer]:
+          - generic [ref=e246]: 📦
+          - generic [ref=e247]: 0件
+          - generic [ref=e248]: 产品库
+        - generic [ref=e249] [cursor=pointer]:
+          - generic [ref=e250]: 🏪
+          - generic [ref=e251]: 0个
+          - generic [ref=e252]: 店铺账号
+        - generic [ref=e253] [cursor=pointer]:
+          - generic [ref=e254]: 🛒
+          - generic [ref=e255]: 0个
+          - generic [ref=e256]: OZON账号
+        - generic [ref=e257] [cursor=pointer]:
+          - generic [ref=e258]: ⭐
+          - generic [ref=e259]: 免费版
+          - generic [ref=e260]: 会员等级
+        - generic [ref=e261] [cursor=pointer]:
+          - generic [ref=e262]: 📋
+          - generic [ref=e263]: 0条
+          - generic [ref=e264]: 进行任务
+      - heading "快速操作" [level=2] [ref=e265]
+      - generic [ref=e266]:
+        - generic [ref=e267] [cursor=pointer]:
+          - generic [ref=e268]: 🔥
+          - generic [ref=e269]:
+            - generic [ref=e270]: 爆款选品
+            - generic [ref=e271]: 一键抓取热销商品
+        - generic [ref=e272] [cursor=pointer]:
+          - generic [ref=e273]: 🚀
+          - generic [ref=e274]:
+            - generic [ref=e275]: 智能发布
+            - generic [ref=e276]: 多平台一键上架
+        - generic [ref=e277] [cursor=pointer]:
+          - generic [ref=e278]: 📢
+          - generic [ref=e279]:
+            - generic [ref=e280]: 广告采集
+            - generic [ref=e281]: 竞品广告素材采集
+        - generic [ref=e282] [cursor=pointer]:
+          - generic [ref=e283]: 💰
+          - generic [ref=e284]:
+            - generic [ref=e285]: 利润计算
+            - generic [ref=e286]: 快速核算利润空间
+  - button [ref=e287] [cursor=pointer]:
+    - img [ref=e288]

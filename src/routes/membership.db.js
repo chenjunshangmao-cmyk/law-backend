@@ -34,17 +34,18 @@ const PLANS = {
     customDev: false,
     prioritySupport: false,
     features: [
-      '绑定店铺：2个（国内平台）',
-      '产品上架：无限次（手动）',
-      '智能定价：无限次（手动）',
-      'AI功能：0次',
-      '代理服务：不可用',
-      '适合：国内卖家试用'
+      '🎬 短视频：3条试用',
+      '✍️ 文案工厂：3篇试用',
+      '🤖 AI数字人：不可用',
+      '💬 WhatsApp中继：5条',
+      '✂️ AI抠图：5张/月',
+      '📊 利润计算器：2次/天',
+      '适合：免费体验'
     ]
   },
   basic: {
     name: '基础版',
-    price: 10,              // 🔧 测试：0.1元，正式改回19900
+    price: 19900,
     color: 'blue',
     storeLimit: 5,
     storePlatforms: ['taobao', 'pinduoduo', 'douyin'],
@@ -55,41 +56,45 @@ const PLANS = {
     customDev: false,
     prioritySupport: false,
     features: [
-      '绑定店铺：5个（仅限国内平台）',
-      'AI文案：50次/月',
-      'AI图片：20次/月',
-      'AI视频：1次/天',
-      '代理服务：不可用',
-      '适合：国内卖家（淘宝/拼多多/抖音）'
+      '🎬 短视频工厂：30条/月',
+      '✍️ AI文案工厂：50篇/月',
+      '🤖 AI数字人：不可用',
+      '💬 WhatsApp中继：50条',
+      '✂️ AI抠图：50张/月',
+      '💧 AI去水印：20张/月',
+      '📊 利润计算器：5次/天',
+      '适合：个人卖家试水'
     ]
   },
   premium: {
     name: '专业版',
-    price: 49900,        // ¥499/月
+    price: 49900,
     color: 'purple',
     popular: true,
     storeLimit: 10,
     storePlatforms: ['taobao', 'pinduoduo', 'douyin', 'tiktok', 'youtube'],
-    aiCopyMonthly: -1,      // 无限
+    aiCopyMonthly: -1,
     aiImageMonthly: 100,
     aiVideoDaily: 2,
     agentCountries: 1,
     customDev: false,
     prioritySupport: false,
     features: [
-      '绑定店铺：10个',
-      'AI文案：无限次',
-      'AI图片：100次/月',
-      'AI视频：2次/天',
-      '代理服务：1个国家',
-      '适合：做1个海外平台（TikTok或YouTube）'
+      '🎬 短视频工厂：100条/月',
+      '✍️ AI文案：200篇+直播脚本',
+      '🤖 AI数字人：1频道（录制模式）',
+      '💬 WhatsApp中继：200条',
+      '✂️ AI抠图+去水印：无限制',
+      '📊 利润计算器：无限制',
+      '📤 平台发布：TikTok+OZON',
+      '适合：单平台出海卖家'
     ]
   },
   enterprise: {
     name: '企业版',
-    price: 159900,       // ¥1599/月
+    price: 159900,
     color: 'amber',
-    storeLimit: -1,         // 无限
+    storeLimit: -1,
     storePlatforms: ['taobao', 'pinduoduo', 'douyin', 'tiktok', 'youtube'],
     aiCopyMonthly: -1,
     aiImageMonthly: 500,
@@ -98,34 +103,38 @@ const PLANS = {
     customDev: false,
     prioritySupport: false,
     features: [
-      '绑定店铺：无限个',
-      'AI文案：无限次',
-      'AI图片：500次/月',
-      'AI视频：10次/天',
-      '代理服务：6个国家',
-      '适合：TikTok多店铺运营'
+      '🎬 短视频工厂：300条+连续剧',
+      '✍️ AI文案：500篇+小说连载',
+      '🤖 AI数字人：3频道（实时直播）',
+      '💬 WhatsApp中继：500条',
+      '✂️ AI抠图+去水印：无限制',
+      '📊 利润计算器：无限制',
+      '📤 平台发布：全部平台',
+      '适合：多平台运营团队'
     ]
   },
   flagship: {
     name: '旗舰版',
-    price: 588800,       // ¥5888/月
+    price: 588800,
     color: 'red',
     storeLimit: -1,
     storePlatforms: ['taobao', 'pinduoduo', 'douyin', 'tiktok', 'youtube'],
     aiCopyMonthly: -1,
-    aiImageMonthly: -1,      // 无限
-    aiVideoDaily: -1,       // 无限
+    aiImageMonthly: -1,
+    aiVideoDaily: -1,
     agentCountries: 12,
     customDev: true,
-    prioritySupport: true,  // 7x24
+    prioritySupport: true,
     features: [
-      '绑定店铺：无限个',
-      'AI文案：无限次',
-      'AI图片：无限次',
-      'AI视频：无限次',
-      '代理服务：12个国家',
-      '专属客服：7×24小时',
-      '定制开发：支持'
+      '🎬 短视频工厂：无限制+连续剧',
+      '✍️ AI文案：无限制+长篇小说',
+      '🤖 AI数字人：5频道+定制形象3套',
+      '💬 WhatsApp中继：无限制',
+      '✂️ AI抠图+去水印：无限制',
+      '📊 利润计算器：无限制+API对接',
+      '📤 全平台发布+自动排期',
+      '🎧 7x24专属客服+定制开发',
+      '适合：全球多平台大卖家'
     ]
   }
 };

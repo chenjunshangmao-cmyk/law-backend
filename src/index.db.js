@@ -38,6 +38,8 @@ import cryptoPaymentRoutes from './routes/cryptoPayment.js';
 import youtubeApiRoutes from './routes/youtube.api.js';
 import aiToolsRoutes from './routes/aiTools.js';
 import heartbeatRoutes from './routes/heartbeat.js';
+import writerRoutes from './routes/writer.js';
+import videoFactoryRoutes from './routes/video-factory.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -127,6 +129,8 @@ app.get('/api/health', healthCheck);
 
 // 综合心跳监控 (数据库+WhatsApp+支付+内存)
 app.use('/api/heartbeat', heartbeatRoutes);
+app.use('/api/writer', writerRoutes);
+app.use('/api/video-factory', videoFactoryRoutes);
 
 // 版本信息 API
 app.get('/api/version', (req, res) => {

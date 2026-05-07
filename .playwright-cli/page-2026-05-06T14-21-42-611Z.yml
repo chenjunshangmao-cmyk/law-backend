@@ -1,0 +1,173 @@
+- generic [ref=e6]:
+  - complementary [ref=e7]:
+    - generic [ref=e9]:
+      - img [ref=e11]
+      - generic [ref=e13]:
+        - heading "Claw 跨境智造" [level=1] [ref=e14]
+        - paragraph [ref=e15]: AI驱动的外贸电商平台
+      - button [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+    - generic [ref=e20]:
+      - img [ref=e22]
+      - generic [ref=e25]:
+        - paragraph
+        - generic [ref=e27]: 免费版
+    - navigation [ref=e28]:
+      - generic [ref=e29]:
+        - link "工作台" [ref=e30] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e31]
+          - generic [ref=e36]: 工作台
+        - link "爆款选品" [ref=e37] [cursor=pointer]:
+          - /url: /trending
+          - img [ref=e38]
+          - generic [ref=e41]: 爆款选品
+        - link "广告采集" [ref=e42] [cursor=pointer]:
+          - /url: /ads
+          - img [ref=e43]
+          - generic [ref=e46]: 广告采集
+        - link "产品管理" [ref=e47] [cursor=pointer]:
+          - /url: /products
+          - img [ref=e48]
+          - generic [ref=e52]: 产品管理
+        - link "店铺账号" [ref=e53] [cursor=pointer]:
+          - /url: /accounts
+          - img [ref=e54]
+          - generic [ref=e59]: 店铺账号
+        - link "利润计算" [ref=e60] [cursor=pointer]:
+          - /url: /calculator
+          - img [ref=e61]
+          - generic [ref=e63]: 利润计算
+        - link "会员中心" [ref=e64] [cursor=pointer]:
+          - /url: /membership
+          - img [ref=e65]
+          - generic [ref=e67]: 会员中心
+        - link "订单" [ref=e68] [cursor=pointer]:
+          - /url: /orders
+          - img [ref=e69]
+          - generic [ref=e72]: 订单
+        - link "小红书" [ref=e73] [cursor=pointer]:
+          - /url: /xiaohongshu
+          - img [ref=e74]
+          - generic [ref=e76]: 小红书
+        - link "OZON发布" [ref=e77] [cursor=pointer]:
+          - /url: /ozon-publish
+          - img [ref=e78]
+          - generic [ref=e81]: OZON发布
+        - link "AI智能图文" [ref=e82] [cursor=pointer]:
+          - /url: /ai-content
+          - img [ref=e83]
+          - generic [ref=e85]: AI智能图文
+        - link "AI数字人" [ref=e86] [cursor=pointer]:
+          - /url: /avatar
+          - img [ref=e87]
+          - generic [ref=e90]: AI数字人
+        - link "WhatsApp中继" [ref=e91] [cursor=pointer]:
+          - /url: /whatsapp
+          - img [ref=e92]
+          - generic [ref=e94]: WhatsApp中继
+        - link "YouTube" [ref=e95] [cursor=pointer]:
+          - /url: /youtube
+          - img [ref=e96]
+          - generic [ref=e99]: YouTube
+        - link "设置" [ref=e100] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e101]
+          - generic [ref=e104]: 设置
+      - generic [ref=e105]:
+        - generic [ref=e106]:
+          - img [ref=e107]
+          - generic [ref=e110]: 跨境特色
+        - paragraph [ref=e111]: 支持 TikTok Shop、OZON、YouTube 等多平台
+    - paragraph [ref=e113]: v2026.05.04.005
+    - button "退出登录" [ref=e115] [cursor=pointer]:
+      - img [ref=e116]
+      - generic [ref=e119]: 退出登录
+  - main [ref=e120]:
+    - generic [ref=e122]:
+      - generic [ref=e123]:
+        - heading "📹 YouTube 管理" [level=1] [ref=e124]:
+          - generic [ref=e125]: 📹
+          - text: YouTube 管理
+        - paragraph [ref=e126]: 浏览器自动化 · 手动登录 · 自动上传视频
+      - generic [ref=e127]:
+        - generic [ref=e128]:
+          - heading "浏览器自动化系统" [level=2] [ref=e129]:
+            - img [ref=e130]
+            - text: 浏览器自动化系统
+          - button "刷新状态" [ref=e132] [cursor=pointer]:
+            - img [ref=e133]
+            - text: 刷新状态
+        - generic [ref=e138]:
+          - generic [ref=e139]:
+            - generic [ref=e140]: 运行环境
+            - generic [ref=e141]: ☁️ 服务器
+          - generic [ref=e142]:
+            - generic [ref=e143]: 浏览器模式
+            - generic [ref=e144]: 🔒 无头模式
+          - generic [ref=e145]:
+            - generic [ref=e146]: 已登录账号
+            - generic [ref=e147]: 0 / 0
+        - generic [ref=e148]: 💡 服务器环境会自动在后台运行浏览器。本地开发环境会打开可见窗口。
+      - generic [ref=e150]:
+        - generic [ref=e151]:
+          - heading "🔐 Google 授权登录 推荐" [level=2] [ref=e152]
+          - paragraph [ref=e153]: 一键授权，无需密码，Token 自动刷新
+        - button "🔑 Google 授权" [ref=e154] [cursor=pointer]
+      - generic [ref=e155]:
+        - heading "步骤1：YouTube 账号登录" [level=2] [ref=e156]:
+          - img [ref=e157]
+          - text: 步骤1：YouTube 账号登录
+        - generic [ref=e159]:
+          - generic [ref=e160]:
+            - generic [ref=e161]: YouTube 账号邮箱
+            - textbox "your@email.com" [ref=e162]
+          - generic [ref=e163]:
+            - generic [ref=e164]: 账号别名（可选）
+            - 'textbox "如: channel1" [ref=e165]'
+          - button "打开浏览器登录" [ref=e166] [cursor=pointer]:
+            - img [ref=e167]
+            - text: 打开浏览器登录
+      - generic [ref=e169]:
+        - heading "步骤2：上传视频到 YouTube" [level=2] [ref=e170]:
+          - img [ref=e171]
+          - text: 步骤2：上传视频到 YouTube
+        - generic [ref=e174]:
+          - generic [ref=e175]:
+            - generic [ref=e176]: 上传到账号 *
+            - combobox [ref=e177] [cursor=pointer]:
+              - option "-- 选择已登录的 YouTube 账号 --" [selected]
+          - generic [ref=e178]:
+            - generic [ref=e179]: 视频文件路径 *（服务器上的文件路径，如 /videos/myvideo.mp4）
+            - textbox "/videos/myvideo.mp4" [ref=e180]
+          - generic [ref=e181]:
+            - generic [ref=e182]:
+              - generic [ref=e183]: 视频标题 *
+              - textbox "Amazing Product Review 2026" [ref=e184]
+            - generic [ref=e185]:
+              - generic [ref=e186]: 可见性
+              - generic [ref=e187]:
+                - button "公开" [ref=e188] [cursor=pointer]:
+                  - img [ref=e189]
+                  - text: 公开
+                - button "不公开" [ref=e192] [cursor=pointer]:
+                  - img [ref=e193]
+                  - text: 不公开
+                - button "私有" [ref=e198] [cursor=pointer]:
+                  - img [ref=e199]
+                  - text: 私有
+          - generic [ref=e202]:
+            - generic [ref=e203]: 视频描述
+            - textbox "This video reviews an amazing product..." [ref=e204]
+          - button "立即上传到 YouTube" [ref=e205] [cursor=pointer]:
+            - img [ref=e206]
+            - text: 立即上传到 YouTube
+        - generic [ref=e209]:
+          - strong [ref=e210]: 使用流程：
+          - text: 1️⃣ 在上方输入 YouTube 账号邮箱，点击「打开浏览器登录」
+          - text: 2️⃣ 在弹出的浏览器中手动登录 Google/YouTube（只需操作一次）
+          - text: 3️⃣ 登录成功后，选择该账号，填写视频路径、标题等信息并上传
+          - text: ⚠️ videoPath 必须是服务器上存在的视频文件路径（如 /videos/output.mp4）
+          - text: ⚠️ 首次使用需手动登录，之后浏览器会自动复用 Session
+  - button [ref=e211] [cursor=pointer]:
+    - img [ref=e212]
