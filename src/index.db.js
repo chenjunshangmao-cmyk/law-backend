@@ -36,6 +36,7 @@ import ozonPublishRoutes from './routes/ozonPublish.js';
 import whatsappRoutes from './routes/whatsapp.js';
 import cryptoPaymentRoutes from './routes/cryptoPayment.js';
 import youtubeApiRoutes from './routes/youtube.api.js';
+import aiToolsRoutes from './routes/aiTools.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -203,6 +204,7 @@ app.use('/api/quota', membershipRoutes);
 app.use('/api/browser', browserRoutes);
 app.use('/api/proxies', proxyRoutes);
 app.use('/api/avatar', avatarRoutes);
+app.use('/api/ai-tools', aiToolsRoutes);
 app.use('/api/publish', publishRoutes);
 app.use('/api/customer-service', customerServiceRoutes);
 app.use('/api/payment', paymentRoutes);

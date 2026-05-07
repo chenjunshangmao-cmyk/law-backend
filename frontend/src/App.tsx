@@ -24,6 +24,7 @@ const AiContentPage         = lazy(() => import('./pages/AiContentPage'));
 const TikTokPublishPage     = lazy(() => import('./pages/TikTokPublishPage'));
 const OzonPublishPage       = lazy(() => import('./pages/OzonPublishPage'));
 const AvatarPage           = lazy(() => import('./pages/AvatarPage'));
+const AIToolsPage          = lazy(() => import('./pages/AIToolsPage'));
 const OrdersPage           = lazy(() => import('./pages/OrdersPage'));
 const PaymentResultPage    = lazy(() => import('./pages/PaymentResultPage'));
 const WhatsAppPage          = lazy(() => import('./pages/WhatsAppPage'));
@@ -131,6 +132,7 @@ function AppRoutes() {
         <Route path="xiaohongshu"    element={<Suspense fallback={<PageLoading />}><ErrorBoundary><XiaohongshuPage /></ErrorBoundary></Suspense>} />
         <Route path="ai-content"     element={<Suspense fallback={<PageLoading />}><AiContentPage /></Suspense>} />
         <Route path="avatar"         element={<Suspense fallback={<PageLoading />}><AvatarPage /></Suspense>} />
+        <Route path="ai-tools"       element={<Suspense fallback={<PageLoading />}><AIToolsPage /></Suspense>} />
         <Route path="orders"        element={<Suspense fallback={<PageLoading />}><OrdersPage /></Suspense>} />
         <Route path="whatsapp"       element={<Suspense fallback={<PageLoading />}><WhatsAppPage /></Suspense>} />
       </Route>

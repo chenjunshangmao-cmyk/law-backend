@@ -987,6 +987,16 @@ export const api = {
       };
     },
   },
+
+  // AI 工具箱
+  aiTools: {
+    process: (action: string, formData: FormData) =>
+      authFetch(`/api/ai-tools/${action}`, {
+        method: 'POST',
+        body: formData,
+        headers: {}, // 让浏览器自动设置 Content-Type: multipart/form-data
+      }),
+  },
 };
 
 export default api;
