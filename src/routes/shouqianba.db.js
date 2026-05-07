@@ -203,6 +203,24 @@ if (Object.keys(terminalCache).length === 0) {
   }
 }
 
+// ★ 2026-05-07 修复：即使缓存不空，也要确保默认终端已加载
+// 场景：Render 重启保留旧缓存文件，但 code/config 已更新为新终端
+if (!terminalCache[config.defaultDeviceId]) {
+  const deviceInfo = config.storeDevices?.[config.defaultDeviceId];
+  if (deviceInfo && deviceInfo.terminalSn && deviceInfo.terminalKey) {
+    terminalCache[config.defaultDeviceId] = {
+      terminalSn: deviceInfo.terminalSn,
+      terminalKey: deviceInfo.terminalKey,
+      merchantId: deviceInfo.merchantId || null,
+      storeSn: deviceInfo.storeSn || null,
+      deviceId: config.defaultDeviceId,
+      updatedAt: Date.now()
+    };
+    saveTerminals();
+    console.log('[收钱吧] 🔧 缓存非空但缺默认终端，从config补充加载:', config.defaultDeviceId);
+  }
+}
+
 // ============================================================
 // API 路由
 // ============================================================
