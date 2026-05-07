@@ -256,8 +256,10 @@ router.post('/quick', (req, res) => {
 // 获取支持的平台列表（新版：包含佣金档位）
 router.get('/platforms', (req, res) => {
   const platforms = Object.entries(PLATFORM_COMMISSION_CONFIG).map(([key, config]) => ({
+    key,                          // ★ 前端 togglePlatform 用 key 判断选中
     id: key,
     name: config.name,
+    domestic: !!config.domestic,  // ★ 国内/跨境区分
     currency: config.currency,
     exchangeRate: config.exchangeRate,
     commissionTiers: config.commissionTiers,
