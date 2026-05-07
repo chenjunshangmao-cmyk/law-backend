@@ -37,6 +37,7 @@ import whatsappRoutes from './routes/whatsapp.js';
 import cryptoPaymentRoutes from './routes/cryptoPayment.js';
 import youtubeApiRoutes from './routes/youtube.api.js';
 import aiToolsRoutes from './routes/aiTools.js';
+import heartbeatRoutes from './routes/heartbeat.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -123,6 +124,9 @@ app.get('/', healthCheck);
 
 // 详细健康检查
 app.get('/api/health', healthCheck);
+
+// 综合心跳监控 (数据库+WhatsApp+支付+内存)
+app.use('/api/heartbeat', heartbeatRoutes);
 
 // 版本信息 API
 app.get('/api/version', (req, res) => {

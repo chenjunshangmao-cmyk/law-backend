@@ -3,8 +3,8 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 echo ================================================================
-echo    Claw 一键部署脚本 v1.0
-echo    铁律: pull → build → 检查 → 部署 → push
+echo    Claw 一键部署脚本 v2.0
+echo    铁律: pull → CODELOCK检查 → build → 验证 → 部署 → 烟雾测试
 echo ================================================================
 echo.
 
@@ -17,7 +17,7 @@ if "%BUILDER%"=="" set BUILDER=Unknown
 :: ============================================================
 :: Step 1: Git Pull 最新代码
 :: ============================================================
-echo [1/7] git pull — 拉取最新代码...
+echo [1/9] git pull — 拉取最新代码...
 git pull gitee master 2>nul
 if %errorlevel% neq 0 (
     echo ⚠️  git pull 失败，可能有冲突，请手动解决！
@@ -28,9 +28,25 @@ echo ✅ 代码已是最新
 echo.
 
 :: ============================================================
+:: Step 1.5: CODELOCK 部署前门禁检查
+:: ============================================================
+echo [2/9] CODELOCK 门禁检查 — 检测锁定文件是否被修改...
+node scripts/pre-deploy-check.js
+if %errorlevel% neq 0 (
+    echo.
+    echo ⛔ 部署中止！CODELOCK 锁定文件被修改。
+    echo    如需强制部署: set FORCE_DEPLOY=模块名 ^&^& deploy.bat
+    echo.
+    pause
+    exit /b 1
+)
+echo ✅ CODELOCK 门禁通过
+echo.
+
+:: ============================================================
 :: Step 2: 清理旧构建产物
 :: ============================================================
-echo [2/7] 清理旧构建...
+echo [3/9] 清理旧构建...
 if exist "complete-deploy" (
     rd /s /q "complete-deploy" 2>nul
 )
@@ -45,7 +61,7 @@ echo.
 :: ============================================================
 :: Step 3: 安装依赖（如果需要）
 :: ============================================================
-echo [3/7] 检查依赖...
+echo [4/9] 检查依赖...
 cd frontend
 if not exist "node_modules" (
     echo 📥 安装依赖...
@@ -58,7 +74,7 @@ echo.
 :: ============================================================
 :: Step 4: 构建前端
 :: ============================================================
-echo [4/7] Vite 构建前端...
+echo [5/9] Vite 构建前端...
 cd frontend
 call npx vite build
 if %errorlevel% neq 0 (
@@ -74,7 +90,7 @@ echo.
 :: ============================================================
 :: Step 5: 验证构建产物（chunk hash 匹配检查）
 :: ============================================================
-echo [5/7] 验证构建产物...
+echo [6/9] 验证构建产物...
 
 if not exist "complete-deploy\assets\app.js" (
     echo ❌ complete-deploy/assets/app.js 不存在！
@@ -106,7 +122,7 @@ echo.
 :: ============================================================
 :: Step 6: 更新版本号
 :: ============================================================
-echo [6/7] 更新版本号...
+echo [7/9] 更新版本号...
 
 :: 生成版本号 YYYY.MM.DD.NNN
 for /f "tokens=2 delims==" %%a in ('wmic os get localdatetime /value') do set DT=%%a
@@ -164,7 +180,7 @@ echo.
 :: ============================================================
 :: Step 7: 部署到 Cloudflare Pages
 :: ============================================================
-echo [7/7] 部署到 Cloudflare Pages (生产版)...
+echo [8/9] 部署到 Cloudflare Pages (生产版)...
 call npx wrangler pages deploy complete-deploy --project-name=claw-app-2026 --branch=master
 
 if %errorlevel% neq 0 (
@@ -173,6 +189,19 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 echo.
+
+:: ============================================================
+:: Step 9: 部署后烟雾测试
+:: ============================================================
+echo [9/9] 烟雾测试 — 验证核心功能...
+node scripts/smoke-test.js
+if %errorlevel% neq 0 (
+    echo.
+    echo ⚠️  烟雾测试未完全通过！请检查上方失败项。
+    echo    部署已完成，但可能有功能异常。
+    echo.
+)
+
 echo ================================================================
 echo    🎉 部署完成！
 echo    版本: !VERSION!
