@@ -9,15 +9,17 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.08.002** |
-| 构建时间 | 2026-05-08 07:20 CST |
-| 前端部署 | https://63b8a92a.claw-app-2026.pages.dev |
+| 版本号 | **2026.05.08.003** |
+| 构建时间 | 2026-05-08 07:30 CST |
+| 前端部署 | https://ec7a08b8.claw-app-2026.pages.dev |
 | 主域名 | https://claw-app-2026.pages.dev (自动指向最新)
 
 ### 本次变更
 
-**🔧 后端部署崩溃修复（Render exit 1）**
-- 根因: NovelGenerator.js 未 export callLLM，导致 ScriptGenerator/CopyGenerator/ImageGenerator 全部 import 失败
+**🎨 前端导航标签修复 — AI文案/短视频入口**
+- 根因: 导航改动错加到了废弃的 MainLayout.tsx，实际在用 ModernLayout.tsx
+- 修复: ModernLayout.tsx 新增 AI文案(✍️ PenLine) + 短视频(🎬 Clapperboard) 两个导航入口
+- 后端也在修复中（commit b6843b5，等待 Render 自动部署）
 - 根因2: TTSEngine.js、VideoCompositor.js 使用 CJS `require`，项目为 ESM 模式，语法不兼容
 - 修复: callLLM 加入 export 列表 + 两个 avatar 文件改为 ESM import/export
 - 全部8个模块 import 链验证通过
