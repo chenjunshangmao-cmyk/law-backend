@@ -9,8 +9,7 @@
     "dev": "node --watch src/index.db.js",
     "test:db": "node test-database.js",
     "init-db": "node init-db.js",
-    "start:full": "node src/index.js",
-    "postinstall": "npx playwright install chromium"
+    "start:full": "node src/index.js"
   },
   "dependencies": {
     "axios": "^1.15.0",

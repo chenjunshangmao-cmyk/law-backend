@@ -7,7 +7,7 @@ services:
     name: claw-backend
     runtime: node
     plan: free
-    buildCommand: npm install && npm run postinstall
+    buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV
