@@ -1,7 +1,7 @@
 ﻿/**
  * 收钱吧配置
  * 敏感凭证不提交到 Git！
- * 2026-05-06：新终端 claw-pay-motecg24-0417 激活成功 ✅
+ * 2026-05-07：正式激活码 64307934，终端 claw-pay-motecg24-0417 ✅
  */
 
 const config = {
@@ -16,16 +16,16 @@ const config = {
   // 主设备ID（2026-05-06 新激活）
   defaultDeviceId: 'claw-pay-motecg24-0417',
 
-  // 激活码（已使用）
-  testCode: '40513957',
+  // 正式激活码
+  prodCode: '64307934',
 
   storeDevices: {
     'claw-pay-motecg24-0417': {
-      code: '40513957',
+      code: '64307934',
       merchantId: '18956397746',
       storeSn: '00010101001200200046406',
       terminalSn: '100111220054798199',
-      terminalKey: 'aeedfa867be08fd915cfc39f7e281908'
+      terminalKey: 'fe8fa1211edb777a870ab6fa5880afce'
     }
   },
 
