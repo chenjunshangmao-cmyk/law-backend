@@ -17,7 +17,11 @@ async function authFetch(path: string, options: RequestInit = {}): Promise<any> 
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-  return res;
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    return { success: false, error: errData.error || `HTTP ${res.status}` };
+  }
+  return res.json();
 }
 
 export default function WhatsAppPage() {
