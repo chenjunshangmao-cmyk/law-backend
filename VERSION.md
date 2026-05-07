@@ -9,22 +9,18 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.08.001** |
-| 构建时间 | 2026-05-08 01:29 CST |
+| 版本号 | **2026.05.08.002** |
+| 构建时间 | 2026-05-08 07:20 CST |
 | 前端部署 | https://63b8a92a.claw-app-2026.pages.dev |
 | 主域名 | https://claw-app-2026.pages.dev (自动指向最新)
 
 ### 本次变更
 
-**🔧 WhatsApp authFetch 返回值修复**
-- bug: authFetch 返回 Response 对象而非 JSON，导致 `res?.success` 始终 undefined
-- 根因: 5月6日 commit 6721ca6 改了消费者代码但未同步改函数返回值
-- 修复: authFetch 改为 `return res.json()`，失败时返回 `{ success: false, error }`
-- 影响: 链接列表加载、创建链接、编辑、删除、重置全部恢复
-
-1. **基础版价格恢复 ¥199** — 测试价格 ¥0.10 → 正式价格 ¥199（MembershipPage.tsx PLANS）
-2. **收钱吧回调验签三阶段修复** — MD5优先 → RSA备选 → SQB IP信任防线（commit 1f4ab33）
-3. **验收确认** — 微信/支付宝均可正常支付，回调自动更新订单状态、自动升级会员
+**🔧 后端部署崩溃修复（Render exit 1）**
+- 根因: NovelGenerator.js 未 export callLLM，导致 ScriptGenerator/CopyGenerator/ImageGenerator 全部 import 失败
+- 根因2: TTSEngine.js、VideoCompositor.js 使用 CJS `require`，项目为 ESM 模式，语法不兼容
+- 修复: callLLM 加入 export 列表 + 两个 avatar 文件改为 ESM import/export
+- 全部8个模块 import 链验证通过
 
 
 

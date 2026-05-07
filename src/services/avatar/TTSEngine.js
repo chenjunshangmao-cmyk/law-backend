@@ -1,6 +1,6 @@
-const { execSync, spawn } = require('child_process');
-const path = require('path');
-const fs = require('fs');
+import { execSync, spawn } from 'child_process';
+import path from 'path';
+import fs from 'fs';
 
 const AUDIO_DIR = path.join(process.cwd(), 'generated-audio');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
@@ -68,4 +68,4 @@ async function textToSpeechStream(text, options = {}) {
   });
 }
 
-module.exports = { textToSpeech, textToSpeechStream };
+export { textToSpeech, textToSpeechStream };

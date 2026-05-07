@@ -155,4 +155,4 @@ async function generateFullNovel(params) {
   return { title, genre, outline, chapters: results, totalChapters: results.length };
 }
 
-export { generateOutline, generateChapter, continueChapter, generateFullNovel };
+export { generateOutline, generateChapter, continueChapter, generateFullNovel, callLLM };

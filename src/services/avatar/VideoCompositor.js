@@ -1,6 +1,6 @@
-const { execSync } = require('child_process');
-const path = require('path');
-const fs = require('fs');
+import { execSync } from 'child_process';
+import path from 'path';
+import fs from 'fs';
 
 const OUTPUT_DIR = path.join(process.cwd(), 'generated-videos');
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -90,4 +90,4 @@ function addBGM(videoPath, bgmPath, volume = 0.3) {
   }
 }
 
-module.exports = { composeVideo, addSubtitles, addBGM };
+export { composeVideo, addSubtitles, addBGM };
