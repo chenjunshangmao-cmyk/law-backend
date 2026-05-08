@@ -142,6 +142,10 @@ app.use('/api/agent-ai', agentAIRoutes);
 import tokenStatsRoutes from './routes/token-stats.js';
 app.use('/api/ai', tokenStatsRoutes);
 
+// AI 免费网关 API
+import aiGatewayRoutes from './routes/ai-gateway.js';
+app.use('/api/gateway', aiGatewayRoutes);
+
 // 版本信息 API
 app.get('/api/version', (req, res) => {
   res.json({
