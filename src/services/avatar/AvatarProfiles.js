@@ -13,11 +13,14 @@ const AVATAR_PROFILES = [
     description: '温柔亲切女声，适合翡翠珠宝慢直播',
     voice: 'zh-CN-XiaoxiaoNeural',
     voiceLabel: '晓晓 - 温柔女声',
-    // 外观参数 (给VRMRenderer用)
+    imagePath: 'generated-avatars/xiaorui.png',  // 真人照片
+    // 嘴部在照片中的位置（相对于人脸中心，用于叠加口型）
+    mouthPosition: { x: 0.49, y: 0.58, w: 0.06, h: 0.025 },
+    // 外观参数（SVG卡通降级用）
     appearance: {
       skinTone: '#f5e6d3',
       hairColor: '#2d1b3d',
-      hairStyle: 'long',      // 长发
+      hairStyle: 'long',
       outfitColor: '#6c3fa0',
       outfitAccent: '#a78bfa',
       lipColor: '#e74c3c',
@@ -26,7 +29,6 @@ const AVATAR_PROFILES = [
       bodyType: 'slim',
       accessories: 'earrings',
     },
-    // 说话风格标签
     tags: ['温柔', '亲切', '慢直播', '珠宝'],
     avatar: '👩‍🦰',
   },
@@ -38,10 +40,12 @@ const AVATAR_PROFILES = [
     description: '活泼元气女声，适合快节奏带货秒杀',
     voice: 'zh-CN-XiaoyiNeural',
     voiceLabel: '晓伊 - 活泼女声',
+    imagePath: 'generated-avatars/xiaoqing.png',
+    mouthPosition: { x: 0.49, y: 0.57, w: 0.06, h: 0.025 },
     appearance: {
       skinTone: '#fce4d6',
       hairColor: '#1a1a2e',
-      hairStyle: 'short',     // 短发
+      hairStyle: 'short',
       outfitColor: '#10b981',
       outfitAccent: '#34d399',
       lipColor: '#f472b6',
@@ -61,10 +65,12 @@ const AVATAR_PROFILES = [
     description: '磁性低沉男声，适合高端翡翠鉴赏',
     voice: 'zh-CN-YunxiNeural',
     voiceLabel: '云希 - 磁性男声',
+    imagePath: 'generated-avatars/xiaoyun.png',
+    mouthPosition: { x: 0.49, y: 0.57, w: 0.06, h: 0.025 },
     appearance: {
       skinTone: '#e8d5c4',
       hairColor: '#0f0f1a',
-      hairStyle: 'short',     // 短发
+      hairStyle: 'short',
       outfitColor: '#1e3a5f',
       outfitAccent: '#3b82f6',
       lipColor: '#c0392b',
@@ -84,6 +90,8 @@ const AVATAR_PROFILES = [
     description: '专业干练男声，适合行业知识科普',
     voice: 'zh-CN-YunyangNeural',
     voiceLabel: '云扬 - 专业男声',
+    imagePath: 'generated-avatars/xiaowang.png',
+    mouthPosition: { x: 0.49, y: 0.57, w: 0.06, h: 0.025 },
     appearance: {
       skinTone: '#f0dcc8',
       hairColor: '#1a1520',
@@ -122,6 +130,7 @@ function getProfileList() {
     voiceLabel: p.voiceLabel,
     tags: p.tags,
     avatar: p.avatar,
+    imagePath: p.imagePath || null,
   }));
 }
 

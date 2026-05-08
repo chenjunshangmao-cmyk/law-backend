@@ -15,10 +15,15 @@
  */
 
 import express from 'express';
+import path from 'path';
+import fs from 'fs';
 import { getLiveStreamEngine, resetLiveStreamEngine, LiveStatus } from '../services/avatar/LiveStreamEngine.js';
 import { getProfileList, getProfile } from '../services/avatar/AvatarProfiles.js';
 
 const router = express.Router();
+
+// 静态文件服务：主播照片
+router.use('/avatar-photos', express.static(path.join(process.cwd(), 'generated-avatars')));
 
 // ─── 中间件：确保引擎已初始化 ───
 function ensureEngine(req, res, next) {

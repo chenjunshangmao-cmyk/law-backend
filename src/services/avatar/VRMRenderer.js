@@ -24,6 +24,25 @@ const OUTPUT_DIR = path.join(process.cwd(), 'generated-frames');
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
 /**
+ * 加载图片为base64 data URI
+ */
+function loadImageBase64(imagePath) {
+  if (!imagePath) return null;
+  try {
+    const fullPath = path.isAbsolute(imagePath) ? imagePath : path.join(process.cwd(), imagePath);
+    if (fs.existsSync(fullPath)) {
+      const buffer = fs.readFileSync(fullPath);
+      const ext = path.extname(fullPath).slice(1).toLowerCase();
+      const mime = ext === 'png' ? 'image/png' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png';
+      return `data:${mime};base64,${buffer.toString('base64')}`;
+    }
+  } catch (e) {
+    console.warn('[VRMRenderer] 加载照片失败:', e.message);
+  }
+  return null;
+}
+
+/**
  * 渲染模式枚举
  */
 const RenderMode = {
@@ -76,6 +95,16 @@ class Avatar2DRenderer {
     // 主播名称（显示在画面上）
     this.avatarName = options.avatarName || 'AI主播';
     
+    // 照片模式
+    this.avatarImagePath = options.avatarImagePath || this.avatarImagePath || null;
+    this.photoBase64 = this.avatarImagePath ? loadImageBase64(this.avatarImagePath) : null;
+    this.mouthPos = options.mouthPosition || { x: 0.49, y: 0.57, w: 0.06, h: 0.025 };
+    this.usePhoto = !!this.photoBase64;
+
+    if (this.usePhoto) {
+      console.log(`[VRMRenderer] 📸 照片模式: ${this.avatarName} (${this.avatarImagePath})`);
+    }
+    
     // 当前帧号
     this.frameNumber = 0;
   }
@@ -85,6 +114,91 @@ class Avatar2DRenderer {
    * 返回 { svg: string, frame: number, time: number }
    */
   renderFrame(blendshapes, time) {
+    this.frameNumber++;
+    
+    // 照片模式：用真人照片+动态口型叠加
+    if (this.usePhoto && this.photoBase64) {
+      return this.renderFramePhoto(blendshapes, time);
+    }
+    
+    // SVG卡通模式（降级）
+    return this.renderFrameSVG(blendshapes, time);
+  }
+
+  /**
+   * 照片模式渲染：真人照片底图 + 动态口型SVG叠加
+   */
+  renderFramePhoto(blendshapes, time) {
+    const w = this.width;
+    const h = this.height;
+    const name = this.avatarName;
+    
+    // 口型开合度
+    const mouthOpen = (blendshapes.A || 0) * 0.9 + (blendshapes.I || 0) * 0.1;
+    
+    // 照片缩放：占画面宽度85%，居中
+    const photoW = w * 0.85;
+    const photoH = h * 0.75;
+    const photoX = (w - photoW) / 2;
+    const photoY = (h - photoH) / 2 - h * 0.03;
+    
+    // 嘴部在照片上的位置（相对于照片）
+    const mp = this.mouthPos;
+    const mouthAbsX = photoX + mp.x * photoW;
+    const mouthAbsY = photoY + mp.y * photoH;
+    const mouthW = mp.w * photoW * (0.8 + (blendshapes.I || 0) * 0.5);
+    const mouthH = mp.h * photoH * (0.2 + mouthOpen * 3.0);
+    
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <defs>
+    <filter id="mouthBlur">
+      <feGaussianBlur stdDeviation="1.5"/>
+    </filter>
+  </defs>
+  
+  <rect width="${w}" height="${h}" fill="#0a0a1a"/>
+  
+  <!-- 真人照片 -->
+  <image href="${this.photoBase64}" x="${photoX}" y="${photoY}" 
+         width="${photoW}" height="${photoH}" preserveAspectRatio="xMidYMid slice"/>
+  
+  <!-- 口型叠加（真人肤色遮罩 + 内口暗色） -->
+  <g transform="translate(${mouthAbsX}, ${mouthAbsY})" filter="url(#mouthBlur)">
+    <!-- 嘴张开区域 - 肤色内壁 -->
+    <ellipse cx="0" cy="${mouthH * 0.2}" rx="${mouthW * 1.1}" ry="${mouthH}" 
+             fill="#c4726a" opacity="${0.5 + mouthOpen * 0.4}"/>
+    <!-- 口腔暗部 -->
+    <ellipse cx="0" cy="${mouthH * 0.3}" rx="${mouthW * 0.7}" ry="${mouthH * 0.6}" 
+             fill="#2a0a0a" opacity="${0.3 + mouthOpen * 0.6}"/>
+  </g>
+  
+  <!-- 底部信息栏 -->
+  <rect x="0" y="${h - 80}" width="${w}" height="80" fill="rgba(0,0,0,0.7)"/>
+  <text x="30" y="${h - 50}" fill="#a29bfe" font-size="18" font-family="Arial, sans-serif">
+    🔴 LIVE
+  </text>
+  <text x="${w / 2}" y="${h - 48}" text-anchor="middle" fill="#e0e0e0" font-size="18" font-family="Arial, sans-serif">
+    ${name} · 云南瑞丽翡翠源头直播
+  </text>
+  <text x="${w - 30}" y="${h - 50}" text-anchor="end" fill="#888" font-size="14" font-family="Arial, sans-serif">
+    ${formatTimeStr(time)}
+  </text>
+</svg>`;
+    
+    return {
+      svg,
+      width: w,
+      height: h,
+      frame: this.frameNumber,
+      time: parseFloat(time.toFixed(3)),
+      blendshapes: { ...blendshapes },
+    };
+  }
+
+  /**
+   * SVG卡通模式渲染（降级）
+   */
+  renderFrameSVG(blendshapes, time) {
     this.frameNumber++;
     
     const a = this.appearance;
@@ -393,9 +507,16 @@ async function renderLiveStream(frameCallback, signal, options = {}) {
   });
 }
 
+function formatTimeStr(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 export {
   Avatar2DRenderer,
   renderVideo,
   renderLiveStream,
+  loadImageBase64,
   RenderMode,
 };

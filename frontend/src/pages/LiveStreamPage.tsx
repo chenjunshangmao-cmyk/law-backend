@@ -55,6 +55,7 @@ interface AvatarProfile {
   voiceLabel: string;
   tags: string[];
   avatar: string;
+  imagePath?: string;
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -286,7 +287,14 @@ export default function LiveStreamPage() {
                     onClick={() => setSelectedProfile(profile.id)}
                     style={isSelected ? { borderColor: genderColor, boxShadow: `0 0 0 2px ${genderColor}40` } : {}}
                   >
-                    <div className="ls-profile-avatar">{profile.avatar}</div>
+                    <div className="ls-profile-avatar">
+                      {profile.imagePath ? (
+                        <img src={`${API_BASE}/api/live-stream/avatar-photos/${profile.imagePath.split('/').pop()}`} alt={profile.name} 
+                             style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+                      ) : (
+                        profile.avatar
+                      )}
+                    </div>
                     <div className="ls-profile-info">
                       <span className="ls-profile-name" style={{ color: isSelected ? genderColor : '#e0e0e0' }}>
                         {profile.name}

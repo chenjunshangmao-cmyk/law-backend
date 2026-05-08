@@ -24,7 +24,7 @@ import { EventEmitter } from 'events';
 import { RTMPPusher, buildRTMPUrl } from './RTMPPusher.js';
 import { RealtimeChat } from './RealtimeChat.js';
 import { analyzeAndSync, streamLipSync } from './LipSyncEngine.js';
-import { Avatar2DRenderer, renderLiveStream } from './VRMRenderer.js';
+import { Avatar2DRenderer, renderLiveStream, loadImageBase64 } from './VRMRenderer.js';
 import { textToSpeech } from './TTSEngine.js';
 import { getProfile } from './AvatarProfiles.js';
 
@@ -136,6 +136,12 @@ class LiveStreamEngine extends EventEmitter {
     if (this.renderer) {
       this.renderer.appearance = this.avatarConfig.appearance;
       this.renderer.avatarName = this.avatarConfig.name;
+      this.renderer.avatarImagePath = this.avatarConfig.imagePath;
+      this.renderer.mouthPos = this.avatarConfig.mouthPosition;
+      // 重新加载照片
+      this.renderer.photoBase64 = this.avatarConfig.imagePath 
+        ? loadImageBase64(this.avatarConfig.imagePath) : null;
+      this.renderer.usePhoto = !!this.renderer.photoBase64;
     }
     this.emit('profile-changed', { profileId, name: this.avatarConfig.name });
   }
@@ -172,6 +178,8 @@ class LiveStreamEngine extends EventEmitter {
       fps: this.fps,
       appearance: this.avatarConfig.appearance,
       avatarName: this.avatarConfig.name,
+      avatarImagePath: this.avatarConfig.imagePath,
+      mouthPosition: this.avatarConfig.mouthPosition,
     });
 
     // 初始化实时聊天
