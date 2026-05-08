@@ -9,20 +9,25 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.08.003** |
-| 构建时间 | 2026-05-08 07:30 CST |
-| 前端部署 | https://ec7a08b8.claw-app-2026.pages.dev |
+| 版本号 | **2026.05.08.004** |
+| 构建时间 | 2026-05-08 08:15 CST |
+| 前端部署 | 待部署 |
 | 主域名 | https://claw-app-2026.pages.dev (自动指向最新)
 
 ### 本次变更
 
-**🎨 前端导航标签修复 — AI文案/短视频入口**
-- 根因: 导航改动错加到了废弃的 MainLayout.tsx，实际在用 ModernLayout.tsx
-- 修复: ModernLayout.tsx 新增 AI文案(✍️ PenLine) + 短视频(🎬 Clapperboard) 两个导航入口
-- 后端也在修复中（commit b6843b5，等待 Render 自动部署）
-- 根因2: TTSEngine.js、VideoCompositor.js 使用 CJS `require`，项目为 ESM 模式，语法不兼容
-- 修复: callLLM 加入 export 列表 + 两个 avatar 文件改为 ESM import/export
-- 全部8个模块 import 链验证通过
+**🎥 AI数字人直播核心模块全部实现**
+- 新增6个核心服务模块：
+  - `LipSyncEngine.js` — 中文拼音→Viseme映射，唇形同步关键帧生成
+  - `VRMRenderer.js` — 2D SVG数字人渲染器（降级模式，无需GPU）
+  - `RTMPPusher.js` — FFmpeg RTMP推流引擎（支持8大平台）
+  - `RealtimeChat.js` — WebSocket实时弹幕+AI自��回复
+  - `LiveStreamEngine.js` — 直播总控（整合TTS/LipSync/VRM/RTMP/Chat）
+- 新增API路由：`src/routes/live-stream.js`（10个端点）
+- 新增前端页面：`LiveStreamPage.tsx` 直播控制面板
+- 注册到 `index.db.js` 和 `App.tsx`
+- 全部5个服务模块 + 路由 import 链验证通过（5/5）
+- 前端构建通过，LiveStreamPage 10.42 kB
 
 
 

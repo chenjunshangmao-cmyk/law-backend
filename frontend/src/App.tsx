@@ -30,6 +30,7 @@ const AIToolsPage          = lazy(() => import('./pages/AIToolsPage'));
 const OrdersPage           = lazy(() => import('./pages/OrdersPage'));
 const PaymentResultPage    = lazy(() => import('./pages/PaymentResultPage'));
 const WhatsAppPage          = lazy(() => import('./pages/WhatsAppPage'));
+const LiveStreamPage        = lazy(() => import('./pages/LiveStreamPage'));
 
 // Google OAuth 回调处理组件（处理 google_token + google_user URL参数）
 function GoogleCallbackHandler({ children }: { children: React.ReactNode }) {
@@ -139,6 +140,7 @@ function AppRoutes() {
         <Route path="ai-tools"       element={<Suspense fallback={<PageLoading />}><AIToolsPage /></Suspense>} />
         <Route path="orders"        element={<Suspense fallback={<PageLoading />}><OrdersPage /></Suspense>} />
         <Route path="whatsapp"       element={<Suspense fallback={<PageLoading />}><WhatsAppPage /></Suspense>} />
+        <Route path="live-stream"    element={<Suspense fallback={<PageLoading />}><LiveStreamPage /></Suspense>} />
       </Route>
 
       {/* 兜底 */}

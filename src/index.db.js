@@ -40,6 +40,7 @@ import aiToolsRoutes from './routes/aiTools.js';
 import heartbeatRoutes from './routes/heartbeat.js';
 import writerRoutes from './routes/writer.js';
 import videoFactoryRoutes from './routes/video-factory.js';
+import liveStreamRoutes from './routes/live-stream.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -131,6 +132,7 @@ app.get('/api/health', healthCheck);
 app.use('/api/heartbeat', heartbeatRoutes);
 app.use('/api/writer', writerRoutes);
 app.use('/api/video-factory', videoFactoryRoutes);
+app.use('/api/live-stream', liveStreamRoutes);
 
 // 版本信息 API
 app.get('/api/version', (req, res) => {
@@ -821,6 +823,17 @@ const startServer = async () => {
 ║  [📹 数字人视频]                                                   ║
 ║  ├─ POST   /api/avatar/generate - 生成视频                        ║
 ║  └─ GET    /api/avatar/list     - 视频列表                        ║
+║  [🎥 AI数字人直播]                                                  ║
+║  ├─ POST   /api/live-stream/start     - 启动直播                  ║
+║  ├─ POST   /api/live-stream/stop      - 停止直播                  ║
+║  ├─ GET    /api/live-stream/status    - 直播状态                  ║
+║  ├─ POST   /api/live-stream/pause     - 暂停直播                  ║
+║  ├─ POST   /api/live-stream/resume    - 恢复直播                  ║
+║  ├─ POST   /api/live-stream/script    - 添加脚本                  ║
+║  ├─ GET    /api/live-stream/scripts   - 脚本队列                  ║
+║  ├─ POST   /api/live-stream/announce  - 主播公告                  ║
+║  ├─ POST   /api/live-stream/generate-script - AI生成脚本         ║
+║  └─ GET    /api/live-stream/platforms - 支持平台                  ║
 ║  [🚀 发布管理]                                                     ║
 ║  ├─ POST   /api/publish/tiktok  - TikTok发布                     ║
 ║  └─ POST   /api/publish/youtube - YouTube发布                    ║
