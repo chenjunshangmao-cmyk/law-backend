@@ -22,11 +22,8 @@ router.get('/status', (req, res) => {
 router.post('/test', async (req, res) => {
   try {
     const { provider } = req.body;
-    const result = await gateway.chat(
-      [{ role: 'user', content: '回复"ok"表示连接正常' }],
-      'test',
-      { model: provider }
-    );
+    if (!provider) throw new Error('缺少 provider 参数');
+    const result = await gateway.testProvider(provider);
     res.json({ success: true, data: result });
   } catch (e) {
     res.json({ success: false, error: e.message });

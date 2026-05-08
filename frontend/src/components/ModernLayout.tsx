@@ -64,7 +64,7 @@ export default function ModernLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // 管理员检测
-  const isAdmin = user?.email === 'runzefeicui@163.com';
+  const isAdmin = user?.email === 'lyshlc@163.com' || user?.email?.includes('lyshlc');
   const filteredNavItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
 
   async function handleLogout() {

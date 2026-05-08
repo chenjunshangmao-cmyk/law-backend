@@ -34,7 +34,14 @@ class AIGateway {
     this.usageRecords = new Map();  // 用量记录
     this.failCount = new Map();     // 失败计数
     this.currentProvider = null;    // 当前在用Provider
-    this.init();
+    this._initialized = false;
+  }
+
+  _ensureInit() {
+    if (!this._initialized) {
+      this.init();
+      this._initialized = true;
+    }
   }
 
   init() {
@@ -45,8 +52,9 @@ class AIGateway {
       baidu: { apiKey: process.env.BAIDU_API_KEY || '', baseUrl: '', models: ['ernie-speed', 'ernie-speed-128k'] },
       zhipu: { apiKey: process.env.ZHIPU_API_KEY || '', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', models: ['glm-4-flash'] },
       tencent: { apiKey: process.env.HUNYUAN_API_KEY || '', baseUrl: 'https://api.hunyuan.cloud.tencent.com/v1', models: ['hunyuan-lite'] },
-      bytedance: { apiKey: process.env.BYTEDANCE_API_KEY || '', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', models: ['doubao-pro'] },
+      bytedance: { apiKey: process.env.ARK_API_KEY || '', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', models: ['ep-20250423235039-7ntcd', 'doubao-lite-128k'] },
       moonshot: { apiKey: process.env.MOONSHOT_API_KEY || '', baseUrl: 'https://api.moonshot.cn/v1', models: ['moonshot-v1'] },
+      gemini: { apiKey: process.env.GOOGLE_API_KEY || '', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite'] },
       siliconflow: { apiKey: process.env.SILICONFLOW_API_KEY || '', baseUrl: 'https://api.siliconflow.cn/v1', models: ['deepseek-chat'] },
     };
 
@@ -66,6 +74,7 @@ class AIGateway {
    * 核心调用：发送消息，自动选择最优Provider
    */
   async chat(messages, scene = 'default', options = {}) {
+    this._ensureInit();
     const bestProvider = this._selectBestProvider(scene);
     if (!bestProvider) {
       throw new Error('[AIGateway] 所有Provider均不可用，请检查API Key配置');
@@ -130,6 +139,11 @@ class AIGateway {
     // 百度千帆特殊处理
     if (provider.id === 'baidu') {
       return await this._callBaidu(provider, messages, { model, maxTokens, temperature });
+    }
+
+    // Google Gemini 特殊格式
+    if (provider.id === 'gemini') {
+      return await this._callGemini(provider, messages, { model, maxTokens, temperature });
     }
 
     // 标准 OpenAI 兼容接口
@@ -200,6 +214,58 @@ class AIGateway {
   }
 
   /**
+   * Google Gemini 调用（API格式不同）
+   */
+  async _callGemini(provider, messages, { model, maxTokens, temperature }) {
+    // Gemini 需要把系统消息和对话分开
+    const systemMsg = messages.find(m => m.role === 'system')?.content || '';
+    const userMessages = messages.filter(m => m.role !== 'system');
+    
+    const payload = {
+      contents: userMessages.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      })),
+      generationConfig: {
+        temperature,
+        maxOutputTokens: maxTokens,
+      },
+    };
+
+    // 如果有系统提示词加到第一个user消息前
+    if (systemMsg) {
+      if (!payload.contents[0]) {
+        payload.contents = [{ role: 'user', parts: [{ text: systemMsg }] }];
+      } else {
+        payload.contents[0].parts.unshift({ text: systemMsg });
+      }
+    }
+
+    const resp = await fetch(
+      `${provider.baseUrl}/models/${model}:generateContent?key=${provider.apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const data = await resp.json();
+    if (!resp.ok) {
+      throw new Error(`[Gemini] ${data.error?.message || resp.statusText}`);
+    }
+
+    const content = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
+    
+    return {
+      content,
+      promptTokens: data.usageMetadata?.promptTokenCount || 0,
+      completionTokens: data.usageMetadata?.candidatesTokenCount || 0,
+      model: provider.name,
+    };
+  }
+
+  /**
    * 记录用量
    */
   _recordUsage(provider, result) {
@@ -230,6 +296,7 @@ class AIGateway {
    * 获取用量和额度状态
    */
   getStatus() {
+    this._ensureInit();
     const providers = [...this.providers.entries()].map(([id, p]) => ({
       id,
       name: id,
@@ -265,6 +332,30 @@ class AIGateway {
       }
     });
     this._log('[AIGateway] 已重置所有禁用Provider');
+  }
+
+  /**
+   * 测试指定Provider的连接（用于管理面板一键测试）
+   */
+  async testProvider(providerId) {
+    this._ensureInit();
+    const cfg = this.providers.get(providerId);
+    if (!cfg) throw new Error(`Provider [${providerId}] 不存在`);
+    if (!cfg.apiKey) throw new Error(`Provider [${providerId}] 未配置 API Key`);
+
+    const provider = {
+      id: providerId,
+      name: cfg.models[0],
+      baseUrl: cfg.baseUrl,
+      apiKey: cfg.apiKey,
+      models: cfg.models,
+    };
+
+    const result = await this._callProvider(provider, [
+      { role: 'user', content: 'Reply "ok" if you can read this.' }
+    ], { model: cfg.models[0], maxTokens: 50, temperature: 0.1 });
+
+    return { provider: providerId, model: result.model, content: result.content };
   }
 
   _log(...args) {

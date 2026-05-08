@@ -50,7 +50,7 @@ export default function AIGatewayPage() {
   const [message, setMessage] = useState('');
 
   // 管理员检测
-  const isAdmin = user?.email === 'runzefeicui@163.com';
+  const isAdmin = user?.email === 'lyshlc@163.com' || user?.email?.includes('lyshlc');
 
   useEffect(() => {
     if (isAdmin) loadStatus();
