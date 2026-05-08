@@ -55,6 +55,12 @@ class LiveStreamEngine extends EventEmitter {
     this.platform = options.platform || 'custom';
     this.streamKey = options.streamKey || null;
     
+    // 代理配置
+    this.proxyConfig = options.proxy || null;  // { type, host, port, username, password, region }
+    this.proxyEnabled = options.proxyEnabled || false;
+    this.useOwnProxy = options.useOwnProxy || false;
+    this.ownProxyUrl = options.ownProxyUrl || '';
+    
     // 渲染配置
     this.width = options.width || 1080;
     this.height = options.height || 1920;
@@ -193,7 +199,7 @@ class LiveStreamEngine extends EventEmitter {
       this.chatServer.setLLMProvider(this.llmProvider);
     }
 
-    // 初始化RTMP推流器
+    // 初始化RTMP推流器（含代理配置）
     this.rtmpPusher = new RTMPPusher({
       rtmpUrl: this.rtmpUrl,
       width: this.width,
@@ -201,6 +207,10 @@ class LiveStreamEngine extends EventEmitter {
       fps: this.fps,
       videoBitrate: options.videoBitrate || '2500k',
       audioBitrate: options.audioBitrate || '128k',
+      proxy: this.proxyEnabled && this.proxyConfig ? {
+        ...this.proxyConfig,
+        region: this.proxyConfig.region || 'unknown',
+      } : null,
     });
 
     // 监听推流事件
@@ -298,6 +308,9 @@ class LiveStreamEngine extends EventEmitter {
     console.log(`║  主播: ${this.avatarConfig.name.padEnd(20)} ║`);
     console.log(`║  平台: ${this.platform.padEnd(20)} ║`);
     console.log(`║  推流: ${(this.rtmpUrl || '本地').replace(/\/[^/]+$/, '/***').padEnd(20)} ║`);
+    if (this.proxyEnabled && this.proxyConfig) {
+      console.log(`║  🔒 代理: ${(this.proxyConfig.region || 'unknown').padEnd(20)} ║`);
+    }
     console.log('╚══════════════════════════════════════╝\n');
 
     this.emit('status-change', { status: this.status });

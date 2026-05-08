@@ -56,6 +56,11 @@ router.post('/start', ensureEngine, async (req, res) => {
       height = 1920,
       fps = 25,
       scripts,  // 初始脚本列表
+      // 代理配置
+      proxyEnabled = false,
+      proxyRegion,
+      useOwnProxy = false,
+      ownProxyUrl,
     } = req.body;
 
     const engine = req.engine;
@@ -83,6 +88,27 @@ router.post('/start', ensureEngine, async (req, res) => {
     // 添加初始脚本
     if (scripts && scripts.length > 0) {
       engine.addScripts(scripts);
+    }
+
+    // 配置代理
+    engine.proxyEnabled = proxyEnabled;
+    engine.useOwnProxy = useOwnProxy;
+    if (useOwnProxy && ownProxyUrl) {
+      engine.ownProxyUrl = ownProxyUrl;
+    }
+    if (proxyEnabled && proxyRegion) {
+      // 从代理池获取配置
+      try {
+        const { getProxyPool } = await import('../services/ProxyPool.js');
+        const pool = getProxyPool();
+        await pool.init();
+        const proxyConfig = await pool.getProxyConfig(req.user?.id || 1, proxyRegion, platform);
+        engine.proxyConfig = proxyConfig;
+        console.log(`[LiveStream] 🔒 代理已配置: ${proxyRegion} → ${proxyConfig.host}:${proxyConfig.port}`);
+      } catch (proxyErr) {
+        console.warn('[LiveStream] 代理配置失败（将直连推流）:', proxyErr.message);
+        engine.proxyEnabled = false;
+      }
     }
 
     // 启动直播

@@ -24,6 +24,16 @@ const OUTPUT_DIR = path.join(process.cwd(), 'generated-stream');
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
 /**
+ * 构建代理URL（供环境变量使用）
+ */
+function buildProxyUrl(proxy) {
+  if (!proxy || !proxy.host) return '';
+  const { type = 'socks5', host, port, username, password } = proxy;
+  const auth = username ? `${encodeURIComponent(username)}:${encodeURIComponent(password || '')}@` : '';
+  return `${type}://${auth}${host}:${port}`;
+}
+
+/**
  * RTMP推流器类
  */
 class RTMPPusher extends EventEmitter {
@@ -42,6 +52,9 @@ class RTMPPusher extends EventEmitter {
     this.gopSize = options.gopSize || 50;         // keyframe间隔
     this.bframes = options.bframes || 0;          // B帧数（直播用0降低延迟）
     this.bufsize = options.bufsize || '4000k';
+    
+    // 代理配置（海外推流代理）
+    this.proxy = options.proxy || null;  // { type:'socks5', host, port, username, password }
     
     // 内部状态
     this.ffmpegProcess = null;
@@ -70,6 +83,21 @@ class RTMPPusher extends EventEmitter {
 
     console.log(`[RTMPPusher] 开始推流 → ${this.rtmpUrl.replace(/\/[^/]+$/, '/***')}`);
     console.log(`[RTMPPusher] 参数: ${this.width}x${this.height} ${this.fps}fps ${this.videoBitrate}`);
+    if (this.proxy && this.proxy.host) {
+      console.log(`[RTMPPusher] 🔒 代理: ${this.proxy.type}://${this.proxy.host}:${this.proxy.port} (${this.proxy.region || 'unknown'})`);
+    }
+
+    // 构建代理环境变量（供 FFmpeg/librtmp 使用）
+    const env = { ...process.env };
+    if (this.proxy && this.proxy.host) {
+      const proxyUrl = buildProxyUrl(this.proxy);
+      env.ALL_PROXY = proxyUrl;
+      env.all_proxy = proxyUrl;
+      env.HTTP_PROXY = proxyUrl;
+      env.HTTPS_PROXY = proxyUrl;
+      // RTMP 协议也走代理（通过 librtmp）
+      env.RTMP_PROXY = proxyUrl;
+    }
 
     // FFmpeg参数构建
     const args = [
@@ -124,6 +152,7 @@ class RTMPPusher extends EventEmitter {
     // 启动FFmpeg进程
     this.ffmpegProcess = spawn('ffmpeg', args, {
       stdio: ['pipe', 'pipe', 'pipe'],
+      env,
     });
 
     this.isStreaming = true;
@@ -261,6 +290,12 @@ class RTMPPusher extends EventEmitter {
       uptime: this.startTime ? (Date.now() - this.startTime) / 1000 : 0,
       totalFrames: this.totalFrames,
       bitrate: this.videoBitrate,
+      proxy: this.proxy ? {
+        host: this.proxy.host,
+        port: this.proxy.port,
+        type: this.proxy.type,
+        region: this.proxy.region,
+      } : null,
     };
   }
 }

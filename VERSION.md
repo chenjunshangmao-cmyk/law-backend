@@ -9,10 +9,24 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.08.007** |
-| 构建时间 | 2026-05-08 09:10 CST |
-| 前端部署 | https://e937f57d.claw-app-2026.pages.dev |
+| 版本号 | **2026.05.08.008** |
+| 构建时间 | 2026-05-08 10:30 CST |
+| 前端部署 | (待部署) |
 | 主域名 | https://claw-app-2026.pages.dev (自动指向最新)
+
+### 本次变更
+
+**🔒 海外推流代理服务上线**
+- 新增 ProxyPool.js — 代理池管理（节点池/订阅/智能路由）
+- 新增 proxy-stream.js — 10+ API端点（套餐/区域/订单/订阅/配置）
+- RTMPPusher.js — 支持SOCKS5代理推流（环境变量注入）
+- LiveStreamEngine.js — 集成代理配置，开播时自动激活
+- live-stream.js — start端点新增代理参数
+- ProxyPanel.tsx — 前端代理面板（开关/自带代理/Claw代理购买）
+- LiveStreamPage.tsx — 集成代理面板到直播控制台
+- 数据库表: proxy_nodes / proxy_orders / proxy_usage_logs
+- 4档套餐: 入门¥299 / 标准¥599 / 专业¥1,199 / 企业¥2,499
+- 7个区域: 香港/台湾/新加坡/日本/美国/英国/德国
 
 ### 本次变更
 

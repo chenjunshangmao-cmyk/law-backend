@@ -41,6 +41,7 @@ import heartbeatRoutes from './routes/heartbeat.js';
 import writerRoutes from './routes/writer.js';
 import videoFactoryRoutes from './routes/video-factory.js';
 import liveStreamRoutes from './routes/live-stream.js';
+import proxyStreamRoutes from './routes/proxy-stream.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -133,6 +134,7 @@ app.use('/api/heartbeat', heartbeatRoutes);
 app.use('/api/writer', writerRoutes);
 app.use('/api/video-factory', videoFactoryRoutes);
 app.use('/api/live-stream', liveStreamRoutes);
+app.use('/api/stream-proxy', proxyStreamRoutes);
 
 // 版本信息 API
 app.get('/api/version', (req, res) => {

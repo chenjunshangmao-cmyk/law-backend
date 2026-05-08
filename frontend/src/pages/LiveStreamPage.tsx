@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './LiveStreamPage.css';
+import ProxyPanel from '../components/ProxyPanel';
 
 // ═══ 类型定义 ═══
 interface LiveStatus {
@@ -83,6 +84,17 @@ export default function LiveStreamPage() {
   const [generatedScript, setGeneratedScript] = useState('');
   const [generatedSegments, setGeneratedSegments] = useState<any[]>([]);
   
+  // 代理状态
+  const [proxyEnabled, setProxyEnabled] = useState(false);
+  const [useOwnProxy, setUseOwnProxy] = useState(false);
+  const [ownProxyUrl, setOwnProxyUrl] = useState('');
+  const [ownProxyHost, setOwnProxyHost] = useState('');
+  const [ownProxyPort, setOwnProxyPort] = useState('');
+  const [ownProxyUser, setOwnProxyUser] = useState('');
+  const [ownProxyPass, setOwnProxyPass] = useState('');
+  const [proxyRegion, setProxyRegion] = useState('hongkong');
+  const [proxyPlan, setProxyPlan] = useState('standard');
+  
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -147,6 +159,11 @@ export default function LiveStreamPage() {
           profileId: selectedProfile,
           autoReply,
           scripts: initScripts,
+          // 代理参数
+          proxyEnabled,
+          proxyRegion,
+          useOwnProxy,
+          ownProxyUrl: useOwnProxy ? `socks5://${ownProxyUser ? `${ownProxyUser}:${ownProxyPass}@` : ''}${ownProxyHost}:${ownProxyPort}` : undefined,
         }),
       });
       const data = await res.json();
@@ -312,15 +329,6 @@ export default function LiveStreamPage() {
               })}
             </div>
 
-            <label className="ls-checkbox">
-              <input
-                type="checkbox"
-                checked={autoReply}
-                onChange={e => setAutoReply(e.target.checked)}
-              />
-              🤖 启用AI自动回复弹幕
-            </label>
-
             <label>推流平台</label>
             <select
               value={selectedPlatform}
@@ -368,6 +376,29 @@ export default function LiveStreamPage() {
               />
               🤖 启用AI自动回复弹幕
             </label>
+
+            {/* ─── 代理配置 ─── */}
+            <ProxyPanel
+              proxyEnabled={proxyEnabled}
+              onProxyEnabledChange={setProxyEnabled}
+              useOwnProxy={useOwnProxy}
+              onUseOwnProxyChange={setUseOwnProxy}
+              ownProxyUrl={ownProxyUrl}
+              onOwnProxyUrlChange={setOwnProxyUrl}
+              ownProxyHost={ownProxyHost}
+              onOwnProxyHostChange={setOwnProxyHost}
+              ownProxyPort={ownProxyPort}
+              onOwnProxyPortChange={setOwnProxyPort}
+              ownProxyUser={ownProxyUser}
+              onOwnProxyUserChange={setOwnProxyUser}
+              ownProxyPass={ownProxyPass}
+              onOwnProxyPassChange={setOwnProxyPass}
+              selectedRegion={proxyRegion}
+              onRegionChange={setProxyRegion}
+              selectedPlan={proxyPlan}
+              onPlanChange={setProxyPlan}
+              disabled={isLive}
+            />
 
             {/* 控制按钮 */}
             <div className="ls-controls">

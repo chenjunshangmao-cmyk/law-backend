@@ -505,3 +505,194 @@
   color: #6c5ce7;
   margin-top: 2px;
 }
+
+/* ═══ 代理面板 ═══ */
+
+.ls-proxy-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.ls-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #0d0d1f;
+  border: 1px solid #1a1a3e;
+  transition: border-color 0.2s;
+}
+
+.ls-radio:hover {
+  border-color: #3a3a6e;
+}
+
+.ls-radio input {
+  accent-color: #6c5ce7;
+}
+
+.ls-proxy-own {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ls-proxy-own input {
+  background: #0d0d1f;
+  border: 1px solid #2a2a4e;
+  color: #e0e0e0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.ls-proxy-status {
+  font-size: 12px;
+  padding: 8px;
+  background: #0d2818;
+  border-radius: 6px;
+  border: 1px solid #1a4a2e;
+}
+
+/* 套餐选择卡片 */
+.ls-plan-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ls-plan-card {
+  background: #0d0d1f;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ls-plan-card:hover {
+  border-color: #4a4a7e;
+  background: #12122a;
+}
+
+.ls-plan-selected {
+  background: #12123a !important;
+  box-shadow: 0 0 12px rgba(108, 92, 231, 0.2);
+}
+
+.ls-plan-name {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.ls-plan-price {
+  font-size: 20px;
+  font-weight: 700;
+  color: #00e676;
+  margin-bottom: 6px;
+}
+
+.ls-plan-price span {
+  font-size: 11px;
+  font-weight: 400;
+  color: #777;
+}
+
+.ls-plan-features {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ls-plan-feat {
+  font-size: 10px;
+  color: #999;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 订阅信息 */
+.ls-subscription-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ls-sub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ls-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: #1a1a3e;
+  border-radius: 10px;
+  color: #6c5ce7;
+}
+
+.ls-sub-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.ls-sub-stat {
+  text-align: center;
+  padding: 8px 4px;
+  background: #0d0d1f;
+  border-radius: 6px;
+}
+
+.ls-sub-stat span {
+  display: block;
+  font-size: 10px;
+  color: #777;
+  margin-bottom: 2px;
+}
+
+.ls-sub-stat strong {
+  font-size: 14px;
+  color: #e0e0e0;
+}
+
+.ls-order-summary {
+  margin-top: 12px;
+  padding: 10px;
+  background: #0d0d1f;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.ls-order-summary strong {
+  color: #ffd700;
+}
+
+.ls-order-pending {
+  margin-top: 8px;
+  padding: 10px;
+  background: #1a1a0a;
+  border: 1px solid #4a4a1a;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #ffd700;
+  text-align: center;
+}
+
+.ls-hint {
+  font-size: 11px;
+  color: #666;
+  margin: 0;
+}
