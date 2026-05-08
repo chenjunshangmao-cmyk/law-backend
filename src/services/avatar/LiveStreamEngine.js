@@ -26,6 +26,7 @@ import { RealtimeChat } from './RealtimeChat.js';
 import { analyzeAndSync, streamLipSync } from './LipSyncEngine.js';
 import { Avatar2DRenderer, renderLiveStream } from './VRMRenderer.js';
 import { textToSpeech } from './TTSEngine.js';
+import { getProfile } from './AvatarProfiles.js';
 
 const OUTPUT_DIR = path.join(process.cwd(), 'generated-stream');
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -60,11 +61,14 @@ class LiveStreamEngine extends EventEmitter {
     this.fps = options.fps || 25;
     
     // AI配置
+    this.profileId = options.profileId || 'xiaorui';
     this.avatarConfig = {
-      name: options.avatarName || 'AI主播-翡翠小瑞',
-      style: options.avatarStyle || 'professional',
+      name: options.avatarName || '小瑞',
+      style: options.avatarStyle || 'warm',
       voice: options.voice || 'zh-CN-XiaoxiaoNeural',
     };
+    // 加载完整形象
+    this._loadProfile();
     
     // 自动回复配置
     this.autoReplyEnabled = options.autoReplyEnabled !== false;
@@ -103,6 +107,40 @@ class LiveStreamEngine extends EventEmitter {
   }
 
   /**
+   * 加载主播形象配置
+   */
+  _loadProfile() {
+    const profile = getProfile(this.profileId);
+    if (profile) {
+      this.avatarConfig = {
+        ...this.avatarConfig,
+        name: this.avatarConfig.name || profile.name,
+        voice: this.avatarConfig.voice || profile.voice,
+        style: profile.style,
+        gender: profile.gender,
+        appearance: profile.appearance,
+        avatar: profile.avatar,
+        tags: profile.tags,
+      };
+      console.log(`[LiveStreamEngine] 👤 主播形象: ${profile.avatar} ${profile.name} (${profile.style})`);
+    }
+  }
+
+  /**
+   * 切换主播形象
+   */
+  setProfile(profileId) {
+    this.profileId = profileId;
+    this._loadProfile();
+    // 如果已初始化渲染器，更新外观
+    if (this.renderer) {
+      this.renderer.appearance = this.avatarConfig.appearance;
+      this.renderer.avatarName = this.avatarConfig.name;
+    }
+    this.emit('profile-changed', { profileId, name: this.avatarConfig.name });
+  }
+
+  /**
    * 初始化直播环境（预热）
    */
   async prepare(options = {}) {
@@ -127,11 +165,13 @@ class LiveStreamEngine extends EventEmitter {
       throw new Error('未配置RTMP推流地址，请设置platform+streamKey或rtmpUrl');
     }
 
-    // 初始化渲染器
+    // 初始化渲染器（传入形象外观）
     this.renderer = new Avatar2DRenderer({
       width: this.width,
       height: this.height,
       fps: this.fps,
+      appearance: this.avatarConfig.appearance,
+      avatarName: this.avatarConfig.name,
     });
 
     // 初始化实时聊天

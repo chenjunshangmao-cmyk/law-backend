@@ -16,6 +16,7 @@
 
 import express from 'express';
 import { getLiveStreamEngine, resetLiveStreamEngine, LiveStatus } from '../services/avatar/LiveStreamEngine.js';
+import { getProfileList, getProfile } from '../services/avatar/AvatarProfiles.js';
 
 const router = express.Router();
 
@@ -42,6 +43,7 @@ router.post('/start', ensureEngine, async (req, res) => {
       platform = 'custom',
       streamKey,
       rtmpUrl,
+      profileId = 'xiaorui',  // 主播形象
       avatarName,
       voice,
       autoReply,
@@ -65,6 +67,7 @@ router.post('/start', ensureEngine, async (req, res) => {
     if (platform) engine.platform = platform;
     if (streamKey) engine.streamKey = streamKey;
     if (rtmpUrl) engine.rtmpUrl = rtmpUrl;
+    if (profileId) { engine.profileId = profileId; engine._loadProfile(); }
     if (avatarName) engine.avatarConfig.name = avatarName;
     if (voice) engine.avatarConfig.voice = voice;
     if (autoReply !== undefined) engine.autoReplyEnabled = autoReply;
@@ -292,6 +295,70 @@ router.post('/generate-script', async (req, res) => {
     });
   } catch (e) {
     console.error('[LiveStream] 脚本生成失败:', e);
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// ─── 主播形象管理 ───
+
+/**
+ * GET /api/live-stream/profiles
+ * 获取所有可用主播形象列表
+ */
+router.get('/profiles', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      profiles: getProfileList(),
+      default: 'xiaorui',
+    },
+  });
+});
+
+/**
+ * GET /api/live-stream/profiles/:id
+ * 获取单个形象详情（含外观参数）
+ */
+router.get('/profiles/:id', (req, res) => {
+  const profile = getProfile(req.params.id);
+  if (!profile) {
+    return res.json({ success: false, error: '形象不存在' });
+  }
+  res.json({ success: true, data: profile });
+});
+
+/**
+ * POST /api/live-stream/profile
+ * 切换主播形象（直播中实时切换）
+ */
+router.post('/profile', ensureEngine, (req, res) => {
+  try {
+    const { profileId } = req.body;
+    if (!profileId) {
+      return res.json({ success: false, error: '请选择形象' });
+    }
+
+    const profile = getProfile(profileId);
+    if (!profile) {
+      return res.json({ success: false, error: '形象不存在' });
+    }
+
+    req.engine.setProfile(profileId);
+
+    res.json({
+      success: true,
+      data: {
+        message: `已切换到 ${profile.avatar} ${profile.name}`,
+        profile: {
+          id: profile.id,
+          name: profile.name,
+          avatar: profile.avatar,
+          voice: profile.voice,
+          voiceLabel: profile.voiceLabel,
+        },
+      },
+    });
+  } catch (e) {
     res.json({ success: false, error: e.message });
   }
 });

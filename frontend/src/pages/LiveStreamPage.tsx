@@ -45,17 +45,29 @@ interface ChatMessage {
   timestamp: number;
 }
 
+interface AvatarProfile {
+  id: string;
+  name: string;
+  gender: string;
+  style: string;
+  description: string;
+  voice: string;
+  voiceLabel: string;
+  tags: string[];
+  avatar: string;
+}
+
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 // ═══ 主组件 ═══
 export default function LiveStreamPage() {
   const [status, setStatus] = useState<LiveStatus | null>(null);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
+  const [profiles, setProfiles] = useState<AvatarProfile[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState('xiaorui');
   const [selectedPlatform, setSelectedPlatform] = useState('custom');
   const [streamKey, setStreamKey] = useState('');
   const [rtmpUrl, setRtmpUrl] = useState('');
-  const [avatarName, setAvatarName] = useState('翡翠小瑞');
-  const [voice, setVoice] = useState('zh-CN-XiaoxiaoNeural');
   const [autoReply, setAutoReply] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -86,6 +98,7 @@ export default function LiveStreamPage() {
 
   useEffect(() => {
     loadPlatforms();
+    loadProfiles();
     pollStatus();
     pollRef.current = setInterval(pollStatus, 5000);
     return () => {
@@ -99,6 +112,17 @@ export default function LiveStreamPage() {
       const res = await fetch(`${API_BASE}/api/live-stream/platforms`);
       const data = await res.json();
       if (data.success) setPlatforms(data.data.platforms);
+    } catch (e) {}
+  };
+
+  const loadProfiles = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/live-stream/profiles`);
+      const data = await res.json();
+      if (data.success) {
+        setProfiles(data.data.profiles);
+        if (!selectedProfile) setSelectedProfile(data.data.default || 'xiaorui');
+      }
     } catch (e) {}
   };
 
@@ -119,8 +143,7 @@ export default function LiveStreamPage() {
           platform: selectedPlatform,
           streamKey: selectedPlatform !== 'custom' ? streamKey : undefined,
           rtmpUrl: selectedPlatform === 'custom' ? rtmpUrl : undefined,
-          avatarName,
-          voice,
+          profileId: selectedProfile,
           autoReply,
           scripts: initScripts,
         }),
@@ -250,26 +273,45 @@ export default function LiveStreamPage() {
         <div className="ls-left">
           {/* ─── 直播配置 ─── */}
           <div className="ls-card">
-            <h3>📺 直播配置</h3>
+            <h3>👤 主播形象</h3>
             
-            <label>AI主播名称</label>
-            <input
-              type="text"
-              value={avatarName}
-              onChange={e => setAvatarName(e.target.value)}
-              disabled={isLive}
-              placeholder="AI主播名称"
-            />
+            <div className="ls-profile-grid">
+              {profiles.map(profile => {
+                const isSelected = selectedProfile === profile.id;
+                const genderColor = profile.gender === 'female' ? '#ff69b4' : '#4da6ff';
+                return (
+                  <div
+                    key={profile.id}
+                    className={`ls-profile-card ${isSelected ? 'ls-profile-selected' : ''}`}
+                    onClick={() => setSelectedProfile(profile.id)}
+                    style={isSelected ? { borderColor: genderColor, boxShadow: `0 0 0 2px ${genderColor}40` } : {}}
+                  >
+                    <div className="ls-profile-avatar">{profile.avatar}</div>
+                    <div className="ls-profile-info">
+                      <span className="ls-profile-name" style={{ color: isSelected ? genderColor : '#e0e0e0' }}>
+                        {profile.name}
+                      </span>
+                      <span className="ls-profile-style">{profile.description}</span>
+                      <div className="ls-profile-tags">
+                        {profile.tags.slice(0, 2).map(tag => (
+                          <span key={tag} className="ls-profile-tag">{tag}</span>
+                        ))}
+                      </div>
+                      <span className="ls-profile-voice">🎙️ {profile.voiceLabel}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-            <label>语音(voice)</label>
-            <select value={voice} onChange={e => setVoice(e.target.value)} disabled={isLive}>
-              <option value="zh-CN-XiaoxiaoNeural">晓晓 - 女声(温柔)</option>
-              <option value="zh-CN-XiaoyiNeural">晓伊 - 女声(活泼)</option>
-              <option value="zh-CN-YunxiNeural">云希 - 男声(磁性)</option>
-              <option value="zh-CN-YunyangNeural">云扬 - 男声(专业)</option>
-              <option value="zh-CN-XiaochenNeural">晓辰 - 女声(清亮)</option>
-              <option value="zh-TW-HsiaoChenNeural">台湾女声</option>
-            </select>
+            <label className="ls-checkbox">
+              <input
+                type="checkbox"
+                checked={autoReply}
+                onChange={e => setAutoReply(e.target.checked)}
+              />
+              🤖 启用AI自动回复弹幕
+            </label>
 
             <label>推流平台</label>
             <select

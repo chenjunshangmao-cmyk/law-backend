@@ -426,3 +426,82 @@
   background: #2a2a4a;
   border-radius: 3px;
 }
+
+/* ─── 主播形象选择器 ─── */
+.ls-profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.ls-profile-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  background: #0a0a1a;
+  border: 2px solid #2a2a4a;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ls-profile-card:hover {
+  border-color: #6c5ce7;
+  background: #12122a;
+}
+
+.ls-profile-selected {
+  background: #12122a;
+}
+
+.ls-profile-avatar {
+  font-size: 28px;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a2e;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.ls-profile-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ls-profile-name {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.ls-profile-style {
+  font-size: 10px;
+  color: #666;
+  line-height: 1.3;
+}
+
+.ls-profile-tags {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.ls-profile-tag {
+  font-size: 9px;
+  padding: 1px 5px;
+  background: #1a1a2e;
+  border-radius: 3px;
+  color: #777;
+}
+
+.ls-profile-voice {
+  font-size: 10px;
+  color: #6c5ce7;
+  margin-top: 2px;
+}

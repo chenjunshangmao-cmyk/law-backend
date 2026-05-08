@@ -49,15 +49,32 @@ class Avatar2DRenderer {
     this.avatarImagePath = options.avatarImagePath || null;
     
     // 数字人参数
-    this.avatarX = options.avatarX || this.width / 2;   // 中心X
-    this.avatarY = options.avatarY || this.height * 0.45; // 中心偏上
+    this.avatarX = options.avatarX || this.width / 2;
+    this.avatarY = options.avatarY || this.height * 0.45;
     this.avatarScale = options.avatarScale || 0.7;
     
-    // 嘴部区域（相对于avatar中心）
+    // 嘴部区域
     this.mouthX = options.mouthX || 0;
-    this.mouthY = options.mouthY || 0.12;  // 嘴在脸部偏下
+    this.mouthY = options.mouthY || 0.12;
     this.mouthWidth = options.mouthWidth || 0.15;
     this.mouthHeight = options.mouthHeight || 0.05;
+    
+    // 外观参数（从AvatarProfiles传入）
+    this.appearance = options.appearance || {
+      skinTone: '#f5e6d3',
+      hairColor: '#2d1b3d',
+      hairStyle: 'long',
+      outfitColor: '#6c3fa0',
+      outfitAccent: '#a78bfa',
+      lipColor: '#e74c3c',
+      eyeColor: '#2d1b4e',
+      blushColor: '#ff7675',
+      bodyType: 'slim',
+      accessories: 'earrings',
+    };
+    
+    // 主播名称（显示在画面上）
+    this.avatarName = options.avatarName || 'AI主播';
     
     // 当前帧号
     this.frameNumber = 0;
@@ -70,23 +87,50 @@ class Avatar2DRenderer {
   renderFrame(blendshapes, time) {
     this.frameNumber++;
     
+    const a = this.appearance;
     const w = this.width;
     const h = this.height;
     const avatarCX = this.avatarX;
     const avatarCY = this.avatarY;
     const scale = this.avatarScale;
+    const name = this.avatarName;
     
-    // 嘴型开合度 (从blendshapes计算)
+    // 嘴型开合度
     const mouthOpen = (blendshapes.A || 0) * 0.8 + (blendshapes.I || 0) * 0.2;
     const mouthWidth = (blendshapes.I || 0) * 0.5 + 0.5;
-    
-    // 嘴部实际坐标
-    const mouthAbsX = avatarCX + this.mouthX * w;
-    const mouthAbsY = avatarCY + this.mouthY * h;
     const mouthW = this.mouthWidth * w * mouthWidth;
     const mouthH = this.mouthHeight * h * (0.3 + mouthOpen * 2);
     
-    // 生成SVG渲染帧（可直接转PNG或喂给FFmpeg）
+    // 根据性别微调体型
+    const bodyRx = a.bodyType === 'broad' ? 145 : 120;
+    const bodyRy = a.bodyType === 'broad' ? 175 : 160;
+    
+    // 头发形状（长发vs短发）
+    const hairPath = a.hairStyle === 'long'
+      ? `M-75,-20 Q-75,-105 -40,-100 Q0,-110 40,-100 Q75,-105 75,-20 Q75,10 60,40 Q40,20 20,35 Q0,15 -20,35 Q-40,20 -60,40 Q-75,10 -75,-20 Z`
+      : `M-75,-20 Q-80,-75 -45,-70 Q-5,-80 40,-70 Q80,-75 75,-20 Q70,5 60,15 Q35,5 20,12 Q0,2 -20,12 Q-35,5 -60,15 Q-70,5 -75,-20 Z`;
+    
+    // 配饰
+    const accessoriesSvg = [];
+    if (a.accessories === 'earrings') {
+      accessoriesSvg.push(
+        `<circle cx="-50" cy="18" r="4" fill="#ffd700" opacity="0.8"/>`,
+        `<circle cx="50" cy="18" r="4" fill="#ffd700" opacity="0.8"/>`
+      );
+    } else if (a.accessories === 'necklace') {
+      accessoriesSvg.push(
+        `<path d="M-15,50 Q0,70 15,50" fill="none" stroke="#ffd700" stroke-width="2" opacity="0.6"/>`
+      );
+    } else if (a.accessories === 'glasses') {
+      accessoriesSvg.push(
+        `<circle cx="-25" cy="-38" r="13" fill="none" stroke="#374151" stroke-width="2.5"/>`,
+        `<circle cx="25" cy="-38" r="13" fill="none" stroke="#374151" stroke-width="2.5"/>`,
+        `<line x1="-12" y1="-38" x2="12" y2="-38" stroke="#374151" stroke-width="2"/>`
+      );
+    } else if (a.accessories === 'watch') {
+      // watch rendered later
+    }
+
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
   <defs>
     <radialGradient id="bgGrad" cx="50%" cy="40%" r="60%">
@@ -102,15 +146,14 @@ class Avatar2DRenderer {
     </filter>
   </defs>
   
-  <!-- 背景 -->
   <rect width="${w}" height="${h}" fill="url(#bgGrad)"/>
   
-  <!-- 粒子背景效果 -->
-  <circle cx="${w*0.2}" cy="${h*0.3}" r="2" fill="#6c5ce7" opacity="0.3">
+  <!-- 粒子 -->
+  <circle cx="${w*0.2}" cy="${h*0.3}" r="2" fill="${a.outfitAccent}" opacity="0.3">
     <animate attributeName="cy" values="${h*0.3};${h*0.25};${h*0.3}" dur="3s" repeatCount="indefinite"/>
     <animate attributeName="opacity" values="0.3;0.6;0.3" dur="3s" repeatCount="indefinite"/>
   </circle>
-  <circle cx="${w*0.7}" cy="${h*0.6}" r="1.5" fill="#a29bfe" opacity="0.4">
+  <circle cx="${w*0.7}" cy="${h*0.6}" r="1.5" fill="${a.outfitAccent}" opacity="0.4">
     <animate attributeName="cy" values="${h*0.6};${h*0.55};${h*0.6}" dur="4s" repeatCount="indefinite"/>
   </circle>
   <circle cx="${w*0.5}" cy="${h*0.8}" r="1" fill="#fd79a8" opacity="0.3">
@@ -120,55 +163,65 @@ class Avatar2DRenderer {
   <!-- 数字人主体 -->
   <g filter="url(#shadow)" transform="translate(${avatarCX}, ${avatarCY}) scale(${scale})">
     <!-- 身体 -->
-    <ellipse cx="0" cy="140" rx="130" ry="160" fill="#2d1b4e" stroke="#6c5ce7" stroke-width="2" opacity="0.9"/>
+    <ellipse cx="0" cy="140" rx="${bodyRx}" ry="${bodyRy}" fill="${a.outfitColor}" stroke="${a.outfitAccent}" stroke-width="2" opacity="0.9"/>
     
     <!-- 肩膀 -->
-    <path d="M-130,120 Q-180,80 -200,40 L-180,30 Q-160,60 -120,90 Z" fill="#2d1b4e"/>
-    <path d="M130,120 Q180,80 200,40 L180,30 Q160,60 120,90 Z" fill="#2d1b4e"/>
+    <path d="M-${bodyRx},120 Q-190,80 -210,40 L-190,30 Q-170,60 -120,90 Z" fill="${a.outfitColor}"/>
+    <path d="M${bodyRx},120 Q190,80 210,40 L190,30 Q170,60 120,90 Z" fill="${a.outfitColor}"/>
     
     <!-- 头 -->
-    <ellipse cx="0" cy="-20" rx="75" ry="85" fill="#f5e6d3" stroke="#d4a574" stroke-width="2"/>
+    <ellipse cx="0" cy="-20" rx="75" ry="85" fill="${a.skinTone}" stroke="#c4a882" stroke-width="2"/>
     
     <!-- 头发 -->
-    <path d="M-75,-20 Q-75,-105 -40,-100 Q0,-110 40,-100 Q75,-105 75,-20 Q75,0 60,10 Q40,-5 20,5 Q0,-10 -20,5 Q-40,-5 -60,10 Q-75,0 -75,-20 Z" fill="#1a1a2e"/>
+    <path d="${hairPath}" fill="${a.hairColor}"/>
     
     <!-- 眉毛 -->
-    <path d="M-35,-50 Q-25,-58 -15,-50" fill="none" stroke="#2d1b4e" stroke-width="3" stroke-linecap="round"/>
-    <path d="M15,-50 Q25,-58 35,-50" fill="none" stroke="#2d1b4e" stroke-width="3" stroke-linecap="round"/>
+    <path d="M-35,-50 Q-25,-58 -15,-50" fill="none" stroke="${a.hairColor}" stroke-width="3" stroke-linecap="round"/>
+    <path d="M15,-50 Q25,-58 35,-50" fill="none" stroke="${a.hairColor}" stroke-width="3" stroke-linecap="round"/>
     
     <!-- 眼睛 -->
     <ellipse cx="-25" cy="-38" rx="10" ry="7" fill="white" stroke="#333" stroke-width="1.5"/>
     <ellipse cx="25" cy="-38" rx="10" ry="7" fill="white" stroke="#333" stroke-width="1.5"/>
-    <circle cx="-25" cy="-38" r="4" fill="#2d1b4e"/>
-    <circle cx="25" cy="-38" r="4" fill="#2d1b4e"/>
+    <circle cx="-25" cy="-38" r="4" fill="${a.eyeColor}"/>
+    <circle cx="25" cy="-38" r="4" fill="${a.eyeColor}"/>
     <circle cx="-23" cy="-40" r="1.5" fill="white"/>
     <circle cx="27" cy="-40" r="1.5" fill="white"/>
     
     <!-- 鼻子 -->
-    <path d="M0,-25 Q-3,-18 0,-15 Q3,-18 0,-25" fill="none" stroke="#d4a574" stroke-width="1.5"/>
+    <path d="M0,-25 Q-3,-18 0,-15 Q3,-18 0,-25" fill="none" stroke="#c4a882" stroke-width="1.5"/>
     
-    <!-- 嘴（动态变化—唇形同步核心） -->
+    <!-- 嘴（动态口型） -->
     <g transform="translate(0, 0)">
-      <ellipse cx="0" cy="0" rx="${mouthW}" ry="${mouthH}" fill="#e74c3c" opacity="0.85"/>
-      <path d="M${-mouthW},0 Q0,${mouthH*0.6} ${mouthW},0" fill="#c0392b" opacity="0.6"/>
+      <ellipse cx="0" cy="0" rx="${mouthW}" ry="${mouthH}" fill="${a.lipColor}" opacity="0.85"/>
+      <path d="M${-mouthW},0 Q0,${mouthH*0.6} ${mouthW},0" fill="#c0392b" opacity="0.5"/>
     </g>
     
     <!-- 脸颊红晕 -->
-    <ellipse cx="-40" cy="-10" rx="12" ry="6" fill="#ff7675" opacity="0.15"/>
-    <ellipse cx="40" cy="-10" rx="12" ry="6" fill="#ff7675" opacity="0.15"/>
+    ${a.blushColor !== 'transparent' ? `
+    <ellipse cx="-40" cy="-10" rx="12" ry="6" fill="${a.blushColor}" opacity="0.15"/>
+    <ellipse cx="40" cy="-10" rx="12" ry="6" fill="${a.blushColor}" opacity="0.15"/>
+    ` : ''}
     
-    <!-- 衣领/领口 -->
-    <path d="M-40,65 L0,90 L40,65" fill="none" stroke="#6c5ce7" stroke-width="3"/>
+    ${a.gender === 'male' ? `
+    <!-- 男性：面部轮廓线 -->
+    <path d="M-70,-10 Q-70,20 -50,35 Q-30,45 0,48 Q30,45 50,35 Q70,20 70,-10" fill="none" stroke="#c4a882" stroke-width="1" opacity="0.4"/>
+    ` : ''}
+    
+    <!-- 配饰 -->
+    ${accessoriesSvg.join('\n    ')}
+    
+    <!-- 衣领 -->
+    <path d="M-35,65 L0,95 L35,65" fill="none" stroke="${a.outfitAccent}" stroke-width="3"/>
   </g>
   
   <!-- 底部信息栏 -->
   <rect x="0" y="${h-80}" width="${w}" height="80" fill="rgba(0,0,0,0.6)"/>
-  <text x="${w/2}" y="${h-45}" text-anchor="middle" fill="#a29bfe" font-size="20" font-family="Arial">
-    🔴 LIVE · 云南瑞丽翡翠直播
+  <text x="${w/2}" y="${h-48}" text-anchor="middle" fill="${a.outfitAccent}" font-size="20" font-family="Arial, sans-serif">
+    🔴 LIVE · ${name} · 云南瑞丽翡翠
   </text>
   
   <!-- 右上角Logo -->
-  <circle cx="${w-60}" cy="60" r="30" fill="#6c5ce7" opacity="0.8"/>
+  <circle cx="${w-60}" cy="60" r="30" fill="${a.outfitColor}" opacity="0.8"/>
   <text x="${w-60}" y="66" text-anchor="middle" fill="white" font-size="16" font-weight="bold">GEM</text>
 </svg>`;
     
