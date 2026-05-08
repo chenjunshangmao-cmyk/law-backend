@@ -44,10 +44,10 @@ with open('${outputPath.replace(/\\/g, '\\\\')}', 'rb') as f:
 `.strip();
 
     const child = spawn('python3', ['-c', script], { timeout: 30000 });
-    const chunks: Buffer[] = [];
-    child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
+    const chunks = [];
+    child.stdout.on('data', (chunk) => chunks.push(chunk));
     let stderr = '';
-    child.stderr.on('data', (d: Buffer) => stderr += d.toString());
+    child.stderr.on('data', (d) => stderr += d.toString());
 
     child.on('close', (code) => {
       try { fs.unlinkSync(inputPath); fs.unlinkSync(outputPath); } catch {}
@@ -58,7 +58,7 @@ with open('${outputPath.replace(/\\/g, '\\\\')}', 'rb') as f:
       } else {
         console.error('[AI工具] 去水印失败:', stderr || `exit code ${code}`);
         // 降级：返回原图
-        res.json({ success: true, data: { result: req.file!.buffer.toString('base64'), format: 'png', note: '降级返回原图' } });
+        res.json({ success: true, data: { result: req.file.buffer.toString('base64'), format: 'png', note: '降级返回原图' } });
       }
     });
   } catch (err) {
@@ -99,10 +99,10 @@ with open('${outputPath.replace(/\\/g, '\\\\')}', 'rb') as f:
 `.strip();
 
     const child = spawn('python3', ['-c', script], { timeout: 30000 });
-    const chunks: Buffer[] = [];
-    child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
+    const chunks = [];
+    child.stdout.on('data', (chunk) => chunks.push(chunk));
     let stderr = '';
-    child.stderr.on('data', (d: Buffer) => stderr += d.toString());
+    child.stderr.on('data', (d) => stderr += d.toString());
 
     child.on('close', (code) => {
       try { fs.unlinkSync(inputPath); fs.unlinkSync(outputPath); } catch {}
@@ -111,7 +111,7 @@ with open('${outputPath.replace(/\\/g, '\\\\')}', 'rb') as f:
         res.json({ success: true, data: { result: Buffer.concat(chunks).toString('base64'), format: 'png' } });
       } else {
         console.error('[AI工具] 消除失败:', stderr || `exit code ${code}`);
-        res.json({ success: true, data: { result: req.file!.buffer.toString('base64'), format: 'png', note: '降级返回原图' } });
+        res.json({ success: true, data: { result: req.file.buffer.toString('base64'), format: 'png', note: '降级返回原图' } });
       }
     });
   } catch (err) {
