@@ -105,8 +105,231 @@ class Avatar2DRenderer {
       console.log(`[VRMRenderer] 📸 照片模式: ${this.avatarName} (${this.avatarImagePath})`);
     }
     
+    // 场景叠加层配置
+    this.sceneConfig = options.sceneConfig || null;
+    
     // 当前帧号
     this.frameNumber = 0;
+  }
+
+  /**
+   * 设置场景叠加层配置
+   */
+  setSceneConfig(config) {
+    this.sceneConfig = config;
+    if (config) {
+      console.log(`[VRMRenderer] 🎬 场景配置已更新: ${config.orientation}, ${config.overlays?.length || 0}个叠加元素`);
+    }
+  }
+
+  /**
+   * 生成叠加元素的 SVG 片段
+   */
+  _renderOverlays(elapsed = 0) {
+    if (!this.sceneConfig || !this.sceneConfig.overlays || !this.sceneConfig.overlays.length) {
+      return '';
+    }
+
+    const w = this.width;
+    const h = this.height;
+    let svg = '';
+
+    // 只渲染启用的、按 zIndex 排序的叠加元素
+    const enabled = this.sceneConfig.overlays
+      .filter(o => o.enabled)
+      .sort((a, b) => (a.zIndex || 10) - (b.zIndex || 10));
+
+    for (const overlay of enabled) {
+      const { position, size, style, content, animation, type } = overlay;
+      const px = (position.x / 100) * w;
+      const py = (position.y / 100) * h;
+      const sw = size.width;
+      const sh = size.height;
+      const pad = style.padding || 10;
+      const radius = style.borderRadius || 0;
+      const borderW = style.borderWidth || 0;
+      const borderColor = style.borderColor || 'transparent';
+
+      // 动画属性
+      let animAttrs = '';
+      if (animation === 'blink') {
+        animAttrs = ` opacity="0.7"><animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.5s" repeatCount="indefinite"`;
+      } else if (animation === 'pulse') {
+        animAttrs = `><animateTransform attributeName="transform" type="scale" values="1,1;1.02,1.02;1,1" dur="2s" repeatCount="indefinite" additive="sum"`;
+      }
+
+      switch (type) {
+        case 'qrcode':
+          // 二维码：白色背景卡片 + 占位QR图案 + 文字
+          svg += `
+  <!-- 叠加: ${overlay.label} (二维码) -->
+  <g transform="translate(${px}, ${py})"${animAttrs || ''}>
+    <rect x="0" y="0" width="${sw}" height="${sh}" rx="${radius}" 
+          fill="${style.backgroundColor || '#ffffff'}" 
+          stroke="${borderColor}" stroke-width="${borderW}"/>
+    <!-- QR码占位（实际会用 content.qrValue 生成） -->
+    <g transform="translate(${pad}, ${pad})">
+      <rect x="0" y="0" width="${sw - pad * 2}" height="${sw - pad * 2}" rx="6"
+            fill="#ffffff" stroke="#333" stroke-width="1"/>
+      ${this._generateQRPattern(sw - pad * 2, sw - pad * 2)}
+    </g>
+    <text x="${sw / 2}" y="${sw + (sh - sw) / 2 + 8}" 
+          text-anchor="middle" fill="${style.color || '#333'}" 
+          font-size="${style.fontSize || 13}" font-family="${style.fontFamily || 'Arial, sans-serif'}">
+      ${this._escapeXml(content.text || '扫码加微信')}
+    </text>
+  </g>`;
+          break;
+
+        case 'text-banner':
+          // 广告词横幅
+          svg += `
+  <!-- 叠加: ${overlay.label} (广告词) -->
+  <g transform="translate(${px}, ${py})"${animAttrs || ''}>
+    <rect x="0" y="0" width="${sw}" height="${sh}" rx="${radius}" 
+          fill="${style.backgroundColor || 'rgba(0,0,0,0.6)'}" 
+          stroke="${borderColor}" stroke-width="${borderW}"/>
+    ${this._wrapTextSvg(content.text || '', sw / 2, sh / 2, sw - pad * 2, style.fontSize || 20, style.color || '#ffffff', style.fontWeight || 'bold', style.fontFamily || 'Microsoft YaHei, sans-serif', style.textAlign || 'center', pad)}
+  </g>`;
+          break;
+
+        case 'led-marquee':
+          // LED跑马灯
+          const ledText = this._escapeXml(content.text || '');
+          const ledFontSize = style.fontSize || 15;
+          svg += `
+  <!-- 叠加: ${overlay.label} (LED跑马灯) -->
+  <g transform="translate(${px}, ${py})">
+    <rect x="0" y="0" width="${sw}" height="${sh}" rx="${radius}" 
+          fill="${style.backgroundColor || '#0a1a0a'}" 
+          stroke="${style.color || '#00ff00'}" stroke-width="${borderW || 1}"/>
+    <clipPath id="led-clip-${overlay.id}">
+      <rect x="${pad}" y="${pad / 2}" width="${sw - pad * 2}" height="${sh - pad}"/>
+    </clipPath>
+    <text x="${sw}" y="${sh / 2 + ledFontSize / 3}" text-anchor="start" 
+          fill="${style.color || '#00ff00'}" font-size="${ledFontSize}" 
+          font-family="${style.fontFamily || 'Courier New, monospace'}" 
+          clip-path="url(#led-clip-${overlay.id})">
+      ${ledText}    ${ledText}
+      <animate attributeName="x" from="${sw}" to="${-sw * 2}" dur="10s" repeatCount="indefinite"/>
+    </text>
+  </g>`;
+          break;
+
+        case 'product-card':
+          // 产品卡片
+          const prodName = this._escapeXml(content.productName || '产品名称');
+          const prodPrice = this._escapeXml(content.productPrice || '');
+          const prodDesc = this._escapeXml(content.text || '');
+          const cardFontSize = style.fontSize || 15;
+          svg += `
+  <!-- 叠加: ${overlay.label} (产品卡片) -->
+  <g transform="translate(${px}, ${py})"${animAttrs || ''}>
+    <rect x="0" y="0" width="${sw}" height="${sh}" rx="${radius}" 
+          fill="${style.backgroundColor || 'rgba(20,20,40,0.9)'}" 
+          stroke="${borderColor}" stroke-width="${borderW}"/>
+    <text x="${sw / 2}" y="${pad + cardFontSize}" text-anchor="middle" 
+          fill="${style.color || '#e0e0e0'}" font-size="${cardFontSize}" 
+          font-weight="bold" font-family="${style.fontFamily || 'Arial, sans-serif'}">
+      ${prodName}
+    </text>
+    <text x="${sw / 2}" y="${sh * 0.55}" text-anchor="middle" 
+          fill="#ffd700" font-size="${cardFontSize + 4}" font-weight="bold" 
+          font-family="Arial, sans-serif">
+      ${prodPrice}
+    </text>
+    <text x="${sw / 2}" y="${sh - pad - 4}" text-anchor="middle" 
+          fill="#888" font-size="${Math.max(10, cardFontSize - 3)}" 
+          font-family="Arial, sans-serif">
+      ${prodDesc}
+    </text>
+  </g>`;
+          break;
+
+        case 'image':
+          // 图片叠加
+          if (content.imageUrl) {
+            svg += `
+  <!-- 叠加: ${overlay.label} (图片) -->
+  <g transform="translate(${px}, ${py})">
+    <rect x="0" y="0" width="${sw}" height="${sh}" rx="${radius}" fill="${style.backgroundColor || '#1a1a2e'}"/>
+    <image href="${this._escapeXml(content.imageUrl)}" x="${pad}" y="${pad}" 
+           width="${sw - pad * 2}" height="${sh - pad * 2}" 
+           preserveAspectRatio="xMidYMid slice"/>
+  </g>`;
+          }
+          break;
+      }
+    }
+
+    return svg;
+  }
+
+  /**
+   * 生成简易QR码图案
+   */
+  _generateQRPattern(w, h) {
+    const size = Math.min(w, h);
+    const moduleSize = size / 15;
+    let pattern = '';
+    // 生成固定模式的QR码3个定位图案 + 随机数据区
+    const positions = [
+      [0, 0], [size - moduleSize * 3, 0], [0, size - moduleSize * 3]
+    ];
+    for (const [ox, oy] of positions) {
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          const fill = (i === 1 && j === 1) || (i === 0 || i === 2) && (j === 0 || j === 2) ? '#000' : '#fff';
+          pattern += `<rect x="${ox + j * moduleSize}" y="${oy + i * moduleSize}" width="${moduleSize}" height="${moduleSize}" fill="${fill}"/>`;
+        }
+      }
+    }
+    // 随机散点模拟数据区
+    const rng = (x, y) => ((x * 31 + y * 17) % 7) < 3;
+    for (let i = 0; i < 15; i++) {
+      for (let j = 0; j < 15; j++) {
+        if (i < 3 && j < 3) continue;
+        if (i < 3 && j > 11) continue;
+        if (i > 11 && j < 3) continue;
+        if (rng(i, j)) {
+          pattern += `<rect x="${j * moduleSize}" y="${i * moduleSize}" width="${moduleSize}" height="${moduleSize}" fill="#000" opacity="0.7"/>`;
+        }
+      }
+    }
+    return pattern;
+  }
+
+  /**
+   * 简单文字换行（SVG tspan）
+   */
+  _wrapTextSvg(text, cx, cy, maxWidth, fontSize, color, fontWeight, fontFamily, textAlign, pad) {
+    const lines = text.split('\n');
+    const lineHeight = fontSize * 1.4;
+    const totalHeight = lines.length * lineHeight;
+    const startY = cy - totalHeight / 2 + fontSize;
+    
+    return lines.map((line, i) => {
+      const anchor = textAlign || 'center';
+      const x = anchor === 'center' ? cx : (anchor === 'right' ? maxWidth : pad);
+      return `<text x="${x}" y="${startY + i * lineHeight}" text-anchor="${anchor}" 
+            fill="${color}" font-size="${fontSize}" font-weight="${fontWeight || 'normal'}" 
+            font-family="${fontFamily || 'Arial, sans-serif'}">
+      ${this._escapeXml(line)}
+    </text>`;
+    }).join('\n');
+  }
+
+  /**
+   * XML 转义
+   */
+  _escapeXml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
   }
 
   /**
@@ -183,6 +406,7 @@ class Avatar2DRenderer {
   <text x="${w - 30}" y="${h - 50}" text-anchor="end" fill="#888" font-size="14" font-family="Arial, sans-serif">
     ${formatTimeStr(time)}
   </text>
+  ${this._renderOverlays(time)}
 </svg>`;
     
     return {
@@ -337,6 +561,7 @@ class Avatar2DRenderer {
   <!-- 右上角Logo -->
   <circle cx="${w-60}" cy="60" r="30" fill="${a.outfitColor}" opacity="0.8"/>
   <text x="${w-60}" y="66" text-anchor="middle" fill="white" font-size="16" font-weight="bold">GEM</text>
+  ${this._renderOverlays(time)}
 </svg>`;
     
     return {

@@ -1,0 +1,623 @@
+/* SceneEditor.css — 直播场景布局编辑器样式 */
+
+/* ═══ 紧凑模式（嵌入LiveStreamPage） ═══ */
+.se-compact {
+  margin-top: 12px;
+}
+
+.se-compact-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.se-compact-header h4 {
+  font-size: 14px;
+  color: #a29bfe;
+  margin: 0;
+}
+
+/* ═══ 完整编辑器 ═══ */
+.se-full-editor {
+  background: #0a0a1a;
+  min-height: 100vh;
+  color: #e0e0e0;
+}
+
+.se-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #12122a;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.se-toolbar h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #a29bfe;
+}
+
+.se-editor-body {
+  display: grid;
+  grid-template-columns: 220px 1fr 280px;
+  gap: 0;
+  height: calc(100vh - 60px);
+}
+
+/* ═══ 方向切换 ═══ */
+.se-orientation-switch {
+  display: flex;
+  gap: 6px;
+}
+
+.se-orientation-btn {
+  padding: 6px 14px;
+  background: #1a1a2e;
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  color: #888;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.se-orientation-btn:hover:not(:disabled) {
+  border-color: #6c5ce7;
+  color: #ccc;
+}
+
+.se-orientation-btn.se-active {
+  background: #2d2d5e;
+  border-color: #6c5ce7;
+  color: #a29bfe;
+  box-shadow: 0 0 10px rgba(108, 92, 231, 0.2);
+}
+
+.se-orientation-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ═══ 左侧面板 ═══ */
+.se-left-panel {
+  background: #0d0d1f;
+  border-right: 1px solid #2a2a4a;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.se-left-panel h4,
+.se-right-panel h4 {
+  font-size: 14px;
+  color: #888;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.se-add-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.se-add-type-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #12122a;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  color: #ccc;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  text-align: left;
+}
+
+.se-add-type-btn:hover:not(:disabled) {
+  background: #1a1a3e;
+  border-color: #6c5ce7;
+}
+
+.se-add-type-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ═══ 元素列表 ═══ */
+.se-overlay-list,
+.se-overlay-list-full {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.se-overlay-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #12122a;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 12px;
+}
+
+.se-overlay-item:hover {
+  border-color: #4a4a7a;
+  background: #1a1a3e;
+}
+
+.se-overlay-item-active {
+  border-color: #6c5ce7 !important;
+  background: #1d1d41 !important;
+  box-shadow: 0 0 8px rgba(108, 92, 231, 0.2);
+}
+
+.se-overlay-item-off {
+  opacity: 0.5;
+}
+
+.se-overlay-item-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.se-overlay-item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #ccc;
+}
+
+.se-overlay-item-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.se-overlay-item-actions button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.se-overlay-item-actions button:hover {
+  background: #2a2a4a;
+}
+
+.se-overlay-toggle,
+.se-overlay-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.se-overlay-toggle:hover,
+.se-overlay-delete:hover {
+  background: #2a2a4a;
+}
+
+.se-overlay-delete:hover {
+  color: #f44336;
+}
+
+.se-empty-hint {
+  color: #555;
+  font-size: 12px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* ═══ 添加按钮栏（紧凑模式） ═══ */
+.se-add-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.se-add-btn {
+  padding: 6px 12px;
+  background: #1a1a2e;
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  color: #a29bfe;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.se-add-btn:hover:not(:disabled) {
+  background: #2d2d5e;
+  border-color: #6c5ce7;
+}
+
+.se-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ═══ 画布容器 ═══ */
+.se-canvas-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #050510;
+  overflow: auto;
+  padding: 20px;
+}
+
+.se-canvas-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 10px 0;
+  overflow: auto;
+}
+
+/* ═══ 画布（缩放预览） ═══ */
+.se-canvas {
+  position: relative;
+  border: 2px solid #3a3a5a;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 0 30px rgba(0,0,0,0.5);
+  flex-shrink: 0;
+}
+
+/* ═══ 数字人区域 ═══ */
+.se-avatar-area {
+  position: absolute;
+  border: 1px dashed rgba(108, 92, 231, 0.3);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(26, 26, 46, 0.5);
+}
+
+.se-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.se-avatar-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 24px;
+}
+
+/* ═══ 叠加元素（画布上） ═══ */
+.se-overlay {
+  position: absolute;
+  cursor: move;
+  box-sizing: border-box;
+  transition: box-shadow 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.se-overlay:hover {
+  outline: 1px solid rgba(108, 92, 231, 0.5);
+}
+
+.se-overlay.se-selected {
+  outline: 2px solid #6c5ce7 !important;
+  box-shadow: 0 0 12px rgba(108, 92, 231, 0.4);
+  z-index: 100 !important;
+}
+
+.se-overlay.se-disabled {
+  opacity: 0.3;
+}
+
+/* ─── 元素类型样式 ─── */
+.se-text-banner {
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.se-led {
+  letter-spacing: 2px;
+  text-shadow: 0 0 8px rgba(0, 255, 0, 0.5);
+}
+
+.se-led .se-marquee-text {
+  white-space: nowrap;
+  animation: se-marquee-scroll 8s linear infinite;
+}
+
+@keyframes se-marquee-scroll {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.se-qrcode {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.se-qr-placeholder {
+  width: 50%;
+  aspect-ratio: 1;
+  background: repeating-conic-gradient(#333 0% 25%, #fff 0% 50%) 50% / 60% 60%;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.se-product-card {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.se-product-name {
+  color: #ffd700;
+  font-weight: bold;
+}
+
+.se-product-price {
+  color: #00e676;
+}
+
+/* ═══ 动画 ═══ */
+.se-overlay-pulse {
+  animation: se-pulse 2s ease-in-out infinite;
+}
+
+@keyframes se-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+.se-overlay-blink {
+  animation: se-blink 1.5s step-end infinite;
+}
+
+@keyframes se-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.se-overlay-slide-in {
+  animation: se-slide 0.5s ease-out;
+}
+
+@keyframes se-slide {
+  from { transform: translateX(30px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* ═══ 底部信息栏 ═══ */
+.se-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2%;
+  box-sizing: border-box;
+}
+
+.se-live-dot {
+  color: #ff4444;
+  font-weight: bold;
+}
+
+.se-timer {
+  color: #888;
+  font-family: 'Courier New', monospace;
+}
+
+.se-bottom-bar-settings {
+  margin-top: 12px;
+  padding: 10px;
+  background: #0d0d1f;
+  border-radius: 8px;
+  border: 1px solid #2a2a4a;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ═══ 右侧属性面板 ═══ */
+.se-right-panel {
+  background: #0d0d1f;
+  border-left: 1px solid #2a2a4a;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.se-no-selection {
+  text-align: center;
+  padding: 40px 0;
+  color: #555;
+  font-size: 13px;
+}
+
+.se-no-selection .se-hint {
+  font-size: 11px;
+  color: #444;
+}
+
+.se-property-panel h4 {
+  font-size: 14px;
+  color: #a29bfe;
+  margin: 0 0 12px;
+}
+
+.se-prop-group {
+  margin-bottom: 10px;
+}
+
+.se-prop-group label {
+  display: block;
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.se-prop-row {
+  display: flex;
+  gap: 6px;
+}
+
+.se-input {
+  width: 100%;
+  padding: 6px 10px;
+  background: #0a0a1a;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 13px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.se-input:focus {
+  outline: none;
+  border-color: #6c5ce7;
+}
+
+.se-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.se-input-sm {
+  width: 60px;
+  text-align: center;
+}
+
+.se-input-color {
+  width: 40px;
+  height: 28px;
+  padding: 2px;
+  background: #0a0a1a;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.se-textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+.se-checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px !important;
+  color: #ccc !important;
+  cursor: pointer;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+.se-checkbox-label input[type="checkbox"] {
+  accent-color: #6c5ce7;
+  width: 15px;
+  height: 15px;
+}
+
+.se-prop-divider {
+  padding: 8px 0 4px;
+  margin-bottom: 8px;
+  border-top: 1px solid #2a2a4a;
+  font-size: 11px;
+  color: #6c5ce7;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.se-bottom-settings {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid #2a2a4a;
+}
+
+.se-bottom-settings h4 {
+  font-size: 13px;
+  color: #888;
+  margin: 0 0 8px;
+}
+
+.se-bottom-settings .se-input {
+  margin: 6px 0;
+}
+
+/* ═══ scrollbar ═══ */
+.se-left-panel::-webkit-scrollbar,
+.se-right-panel::-webkit-scrollbar,
+.se-canvas-container::-webkit-scrollbar,
+.se-overlay-list::-webkit-scrollbar,
+.se-overlay-list-full::-webkit-scrollbar {
+  width: 4px;
+}
+
+.se-left-panel::-webkit-scrollbar-thumb,
+.se-right-panel::-webkit-scrollbar-thumb,
+.se-canvas-container::-webkit-scrollbar-thumb,
+.se-overlay-list::-webkit-scrollbar-thumb {
+  background: #2a2a4a;
+  border-radius: 2px;
+}
+
+/* ═══ 响应式：横屏画布需要水平滚动 ═══ */
+@media (max-width: 900px) {
+  .se-editor-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .se-left-panel {
+    border-right: none;
+    border-bottom: 1px solid #2a2a4a;
+    max-height: 200px;
+  }
+
+  .se-right-panel {
+    border-left: none;
+    border-top: 1px solid #2a2a4a;
+    max-height: 300px;
+  }
+
+  .se-add-buttons {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .se-add-type-btn {
+    width: auto;
+  }
+}

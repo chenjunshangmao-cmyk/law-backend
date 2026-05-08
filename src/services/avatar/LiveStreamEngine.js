@@ -186,7 +186,12 @@ class LiveStreamEngine extends EventEmitter {
       avatarName: this.avatarConfig.name,
       avatarImagePath: this.avatarConfig.imagePath,
       mouthPosition: this.avatarConfig.mouthPosition,
+      sceneConfig: this.sceneConfig || null,
     });
+
+    if (this.sceneConfig) {
+      console.log(`[LiveStreamEngine] 🎬 场景布局: ${this.sceneConfig.orientation}, ${this.sceneConfig.overlays?.length || 0}个叠加元素`);
+    }
 
     // 初始化实时聊天
     this.chatServer = new RealtimeChat({

@@ -696,3 +696,37 @@
   color: #666;
   margin: 0;
 }
+
+/* ═══ 场景编辑器区域 ═══ */
+.ls-scene-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #2a2a4a;
+}
+
+.ls-scene-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  padding: 8px 0;
+}
+
+.ls-scene-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #a29bfe;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ls-scene-toggle {
+  color: #666;
+  font-size: 13px;
+  transition: color 0.2s;
+}
+
+.ls-scene-header:hover .ls-scene-toggle {
+  color: #a29bfe;
+}

@@ -7,6 +7,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './LiveStreamPage.css';
 import ProxyPanel from '../components/ProxyPanel';
+import SceneEditor from '../components/SceneEditor';
+import {
+  SceneConfig,
+  DEFAULT_PORTRAIT_SCENE,
+  DEFAULT_LANDSCAPE_SCENE,
+  PLATFORM_ORIENTATION,
+} from '../types/SceneConfig';
 
 // ═══ 类型定义 ═══
 interface LiveStatus {
@@ -95,6 +102,11 @@ export default function LiveStreamPage() {
   const [proxyRegion, setProxyRegion] = useState('hongkong');
   const [proxyPlan, setProxyPlan] = useState('standard');
   
+  // 场景布局配置
+  const [sceneConfig, setSceneConfig] = useState<SceneConfig>(DEFAULT_PORTRAIT_SCENE);
+  const [showSceneEditor, setShowSceneEditor] = useState(false);
+  const [avatarImageUrl, setAvatarImageUrl] = useState('');
+  
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -135,9 +147,33 @@ export default function LiveStreamPage() {
       if (data.success) {
         setProfiles(data.data.profiles);
         if (!selectedProfile) setSelectedProfile(data.data.default || 'xiaorui');
+        // 设置主播照片URL用于预览
+        const defaultProfile = data.data.profiles?.find((p: any) => p.id === (data.data.default || 'xiaorui'));
+        if (defaultProfile?.imagePath) {
+          setAvatarImageUrl(`${API_BASE}/api/live-stream/avatar-photos/${defaultProfile.imagePath.split('/').pop()}`);
+        }
       }
     } catch (e) {}
   };
+
+  // 平台切换时自动切换横竖屏
+  useEffect(() => {
+    const orientation = PLATFORM_ORIENTATION[selectedPlatform] || 'portrait';
+    setSceneConfig(prev => {
+      if (prev.orientation === orientation) return prev;
+      return orientation === 'landscape' 
+        ? { ...DEFAULT_LANDSCAPE_SCENE, overlays: prev.overlays }
+        : { ...DEFAULT_PORTRAIT_SCENE, overlays: prev.overlays };
+    });
+  }, [selectedPlatform]);
+
+  // 主播切换时更新预览照片
+  useEffect(() => {
+    const profile = profiles.find(p => p.id === selectedProfile);
+    if (profile?.imagePath) {
+      setAvatarImageUrl(`${API_BASE}/api/live-stream/avatar-photos/${profile.imagePath.split('/').pop()}`);
+    }
+  }, [selectedProfile, profiles]);
 
   // ═══ 直播控制 ═══
   const startLive = async () => {
@@ -164,6 +200,8 @@ export default function LiveStreamPage() {
           proxyRegion,
           useOwnProxy,
           ownProxyUrl: useOwnProxy ? `socks5://${ownProxyUser ? `${ownProxyUser}:${ownProxyPass}@` : ''}${ownProxyHost}:${ownProxyPort}` : undefined,
+          // 场景布局
+          sceneConfig,
         }),
       });
       const data = await res.json();
@@ -399,6 +437,24 @@ export default function LiveStreamPage() {
               onPlanChange={setProxyPlan}
               disabled={isLive}
             />
+
+            {/* ─── 场景布局预览编辑器 ─── */}
+            <div className="ls-scene-section">
+              <div className="ls-scene-header" onClick={() => setShowSceneEditor(!showSceneEditor)}>
+                <h3>🎬 直播画面预览</h3>
+                <span className="ls-scene-toggle">{showSceneEditor ? '收起 ▲' : '展开 ▼'}</span>
+              </div>
+              {showSceneEditor && (
+                <SceneEditor
+                  sceneConfig={sceneConfig}
+                  onSceneConfigChange={setSceneConfig}
+                  avatarImageUrl={avatarImageUrl}
+                  avatarName={profiles.find(p => p.id === selectedProfile)?.name}
+                  disabled={isLive}
+                  compact
+                />
+              )}
+            </div>
 
             {/* 控制按钮 */}
             <div className="ls-controls">

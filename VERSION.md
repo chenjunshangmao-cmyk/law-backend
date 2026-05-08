@@ -9,24 +9,24 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.08.008** |
-| 构建时间 | 2026-05-08 10:30 CST |
-| 前端部署 | (待部署) |
+| 版本号 | **2026.05.08.009** |
+| 构建时间 | 2026-05-08 12:00 CST |
+| 前端部署 | https://claw-app-2026.pages.dev |
 | 主域名 | https://claw-app-2026.pages.dev (自动指向最新)
 
 ### 本次变更
 
-**🔒 海外推流代理服务上线**
-- 新增 ProxyPool.js — 代理池管理（节点池/订阅/智能路由）
-- 新增 proxy-stream.js — 10+ API端点（套餐/区域/订单/订阅/配置）
-- RTMPPusher.js — 支持SOCKS5代理推流（环境变量注入）
-- LiveStreamEngine.js — 集成代理配置，开播时自动激活
-- live-stream.js — start端点新增代理参数
-- ProxyPanel.tsx — 前端代理面板（开关/自带代理/Claw代理购买）
-- LiveStreamPage.tsx — 集成代理面板到直播控制台
-- 数据库表: proxy_nodes / proxy_orders / proxy_usage_logs
-- 4档套餐: 入门¥299 / 标准¥599 / 专业¥1,199 / 企业¥2,499
-- 7个区域: 香港/台湾/新加坡/日本/美国/英国/德国
+**🎬 AI数字人直播画面预览编辑器**
+- 新增 types/SceneConfig.ts — 场景布局配置数据模型
+- 新增 components/SceneEditor.tsx — 可视化场景编辑器（画布/元素列表/属性面板）
+- 新增 components/SceneEditor.css — 编辑器完整样式
+- VRMRenderer.js — 新增 `setSceneConfig()` + `_renderOverlays()` 叠加元素SVG渲染
+- LiveStreamEngine.js — 支持 sceneConfig 传递到渲染器
+- live-stream.js — 新增3个端点：GET/PUT scene-config 配置存取、POST preview 预览帧
+- LiveStreamPage.tsx — 集成SceneEditor紧凑模式、平台切换自动横竖屏
+- 支持5种叠加元素：二维码/广告词/LED跑马灯/产品卡/图片
+- 横屏(16:9)左右侧添加元素，竖屏(9:16)底部为主
+- 支持元素拖拽定位、颜色/字号/动画编辑、实时画布预览
 
 ### 本次变更
 

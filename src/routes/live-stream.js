@@ -1,17 +1,20 @@
 /**
- * 直播推流 API 路由 v1.0
+ * 直播推流 API 路由 v2.0
  * 
  * 端点：
- * POST   /api/live-stream/start       - 启动直播
- * POST   /api/live-stream/stop        - 停止直播
- * GET    /api/live-stream/status      - 直播状态
- * POST   /api/live-stream/pause       - 暂停直播
- * POST   /api/live-stream/resume      - 恢复直播
- * POST   /api/live-stream/script      - 添加脚本
- * GET    /api/live-stream/scripts     - 查看脚本队列
- * POST   /api/live-stream/announce    - 主播公告
- * GET    /api/live-stream/platforms   - 支持的平台列表
+ * POST   /api/live-stream/start          - 启动直播（含sceneConfig）
+ * POST   /api/live-stream/stop           - 停止直播
+ * GET    /api/live-stream/status         - 直播状态
+ * POST   /api/live-stream/pause          - 暂停直播
+ * POST   /api/live-stream/resume         - 恢复直播
+ * POST   /api/live-stream/script         - 添加脚本
+ * GET    /api/live-stream/scripts        - 查看脚本队列
+ * POST   /api/live-stream/announce       - 主播公告
+ * GET    /api/live-stream/platforms      - 支持的平台列表
  * POST   /api/live-stream/generate-script - AI生成直播脚本
+ * GET    /api/live-stream/scene-config   - 获取场景布局配置
+ * PUT    /api/live-stream/scene-config   - 保存场景布局配置
+ * POST   /api/live-stream/preview        - 生成预览帧画面
  */
 
 import express from 'express';
@@ -19,6 +22,7 @@ import path from 'path';
 import fs from 'fs';
 import { getLiveStreamEngine, resetLiveStreamEngine, LiveStatus } from '../services/avatar/LiveStreamEngine.js';
 import { getProfileList, getProfile } from '../services/avatar/AvatarProfiles.js';
+import { Avatar2DRenderer, loadImageBase64 } from '../services/avatar/VRMRenderer.js';
 
 const router = express.Router();
 
@@ -61,6 +65,8 @@ router.post('/start', ensureEngine, async (req, res) => {
       proxyRegion,
       useOwnProxy = false,
       ownProxyUrl,
+      // 场景布局配置
+      sceneConfig,
     } = req.body;
 
     const engine = req.engine;
@@ -84,6 +90,12 @@ router.post('/start', ensureEngine, async (req, res) => {
     if (width) engine.width = width;
     if (height) engine.height = height;
     if (fps) engine.fps = fps;
+
+    // 设置场景布局配置
+    if (sceneConfig) {
+      engine.sceneConfig = sceneConfig;
+      console.log(`[LiveStream] 🎬 场景布局: ${sceneConfig.orientation}, ${sceneConfig.overlays?.length || 0}个叠加元素`);
+    }
 
     // 添加初始脚本
     if (scripts && scripts.length > 0) {
@@ -480,6 +492,129 @@ router.get('/platforms', (req, res) => {
       ],
     },
   });
+});
+
+// ─── 场景布局配置 ───
+
+// 场景配置内存存储（每个用户一份，生产环境可接数据库）
+const sceneConfigStore = new Map();
+
+/**
+ * GET /api/live-stream/scene-config
+ * 获取当前场景布局配置
+ */
+router.get('/scene-config', (req, res) => {
+  const userId = req.user?.id || 'default';
+  const config = sceneConfigStore.get(userId) || null;
+  res.json({
+    success: true,
+    data: config,
+  });
+});
+
+/**
+ * PUT /api/live-stream/scene-config
+ * 保存场景布局配置
+ */
+router.put('/scene-config', (req, res) => {
+  try {
+    const userId = req.user?.id || 'default';
+    const { sceneConfig } = req.body;
+    
+    if (!sceneConfig) {
+      return res.json({ success: false, error: '请提供 sceneConfig' });
+    }
+
+    sceneConfigStore.set(userId, sceneConfig);
+    
+    // 同步到当前引擎
+    try {
+      const engine = getLiveStreamEngine();
+      if (engine && engine.renderer) {
+        engine.renderer.setSceneConfig(sceneConfig);
+      }
+    } catch (e) {
+      // 引擎未初始化时忽略
+    }
+
+    console.log(`[LiveStream] 💾 场景配置已保存: ${sceneConfig.orientation}, ${sceneConfig.overlays?.length || 0}个元素`);
+    
+    res.json({
+      success: true,
+      data: { message: '场景配置已保存' },
+    });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * POST /api/live-stream/preview
+ * 生成单帧预览画面（SVG/PNG）
+ */
+router.post('/preview', async (req, res) => {
+  try {
+    const {
+      profileId = 'xiaorui',
+      sceneConfig,
+      orientation,
+    } = req.body;
+
+    // 1. 获取主播形象
+    const profile = getProfile(profileId);
+    if (!profile) {
+      return res.json({ success: false, error: '主播形象不存在' });
+    }
+
+    // 2. 确定分辨率
+    const isLandscape = (orientation || sceneConfig?.orientation) === 'landscape';
+    const width = isLandscape ? 1920 : 1080;
+    const height = isLandscape ? 1080 : 1920;
+
+    // 3. 创建渲染器
+    const avatarImagePath = profile.imagePath 
+      ? path.resolve(profile.imagePath)
+      : null;
+
+    const renderer = new Avatar2DRenderer({
+      width,
+      height,
+      fps: 25,
+      appearance: profile.appearance,
+      avatarName: profile.name,
+      avatarImagePath,
+      mouthPosition: profile.mouthPosition || { x: 0.49, y: 0.57, w: 0.06, h: 0.025 },
+      sceneConfig: sceneConfig || null,
+    });
+
+    // 4. 渲染一帧（微张口自然状态）
+    const frame = renderer.renderFrame({
+      A: 0.08,
+      I: 0,
+      U: 0,
+      E: 0,
+      O: 0,
+    }, 0);
+
+    // 5. 返回 SVG
+    res.json({
+      success: true,
+      data: {
+        svg: frame.svg,
+        width: frame.width,
+        height: frame.height,
+        orientation: isLandscape ? 'landscape' : 'portrait',
+        profile: {
+          id: profile.id,
+          name: profile.name,
+          avatar: profile.avatar,
+        },
+      },
+    });
+  } catch (e) {
+    console.error('[LiveStream] 预览生成失败:', e);
+    res.json({ success: false, error: e.message });
+  }
 });
 
 export default router;

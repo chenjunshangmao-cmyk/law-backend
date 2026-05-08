@@ -199,3 +199,26 @@ API端点：
 - **自建技术栈**: OpenClaw Agent总控 + VRM/Three.js渲染 + Edge TTS + Whisper STT + Rhubarb口型同步 + FFmpeg/RTMP推流 + OBS分发
 - **旗舰版¥5,888覆盖**: 1个客户净利润¥1,888-4,588；2个¥8,000+；5个¥25,000+/月
 - **成本模型**: AI工具是固定开支（共享基础设施），会员收入是线性叠加 → 客户越多利润率越高
+
+## AI数字人直播系统（2026-05-08 全部实现）
+- **核心服务模块**（`src/services/avatar/`）:
+  - `TTSEngine.js` — TTS文字转语音（Edge TTS）
+  - `LipSyncEngine.js` — 中文拼音→Viseme唇形同步关键帧
+  - `VRMRenderer.js` — 2D SVG数字人渲染器（无需GPU）
+  - `RTMPPusher.js` — FFmpeg RTMP推流（8大平台）
+  - `RealtimeChat.js` — WebSocket实时弹幕+AI自动回复
+  - `LiveStreamEngine.js` — 直播总控引擎（整合5模块）
+  - `VideoCompositor.js` — FFmpeg视频合成+字幕+BGM
+- **API路由**: `src/routes/live-stream.js` — 10个端点（start/stop/status/pause/resume/script/generate-script/platforms/announce）
+- **前端面板**: `frontend/src/pages/LiveStreamPage.tsx` — 开播/下播/脚本管理/AI生成/弹幕/监控
+- **前端路由**: `/live-stream`
+- **共享基础设施**（writer/）: ScriptGenerator.js, CopyGenerator.js, NovelGenerator.js, ImageGenerator.js, VideoGenerator.js
+
+## 客户记忆系统（设计已确认，待实现 - 2026-05-08）
+- **核心需求**: 多租户隔离 — 每个B端客户的观众记忆完全独立，互不可见
+- **隔离键**: tenant_id = Claw用户账号ID（从JWT自动提取）
+- **数据库**: `customer_memory` 表，UNIQUE(tenant_id, viewer_platform_id, platform)
+- **服务层**: CustomerMemory.js，所有CRUD方法强制带 tenant_id
+- **AI注入点**: RealtimeChat.generateAIReply() → 查记忆 → 注入 prompt 上下文
+- **待改文件**: CustomerMemory.js(新建), RealtimeChat.js, LiveStreamEngine.js, live-stream.js, DB migration
+- **不改动**: TTS/LipSync/VRMRenderer/RTMPPusher/前端LiveStreamPage
