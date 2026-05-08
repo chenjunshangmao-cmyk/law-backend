@@ -283,6 +283,98 @@
   flex-shrink: 0;
 }
 
+/* 实时预览画布 — 嵌入服务端渲染SVG */
+.se-canvas-live {
+  border-color: #6c5ce7;
+  box-shadow: 0 0 30px rgba(108, 92, 231, 0.3);
+}
+
+.se-canvas-live svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ═══ 预览控制按钮 ═══ */
+.se-preview-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0;
+}
+
+.se-preview-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.se-preview-start {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+}
+
+.se-preview-start:hover:not(:disabled) {
+  box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+  transform: scale(1.03);
+}
+
+.se-preview-start:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.se-preview-stop {
+  background: linear-gradient(135deg, #555, #333);
+  color: white;
+}
+
+.se-preview-stop:hover {
+  background: #666;
+}
+
+.se-preview-status {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 10px;
+}
+
+.se-preview-idle { color: #666; }
+.se-preview-connecting { color: #f39c12; background: rgba(243, 156, 18, 0.1); }
+.se-preview-live { color: #00e676; background: rgba(0, 230, 118, 0.1); }
+.se-preview-error { color: #f44336; background: rgba(244, 67, 54, 0.1); }
+
+/* ═══ AI话术字幕 ═══ */
+.se-subtitle-bar {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 6px;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #3a3a5a;
+  box-sizing: border-box;
+}
+
+.se-subtitle-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.se-subtitle-text {
+  font-size: 13px;
+  color: #a29bfe;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ═══ 数字人区域 ═══ */
 .se-avatar-area {
   position: absolute;

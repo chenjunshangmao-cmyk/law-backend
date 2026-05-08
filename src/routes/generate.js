@@ -341,7 +341,7 @@ async function callAI(prompt) {
           'Authorization': `Bearer ${BAILIAN_API_KEY}`
         },
         body: JSON.stringify({
-          model: 'qwen-plus',
+          model: 'qwen-turbo',
           messages: [
             {
               role: 'system',

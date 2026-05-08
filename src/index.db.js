@@ -42,6 +42,7 @@ import writerRoutes from './routes/writer.js';
 import videoFactoryRoutes from './routes/video-factory.js';
 import liveStreamRoutes from './routes/live-stream.js';
 import proxyStreamRoutes from './routes/proxy-stream.js';
+import agentAIRoutes from './routes/agent-ai.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -135,6 +136,11 @@ app.use('/api/writer', writerRoutes);
 app.use('/api/video-factory', videoFactoryRoutes);
 app.use('/api/live-stream', liveStreamRoutes);
 app.use('/api/stream-proxy', proxyStreamRoutes);
+app.use('/api/agent-ai', agentAIRoutes);
+
+// Token用量统计API（无认证，仅管理员可看）
+import tokenStatsRoutes from './routes/token-stats.js';
+app.use('/api/ai', tokenStatsRoutes);
 
 // 版本信息 API
 app.get('/api/version', (req, res) => {
@@ -158,6 +164,22 @@ const initDatabase = async () => {
     console.error('数据库连接失败，使用内存模式运行');
     // 不退出，让服务继续运行
     return false;
+  }
+  
+  // 初始化AI Agent数据表
+  try {
+    const { initAgentTables } = await import('./services/ai/initAgentTables.js');
+    await initAgentTables();
+  } catch (err) {
+    console.error('⚠️ AI Agent表初始化失败:', err.message);
+  }
+  
+  // 初始化Token用量统计表
+  try {
+    const { initTokenTracker } = await import('./services/ai/TokenTracker.js');
+    await initTokenTracker();
+  } catch (err) {
+    console.error('⚠️ Token统计表初始化失败:', err.message);
   }
   
   // 同步数据库模型（不强制修改表结构，避免PostgreSQL兼容问题）
@@ -836,6 +858,16 @@ const startServer = async () => {
 ║  ├─ POST   /api/live-stream/announce  - 主播公告                  ║
 ║  ├─ POST   /api/live-stream/generate-script - AI生成脚本         ║
 ║  └─ GET    /api/live-stream/platforms - 支持平台                  ║
+║  [🤖 4子AI系统]                                                    ║
+║  ├─ GET    /api/agent-ai/list         - 所有Agent信息             ║
+║  ├─ GET    /api/agent-ai/:id/status   - Agent状态                 ║
+║  ├─ POST   /api/agent-ai/:id/chat     - 与Agent对话              ║
+║  ├─ POST   /api/agent-ai/:id/script   - 生成直播话术              ║
+║  ├─ POST   /api/agent-ai/:id/optimize - 分析优化建议              ║
+║  ├─ GET    /api/agent-ai/:id/qa-history - 问答历史                ║
+║  ├─ GET    /api/agent-ai/:id/dashboard - Agent仪表盘              ║
+║  ├─ POST   /api/agent-ai/:id/save-tip - 保存笔记                  ║
+║  └─ POST   /api/agent-ai/:id/save-qa  - 保存问答                  ║
 ║  [🚀 发布管理]                                                     ║
 ║  ├─ POST   /api/publish/tiktok  - TikTok发布                     ║
 ║  └─ POST   /api/publish/youtube - YouTube发布                    ║

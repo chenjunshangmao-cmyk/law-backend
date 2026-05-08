@@ -487,7 +487,7 @@ const DASHSCOPE_API_KEY = process.env.BAILIAN_API_KEY || 'sk-8a07c75081df49ac877
 /**
  * 百炼文本调用（Qwen）
  */
-async function callQwen(messages, model = 'qwen-plus') {
+async function callQwen(messages, model = 'qwen-turbo') {
   const response = await fetch(`${BAILIAN_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -776,7 +776,7 @@ ${extraInfo ? `补充：${extraInfo}` : ''}
     const rawContent = await callQwen([
       { role: 'system', content: '你是一位小红书爆款内容创作者。' },
       { role: 'user', content: systemPrompt },
-    ], 'qwen-plus');
+    ]);
 
     let result;
     try {
@@ -1243,7 +1243,7 @@ ${visualInfo ? `\n## AI 识图结果\n${visualInfo}` : ''}
     const rawContent = await callQwen([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
-    ], 'qwen-plus');
+    ]);
 
     // 解析 JSON
     let result;

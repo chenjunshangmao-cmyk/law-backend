@@ -286,7 +286,7 @@ import { generateMarketingCopy } from '../services/writer/CopyGenerator.js';
 
 /**
  * POST /api/live-stream/generate-script
- * AI生成直播脚本
+ * AI生成直播脚本（增强版：优先使用Agent AI）
  */
 router.post('/generate-script', async (req, res) => {
   try {
@@ -296,33 +296,64 @@ router.post('/generate-script', async (req, res) => {
       scene = '产品介绍',
       platform = 'TikTok',
       count = 5,
+      agentId,  // 可选：指定使用哪个Agent AI
+      roomId,
     } = req.body;
 
     if (!productName) {
       return res.json({ success: false, error: '请输入产品名称' });
     }
 
-    console.log(`[LiveStream] 🤖 生成直播脚本: ${productName}`);
+    console.log(`[LiveStream] 🤖 生成直播脚本: ${productName} ${agentId ? `(Agent: ${agentId})` : ''}`);
 
-    // 生成直播脚本和营销文案
-    const [script, copy] = await Promise.all([
-      generateLiveScript({ productName, productDesc, scene, platform }),
-      generateMarketingCopy({ productName, productDesc, platform }),
-    ]);
+    let script = '';
+    let copy = '';
+    let segments = [];
 
-    // 将脚本拆分为多个片段（适合直播循环播放）
-    const segments = [];
-    if (script) {
-      // 按句号/换行拆分
-      const parts = script.split(/[。\n]+/).filter(s => s.trim().length > 5);
-      parts.forEach((text, i) => {
-        segments.push({
-          id: `gen_${i}`,
-          text: text.trim(),
-          duration: Math.max(10, Math.min(60, text.length * 0.3)), // ~0.3秒/字
-          priority: 0,
+    // 优先使用Agent AI生成（如果指定了agentId）
+    if (agentId) {
+      try {
+        const { getAgent } = await import('../services/ai/AgentAIManager.js');
+        const agent = getAgent(agentId);
+        const result = await agent.generateScript({ productName, productDesc, topic: scene, roomId });
+        script = result;
+        
+        // 分段
+        const parts = result.split(/[。\n]+/).filter(s => s.trim().length > 5);
+        parts.forEach((text, i) => {
+          segments.push({
+            id: `agent_${agentId}_${i}`,
+            text: text.trim(),
+            duration: Math.max(10, Math.min(60, text.length * 0.3)),
+            priority: 0,
+            agentId,
+          });
         });
-      });
+      } catch (agentErr) {
+        console.warn('[LiveStream] Agent AI生成失败，回退到默认:', agentErr.message);
+      }
+    }
+    
+    // 如果Agent没生成或者没指定，使用默认方式
+    if (!script) {
+      const [s, c] = await Promise.all([
+        generateLiveScript({ productName, productDesc, scene, platform }),
+        generateMarketingCopy({ productName, productDesc, platform }),
+      ]);
+      script = s;
+      copy = c;
+      
+      if (script) {
+        const parts = script.split(/[。\n]+/).filter(s => s.trim().length > 5);
+        parts.forEach((text, i) => {
+          segments.push({
+            id: `gen_${i}`,
+            text: text.trim(),
+            duration: Math.max(10, Math.min(60, text.length * 0.3)),
+            priority: 0,
+          });
+        });
+      }
     }
 
     res.json({
@@ -550,7 +581,7 @@ router.put('/scene-config', (req, res) => {
 
 /**
  * POST /api/live-stream/preview
- * 生成单帧预览画面（SVG/PNG）
+ * 生成单帧预览画面（SVG）
  */
 router.post('/preview', async (req, res) => {
   try {
@@ -615,6 +646,125 @@ router.post('/preview', async (req, res) => {
     console.error('[LiveStream] 预览生成失败:', e);
     res.json({ success: false, error: e.message });
   }
+});
+
+/**
+ * GET /api/live-stream/preview-stream
+ * SSE实时预览流 — 服务端持续渲染动画帧推送到前端
+ * Query: profileId, orientation, width, height, fps
+ * 前端通过 EventSource 接收 SVG 帧
+ */
+router.get('/preview-stream', async (req, res) => {
+  const {
+    profileId = 'xiaorui',
+    orientation = 'portrait',
+    width: widthStr,
+    height: heightStr,
+    fps: fpsStr,
+  } = req.query;
+
+  const isLandscape = orientation === 'landscape';
+  const width = parseInt(widthStr) || (isLandscape ? 1920 : 1080);
+  const height = parseInt(heightStr) || (isLandscape ? 1080 : 1920);
+  const fps = parseInt(fpsStr) || 8; // 预览用低帧率减轻服务器压力
+
+  // 获取主播形象
+  const profile = getProfile(profileId);
+  const avatarImagePath = profile?.imagePath ? path.resolve(profile.imagePath) : null;
+
+  // 获取场景配置
+  const userId = req.user?.id || 'default';
+  const sceneConfig = sceneConfigStore.get(userId) || null;
+
+  // SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  // 创建渲染器
+  const renderer = new Avatar2DRenderer({
+    width,
+    height,
+    fps,
+    appearance: profile?.appearance,
+    avatarName: profile?.name || 'AI主播',
+    avatarImagePath,
+    mouthPosition: profile?.mouthPosition || { x: 0.49, y: 0.57, w: 0.06, h: 0.025 },
+    sceneConfig: sceneConfig || null,
+  });
+
+  console.log(`[LiveStream] 🎬 SSE预览流开始: ${orientation} ${width}x${height} ${fps}fps`);
+
+  // 模拟话术文本（用于口型动画）
+  const demoScripts = [
+    '欢迎来到云南瑞丽翡翠直播间！',
+    '今天给大家带来的都是缅甸A货翡翠，',
+    '每一件都有鉴定证书，假一赔十！',
+    '家人们右上角点个关注，每天都有源头好货！',
+    '感谢家人们的支持，觉得主播讲得好的点点赞！',
+  ];
+
+  let frameNum = 0;
+  let scriptIdx = 0;
+  let scriptElapsed = 0;
+  const scriptInterval = 3.0; // 每句3秒
+
+  // 发送初始帧
+  const initialFrame = renderer.renderSilentFrame(0);
+  res.write(`event: init\ndata: ${JSON.stringify({
+    width: initialFrame.width,
+    height: initialFrame.height,
+    orientation,
+    profileName: profile?.name || 'AI主播',
+    sceneConfig: sceneConfig ? { orientation: sceneConfig.orientation, overlayCount: sceneConfig.overlays?.length } : null,
+  })}\n\n`);
+
+  const frameInterval = setInterval(() => {
+    const elapsed = frameNum / fps;
+    
+    // 脚本切换
+    scriptElapsed += 1 / fps;
+    if (scriptElapsed >= scriptInterval) {
+      scriptElapsed = 0;
+      scriptIdx = (scriptIdx + 1) % demoScripts.length;
+    }
+
+    // 模拟口型：说话时嘴巴动，不说话时微张
+    const isSpeaking = scriptElapsed < scriptInterval * 0.8; // 80%时间说话
+    const t = isSpeaking ? (scriptElapsed % 0.3) / 0.3 : 0; // 快速循环
+    const mouthA = isSpeaking ? (Math.sin(t * Math.PI * 2) * 0.5 + 0.5) * 0.7 : 0.05;
+    const mouthI = isSpeaking ? (Math.sin(t * Math.PI * 2 + 0.5) * 0.3 + 0.2) * 0.3 : 0.02;
+
+    const frame = renderer.renderFrame({
+      A: mouthA,
+      I: mouthI,
+      U: isSpeaking ? 0.1 : 0.02,
+      E: isSpeaking ? 0.05 : 0.01,
+      O: isSpeaking ? 0.08 : 0.02,
+    }, elapsed);
+
+    // 加上当前话术字幕信息
+    const currentScript = isSpeaking ? demoScripts[scriptIdx] : '';
+    
+    res.write(`event: frame\ndata: ${JSON.stringify({
+      svg: frame.svg,
+      frame: frameNum,
+      time: frame.time,
+      speaking: isSpeaking,
+      script: currentScript,
+    })}\n\n`);
+
+    frameNum++;
+  }, 1000 / fps);
+
+  // 客户端断开时清理
+  req.on('close', () => {
+    clearInterval(frameInterval);
+    console.log(`[LiveStream] 🛑 SSE预览流结束 (${frameNum}帧)`);
+  });
 });
 
 export default router;

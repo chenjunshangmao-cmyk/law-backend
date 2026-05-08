@@ -1,12 +1,12 @@
 /**
- * SceneEditor.tsx — 直播场景布局编辑器 v1.0
+ * SceneEditor.tsx — 直播场景布局编辑器 v2.0
  * 
  * 功能：
  * - 实时预览直播画面布局
+ * - SSE实时动画预览（服务端渲染数字人帧 → 前端显示）
  * - 横屏/竖屏切换
  * - 拖拽添加叠加元素（微信二维码、广告词、LED跑马灯、产品卡）
  * - 元素属性编辑（位置、大小、颜色、文字内容、动画）
- * - QR码图片上传
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
@@ -66,6 +66,79 @@ export default function SceneEditor({
   const [resizing, setResizing] = useState<string | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // ─── SSE 实时预览状态 ───
+  const [isLivePreview, setIsLivePreview] = useState(false);
+  const [previewSvg, setPreviewSvg] = useState('');
+  const [previewFrame, setPreviewFrame] = useState(0);
+  const [previewSpeaking, setPreviewSpeaking] = useState(false);
+  const [previewScript, setPreviewScript] = useState('');
+  const [previewStatus, setPreviewStatus] = useState<'idle' | 'connecting' | 'live' | 'error'>('idle');
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  const API_BASE2 = import.meta.env.VITE_API_URL || '';
+
+  // ─── SSE 实时预览：启动/停止 ───
+  const startLivePreview = useCallback(() => {
+    if (isLivePreview) return;
+    setPreviewStatus('connecting');
+    setIsLivePreview(true);
+
+    const params = new URLSearchParams({
+      profileId: 'xiaorui',
+      orientation: sceneConfig.orientation,
+    });
+    const url = `${API_BASE2}/api/live-stream/preview-stream?${params}`;
+
+    const es = new EventSource(url);
+    eventSourceRef.current = es;
+
+    es.addEventListener('init', (e) => {
+      const data = JSON.parse(e.data);
+      console.log('[SceneEditor] SSE预览初始化:', data);
+    });
+
+    es.addEventListener('frame', (e) => {
+      const data = JSON.parse(e.data);
+      setPreviewSvg(data.svg);
+      setPreviewFrame(data.frame);
+      setPreviewSpeaking(data.speaking);
+      setPreviewScript(data.script || '');
+      if (previewStatus !== 'live') setPreviewStatus('live');
+    });
+
+    es.onerror = () => {
+      setPreviewStatus('error');
+      stopLivePreview();
+    };
+  }, [isLivePreview, sceneConfig.orientation, previewStatus]);
+
+  const stopLivePreview = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    setIsLivePreview(false);
+    setPreviewSvg('');
+    setPreviewStatus('idle');
+    setPreviewScript('');
+    setPreviewSpeaking(false);
+  }, []);
+
+  // 方向/主播切换时重启预览
+  useEffect(() => {
+    if (isLivePreview) {
+      stopLivePreview();
+      setTimeout(() => startLivePreview(), 300);
+    }
+  }, [sceneConfig.orientation]);
+
+  // 清理
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) eventSourceRef.current.close();
+    };
+  }, []);
 
   // 根据所选平台自动切换方向
   const switchOrientation = useCallback((orientation: Orientation) => {
@@ -355,60 +428,105 @@ export default function SceneEditor({
           </div>
         </div>
 
+        {/* 实时预览控制按钮 */}
+        <div className="se-preview-controls">
+          {!isLivePreview ? (
+            <button
+              className="se-preview-btn se-preview-start"
+              onClick={startLivePreview}
+              disabled={disabled}
+            >
+              ▶️ 实时预览
+            </button>
+          ) : (
+            <button
+              className="se-preview-btn se-preview-stop"
+              onClick={stopLivePreview}
+            >
+              ⏹ 停止预览
+            </button>
+          )}
+          <span className={`se-preview-status se-preview-${previewStatus}`}>
+            {previewStatus === 'connecting' && '⏳ 连接中...'}
+            {previewStatus === 'live' && `🔴 直播中 · 帧#${previewFrame}`}
+            {previewStatus === 'error' && '⚠️ 连接失败'}
+            {previewStatus === 'idle' && '点击预览查看直播画面'}
+          </span>
+        </div>
+
         {/* 画布预览 */}
         <div className="se-canvas-wrapper">
-          <div
-            ref={canvasRef}
-            className="se-canvas"
-            style={{
-              width: canvasW,
-              height: canvasH,
-              background: sceneConfig.background.type === 'gradient'
-                ? `linear-gradient(180deg, ${sceneConfig.background.value.split(',').join(',')})`
-                : sceneConfig.background.value,
-            }}
-          >
-            {/* 数字人区域 */}
+          {isLivePreview && previewSvg ? (
             <div
-              className="se-avatar-area"
+              className="se-canvas se-canvas-live"
               style={{
-                left: `${sceneConfig.avatar.x}%`,
-                top: `${sceneConfig.avatar.y}%`,
-                width: `${sceneConfig.avatar.width}%`,
-                height: `${sceneConfig.avatar.height}%`,
-                transform: 'translate(-50%, -50%)',
+                width: canvasW,
+                height: canvasH,
+              }}
+              dangerouslySetInnerHTML={{ __html: previewSvg }}
+            />
+          ) : (
+            <div
+              ref={canvasRef}
+              className="se-canvas"
+              style={{
+                width: canvasW,
+                height: canvasH,
+                background: sceneConfig.background.type === 'gradient'
+                  ? `linear-gradient(180deg, ${sceneConfig.background.value.split(',').join(',')})`
+                  : sceneConfig.background.value,
               }}
             >
-              {avatarImageUrl ? (
-                <img src={avatarImageUrl} alt={avatarName || '主播'} className="se-avatar-img" />
-              ) : (
-                <div className="se-avatar-placeholder">
-                  <span>👤</span>
-                  <span style={{ fontSize: 8 * canvasScale, color: '#888' }}>{avatarName || 'AI主播'}</span>
+              {/* 数字人区域 */}
+              <div
+                className="se-avatar-area"
+                style={{
+                  left: `${sceneConfig.avatar.x}%`,
+                  top: `${sceneConfig.avatar.y}%`,
+                  width: `${sceneConfig.avatar.width}%`,
+                  height: `${sceneConfig.avatar.height}%`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                {avatarImageUrl ? (
+                  <img src={avatarImageUrl} alt={avatarName || '主播'} className="se-avatar-img" />
+                ) : (
+                  <div className="se-avatar-placeholder">
+                    <span>👤</span>
+                    <span style={{ fontSize: Math.max(8, 12 * canvasScale), color: '#888' }}>{avatarName || 'AI主播'}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* 叠加元素（仅非实时预览时显示） */}
+              {sceneConfig.overlays.filter(o => o.enabled).map(renderOverlayPreview)}
+
+              {/* 底部信息栏 */}
+              {sceneConfig.bottomBar.enabled && (
+                <div
+                  className="se-bottom-bar"
+                  style={{
+                    height: sceneConfig.bottomBar.height * canvasScale,
+                    backgroundColor: sceneConfig.bottomBar.backgroundColor,
+                    color: sceneConfig.bottomBar.textColor,
+                    fontSize: Math.max(7, 10 * canvasScale),
+                  }}
+                >
+                  {sceneConfig.bottomBar.showLiveDot && <span className="se-live-dot">🔴 LIVE</span>}
+                  <span>{sceneConfig.bottomBar.text}</span>
+                  {sceneConfig.bottomBar.showTimer && <span className="se-timer">00:00</span>}
                 </div>
               )}
             </div>
+          )}
 
-            {/* 叠加元素 */}
-            {sceneConfig.overlays.filter(o => o.enabled).map(renderOverlayPreview)}
-
-            {/* 底部信息栏 */}
-            {sceneConfig.bottomBar.enabled && (
-              <div
-                className="se-bottom-bar"
-                style={{
-                  height: sceneConfig.bottomBar.height * canvasScale,
-                  backgroundColor: sceneConfig.bottomBar.backgroundColor,
-                  color: sceneConfig.bottomBar.textColor,
-                  fontSize: 8 * canvasScale,
-                }}
-              >
-                {sceneConfig.bottomBar.showLiveDot && <span className="se-live-dot">🔴 LIVE</span>}
-                <span>{sceneConfig.bottomBar.text}</span>
-                {sceneConfig.bottomBar.showTimer && <span className="se-timer">00:00</span>}
-              </div>
-            )}
-          </div>
+          {/* AI话术字幕 */}
+          {isLivePreview && previewSpeaking && previewScript && (
+            <div className="se-subtitle-bar">
+              <span className="se-subtitle-icon">🗣️</span>
+              <span className="se-subtitle-text">{previewScript}</span>
+            </div>
+          )}
         </div>
 
         {/* 添加元素按钮 */}

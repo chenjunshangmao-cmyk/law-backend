@@ -9,24 +9,23 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.08.009** |
-| 构建时间 | 2026-05-08 12:00 CST |
+| 版本号 | **2026.05.08.010** |
+| 构建时间 | 2026-05-08 15:50 CST |
 | 前端部署 | https://claw-app-2026.pages.dev |
 | 主域名 | https://claw-app-2026.pages.dev (自动指向最新)
 
 ### 本次变更
 
-**🎬 AI数字人直播画面预览编辑器**
-- 新增 types/SceneConfig.ts — 场景布局配置数据模型
-- 新增 components/SceneEditor.tsx — 可视化场景编辑器（画布/元素列表/属性面板）
-- 新增 components/SceneEditor.css — 编辑器完整样式
-- VRMRenderer.js — 新增 `setSceneConfig()` + `_renderOverlays()` 叠加元素SVG渲染
-- LiveStreamEngine.js — 支持 sceneConfig 传递到渲染器
-- live-stream.js — 新增3个端点：GET/PUT scene-config 配置存取、POST preview 预览帧
-- LiveStreamPage.tsx — 集成SceneEditor紧凑模式、平台切换自动横竖屏
-- 支持5种叠加元素：二维码/广告词/LED跑马灯/产品卡/图片
-- 横屏(16:9)左右侧添加元素，竖屏(9:16)底部为主
-- 支持元素拖拽定位、颜色/字号/动画编辑、实时画布预览
+**🤖 OpenCloud 4子AI Agent接入 + 百炼优化 + SSE预览流**
+- AgentAIManager.js — 4个独立人格AI Agent（小瑞/小青/小云/小王）
+- agent-ai.js — 9个API端点（对话/话术/优化/问答历史/仪表盘）
+- TokenTracker.js — Token用量统计（百炼/DeepSeek 按模型+模块）
+- token-stats.js — 用量查询API
+- initAgentTables.js — 4张AI数据表
+- 🔧 百炼 qwen-plus → qwen-turbo（省成本，功能不受影响）
+- 🐛 修复 agent-ai.js 缺少 AGENT_PERSONALITIES import
+- 🎬 SSE实时预览流 GET /api/live-stream/preview-stream
+- 前端 SceneEditor ▶️实时预览按钮 + 字幕显示
 
 ### 本次变更
 

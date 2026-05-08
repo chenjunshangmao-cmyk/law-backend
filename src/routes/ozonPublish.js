@@ -416,7 +416,7 @@ const BAILIAN_BASE_URL = process.env.BAILIAN_BASE_URL || 'https://dashscope.aliy
 /**
  * 百炼文本调用（Qwen）
  */
-async function callQwen(messages, model = 'qwen-plus') {
+async function callQwen(messages, model = 'qwen-turbo') {
   const response = await fetch(`${BAILIAN_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -658,7 +658,7 @@ router.post('/ai/competitive-analysis', async (req, res) => {
     const rawContent = await callQwen([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
-    ], 'qwen-plus');
+    ]);
 
     let result;
     try {
