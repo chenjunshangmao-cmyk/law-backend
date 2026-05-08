@@ -28,7 +28,8 @@ import {
   MessageCircle,
   Youtube,
   PenLine,
-  Clapperboard
+  Clapperboard,
+  Radio
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -45,6 +46,7 @@ const NAV_ITEMS = [
   { path: '/ozon-publish', icon: Globe,          label: 'OZON发布', color: 'text-blue-600' },
   { path: '/ai-content',  icon: Sparkles,        label: 'AI智能图文', color: 'text-fuchsia-500' },
   { path: '/avatar',      icon: Bot,             label: 'AI数字人', color: 'text-violet-500' },
+  { path: '/live-stream', icon: Radio,           label: 'AI直播', color: 'text-red-500' },
   { path: '/writer',     icon: PenLine,         label: 'AI文案', color: 'text-sky-500' },
   { path: '/video-factory', icon: Clapperboard, label: '短视频', color: 'text-rose-500' },
   { path: '/ai-tools',   icon: Sparkles,        label: 'AI工具箱', color: 'text-cyan-500' },
