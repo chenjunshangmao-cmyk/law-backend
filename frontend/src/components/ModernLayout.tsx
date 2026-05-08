@@ -29,7 +29,8 @@ import {
   Youtube,
   PenLine,
   Clapperboard,
-  Radio
+  Radio,
+  Server
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -52,6 +53,7 @@ const NAV_ITEMS = [
   { path: '/ai-tools',   icon: Sparkles,        label: 'AI工具箱', color: 'text-cyan-500' },
   { path: '/whatsapp',    icon: MessageCircle,    label: 'WhatsApp中继', color: 'text-green-500' },
   { path: '/youtube',    icon: Youtube,          label: 'YouTube', color: 'text-red-600' },
+  { path: '/ai-gateway', icon: Server,           label: 'AI网关', color: 'text-violet-500', adminOnly: true },
   { path: '/settings',    icon: Settings,        label: '设置', color: 'text-gray-500' },
 ];
 
@@ -60,6 +62,10 @@ export default function ModernLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // 管理员检测
+  const isAdmin = user?.email === 'runzefeicui@163.com';
+  const filteredNavItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
 
   async function handleLogout() {
     await logout();
@@ -174,7 +180,7 @@ export default function ModernLayout() {
         {/* 导航菜单 */}
         <nav className="flex-1 p-4 overflow-y-auto">
           <div className="space-y-1">
-            {NAV_ITEMS.map((item) => {
+            {filteredNavItems.map((item) => {
               const Icon = item.icon;
               return (
                 <NavLink
@@ -295,7 +301,7 @@ export default function ModernLayout() {
             {/* 导航菜单 */}
             <nav className="p-4">
               <div className="space-y-1">
-                {NAV_ITEMS.map((item) => {
+                {filteredNavItems.map((item) => {
                   const Icon = item.icon;
                   if (item.path === '/publish') {
                     return (
