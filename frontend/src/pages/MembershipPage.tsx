@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Check, Crown, Zap, Building2, QrCode, RefreshCw, Bot, Shield, ChevronDown, ChevronUp, Users, XCircle, Coins, Copy, ExternalLink, Globe, Monitor, Youtube, Share2, TrendingUp } from 'lucide-react';
+import { Check, Crown, Zap, Building2, QrCode, RefreshCw, Bot, Shield, ChevronDown, ChevronUp, Users, XCircle, Coins, Copy, ExternalLink, Globe, Monitor, Youtube, Share2, TrendingUp, Rocket, UserPlus } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { PaymentOrder } from '../types';
@@ -104,6 +104,39 @@ const SERVICES = [
     bgColor: '#f0fdf4',
     desc: '主流广告平台企业户开户，含审核材料准备',
     features: ['Google Ads开户', 'Facebook Ads开户', 'TikTok Ads开户', '审核材料辅导'],
+  },
+  {
+    id: 'tk-account',
+    name: 'TK开号+翡翠平台报白',
+    price: 2800,
+    unit: '次',
+    icon: Shield,
+    color: '#f59e0b',
+    bgColor: '#fffbeb',
+    desc: 'TikTok账号开通 + 翡翠类平台报白名单',
+    features: ['TikTok账号开通', '翡翠类平台报白名单', '一次性服务', '不含后续运营'],
+  },
+  {
+    id: 'apple-id',
+    name: '苹果ID+内购小火箭',
+    price: 88,
+    unit: '次',
+    icon: Rocket,
+    color: '#6366f1',
+    bgColor: '#eef2ff',
+    desc: '苹果ID不分国家地区，内购小火箭',
+    features: ['不分国家地区', '内购小火箭', '不包售后', '购买后需及时改资料'],
+  },
+  {
+    id: 'youtube-fans',
+    name: 'YouTube粉丝增加',
+    price: 58,
+    unit: '次（100个起）',
+    icon: UserPlus,
+    color: '#ef4444',
+    bgColor: '#fef2f2',
+    desc: 'YouTube粉丝增加，100个起，掉粉可补1次',
+    features: ['100个起', '掉粉可补1次', '自然流量增长', '不含售后维护'],
   },
 ];
 
@@ -772,7 +805,7 @@ export default function MembershipPage() {
                 <div className="border-t border-gray-100 pt-3">
                   <div className="flex items-end justify-between mb-3">
                     <span className="text-2xl font-bold text-gray-900">¥{service.price}</span>
-                    <span className="text-xs text-gray-400">/次</span>
+                    <span className="text-xs text-gray-400">{service.unit || '/次'}</span>
                   </div>
                   <div className="space-y-2">
                     <button
