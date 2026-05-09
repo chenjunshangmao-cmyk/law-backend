@@ -30,7 +30,8 @@ import {
   PenLine,
   Clapperboard,
   Radio,
-  Server
+  Server,
+  Facebook
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -52,6 +53,7 @@ const NAV_ITEMS = [
   { path: '/video-factory', icon: Clapperboard, label: '短视频', color: 'text-rose-500' },
   { path: '/ai-tools',   icon: Sparkles,        label: 'AI工具箱', color: 'text-cyan-500' },
   { path: '/whatsapp',    icon: MessageCircle,    label: 'WhatsApp中继', color: 'text-green-500' },
+  { path: '/facebook',   icon: Facebook,          label: 'Facebook', color: 'text-blue-600' },
   { path: '/youtube',    icon: Youtube,          label: 'YouTube', color: 'text-red-600' },
   { path: '/ai-gateway', icon: Server,           label: 'AI网关', color: 'text-violet-500', adminOnly: true },
   { path: '/settings',    icon: Settings,        label: '设置', color: 'text-gray-500' },

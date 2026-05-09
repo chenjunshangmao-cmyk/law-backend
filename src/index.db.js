@@ -1,12 +1,27 @@
 // Claw外贸网站后端API - 完整版（PostgreSQL + 全部功能）
 import 'dotenv/config';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+const __dirname_dir = dirname(fileURLToPath(import.meta.url));
+import dotenv from 'dotenv';
+dotenv.config({ path: resolve(__dirname_dir, '.env'), override: true });
+
+// 全局HTTPS代理（使用Clash系统代理，让Gemini API可以直连）
+// 检查系统代理设置，自动配置Node.js代理
+import { bootstrap } from 'global-agent';
+bootstrap();
+process.env.HTTP_PROXY = process.env.HTTP_PROXY || process.env.http_proxy || '';
+process.env.HTTPS_PROXY = process.env.HTTPS_PROXY || process.env.https_proxy || '';
+// 如果没有设环境变量但系统代理开着，用默认Clash端口
+if (!process.env.HTTPS_PROXY) {
+  process.env.HTTPS_PROXY = 'http://127.0.0.1:6789';
+  process.env.HTTP_PROXY = 'http://127.0.0.1:6789';
+}
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
 // 数据库配置
 import { testConnection, syncDatabase, sequelize, pool } from './config/database.js';
 import { findUserById } from './services/dbService.js';
@@ -43,6 +58,7 @@ import videoFactoryRoutes from './routes/video-factory.js';
 import liveStreamRoutes from './routes/live-stream.js';
 import proxyStreamRoutes from './routes/proxy-stream.js';
 import agentAIRoutes from './routes/agent-ai.js';
+import facebookRoutes from './routes/facebook.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -248,6 +264,7 @@ app.use('/api/customer-service', customerServiceRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/webhook', paymentRoutes);
 app.use('/api/shouqianba', shouqianbaRoutes);
+app.use('/api/facebook', facebookRoutes);
 
 // AI团队协作看板（公开访问）
 const _teamDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../team');

@@ -934,47 +934,48 @@ export const api = {
   },
 
   // ============================================================
-  // YouTube Data API v3（OAuth 直传，无需浏览器）
+  // Facebook API
   // ============================================================
-  youtube: {
-    /** 用 Data API 直接上传视频 */
-    upload: async (data: {
-      channelId: string;
-      videoPath: string;
-      title: string;
-      description?: string;
-      tags?: string[];
-      categoryId?: string;
-      privacyStatus?: string;
-    }) => {
-      const token = getToken();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const response = await fetchWithTimeout(
-        `${BASE_URL}/api/youtube/upload`,
-        { method: 'POST', headers, body: JSON.stringify(data) },
-        300000 // 5 分钟超时（大视频上传慢）
-      );
-      return response.json();
-    },
-
-    /** 获取授权账号列表 */
-    listAccounts: () => authFetch('/api/youtube/accounts'),
-
-    /** 视频列表 */
-    listVideos: (channelId: string, maxResults = 10) =>
-      authFetch(`/api/youtube/videos?channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}`),
-
-    /** 视频详情 */
-    getVideo: (videoId: string, channelId: string) =>
-      authFetch(`/api/youtube/video/${encodeURIComponent(videoId)}?channelId=${encodeURIComponent(channelId)}`),
-
-    /** 频道信息 */
-    getChannel: (channelId: string) =>
-      authFetch(`/api/youtube/channel/${encodeURIComponent(channelId)}`),
-
-    /** 配额检查 */
-    checkQuota: () => authFetch('/api/youtube/quota'),
+  facebook: {
+    login: (accountId: string, email: string, password: string) =>
+      authFetch('/api/facebook/login', {
+        method: 'POST',
+        body: JSON.stringify({ accountId, email, password }),
+      }),
+    submit2fa: (accountId: string, code: string) =>
+      authFetch('/api/facebook/2fa', {
+        method: 'POST',
+        body: JSON.stringify({ accountId, code }),
+      }),
+    status: (accountId: string) =>
+      authFetch(`/api/facebook/status?accountId=${encodeURIComponent(accountId)}`),
+    pages: (accountId: string) =>
+      authFetch(`/api/facebook/pages?accountId=${encodeURIComponent(accountId)}`),
+    logout: (accountId: string) =>
+      authFetch('/api/facebook/logout', {
+        method: 'POST',
+        body: JSON.stringify({ accountId }),
+      }),
+    publishProfileImage: (data: { accountId: string; text?: string; imagePaths: string[] }) =>
+      authFetch('/api/facebook/publish/profile/image', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    publishProfileVideo: (data: { accountId: string; text?: string; videoPath: string }) =>
+      authFetch('/api/facebook/publish/profile/video', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    publishPageImage: (data: { accountId: string; pageName: string; text?: string; imagePaths: string[] }) =>
+      authFetch('/api/facebook/publish/page/image', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    publishPageVideo: (data: { accountId: string; pageName: string; text?: string; videoPath: string }) =>
+      authFetch('/api/facebook/publish/page/video', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 
   // 发布任务队列（OpenClaw 客服自动执行）
