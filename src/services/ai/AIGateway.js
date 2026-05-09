@@ -58,7 +58,7 @@ class AIGateway {
       tencent: { apiKey: _env('HUNYUAN_API_KEY', 'sk-uCrsS2tD3YBwzYR6Wgmw3brZcxj6z4K4lfj1JpWhpu4dx8cJ'), baseUrl: 'https://api.hunyuan.cloud.tencent.com/v1', models: ['hunyuan-lite'] },
       bytedance: { apiKey: _env('ARK_API_KEY', 'ark-c8b1fb82-d5ec-44f4-88bd-cc86929d4fb6-13b29'), baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', models: ['ep-20250423235039-7ntcd', 'doubao-lite-128k'] },
       moonshot: { apiKey: _env('MOONSHOT_API_KEY', ''), baseUrl: 'https://api.moonshot.cn/v1', models: ['moonshot-v1'] },
-      gemini: { apiKey: _env('GOOGLE_API_KEY', 'AIzaSyBWm8kkLXqVfXv2pOgzDBgjh2pow9oXTX0'), baseUrl: 'https://generativelanguage.googleapis.com/v1beta', models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite'] },
+      gemini: { apiKey: _env('GOOGLE_API_KEY', 'AIzaSyBdWdfynbv8BRxm9mHCWdy_LFVe-4Gf3rc'), baseUrl: 'https://generativelanguage.googleapis.com/v1beta', models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite'] },
       siliconflow: { apiKey: _env('SILICONFLOW_API_KEY', ''), baseUrl: 'https://api.siliconflow.cn/v1', models: ['deepseek-chat'] },
     };
 
