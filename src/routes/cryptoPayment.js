@@ -39,6 +39,9 @@ const SERVICE_PRICES = {
   'youtube-live':   { name: 'YouTube 直播号',   price: 1000 },
   'facebook-live':  { name: 'Facebook 直播推广号', price: 2800 },
   'ads-account':    { name: '广告户开户',       price: 500 },
+  'tk-account':     { name: 'TK开号+翡翠平台报白', price: 2800 },
+  'apple-id':       { name: '苹果ID+内购小火箭',  price: 88 },
+  'youtube-fans':   { name: 'YouTube粉丝增加',   price: 58 },
 };
 
 function getPrice(key) {
