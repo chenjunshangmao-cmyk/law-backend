@@ -479,16 +479,49 @@ class LiveStreamEngine extends EventEmitter {
 
   /**
    * 处理观众互动（触发AI回复）
+   * 调用对应Agent AI生成智能回复
    */
   async handleViewerInteraction(message) {
-    // 高优先级消息可以打断当前脚本
-    if (message.text && message.text.includes('主播') && this.autoReplyEnabled) {
-      // 把回复插入脚本队列最前面
-      this.addScript({
-        text: `感谢${message.user || '家人'}的提问！`,
-        duration: 5,
-        priority: 10, // 高优先级
+    if (!message.text || !this.autoReplyEnabled) return;
+
+    // 获取房间ID（平台+streamKey组合）
+    const roomId = `${this.platform}_${this.streamKey || this.rtmpUrl?.split('/').pop() || 'default'}`;
+    
+    try {
+      // 动态导入Agent AI（避免循环依赖）
+      const { getAgent } = await import('../ai/AgentAIManager.js');
+      const agent = getAgent(this.profileId);
+      
+      // Agent生成回复
+      const reply = await agent.getReply({
+        message: message.text,
+        sessionId: message.user || roomId,
+        roomId,
       });
+
+      // 保存问答到数据库
+      await agent.saveQA(roomId, message.text, reply);
+
+      // 插入回复到脚本队列（高优先级，但不要过长）
+      const duration = Math.max(5, Math.min(30, Math.round(reply.length * 0.2)));
+      this.addScript({
+        text: reply,
+        duration,
+        priority: 8 + Math.min(message.text.length / 50, 4), // 越长的问题优先级越高
+      });
+
+      console.log(`[LiveStreamEngine] 🤖 ${agent.name}回复: ${reply.substring(0, 40)}...`);
+    } catch (e) {
+      console.warn('[LiveStreamEngine] Agent AI回复失败，使用默认回复:', e.message);
+      
+      // 兜底回复
+      if (message.text.includes('主播') || message.text.includes('？') || message.text.includes('?')) {
+        this.addScript({
+          text: `感谢${message.user || '家人'}的提问！我来看看这个问题~`,
+          duration: 5,
+          priority: 10,
+        });
+      }
     }
   }
 

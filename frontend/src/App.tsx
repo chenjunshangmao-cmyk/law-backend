@@ -31,6 +31,7 @@ const OrdersPage           = lazy(() => import('./pages/OrdersPage'));
 const PaymentResultPage    = lazy(() => import('./pages/PaymentResultPage'));
 const WhatsAppPage          = lazy(() => import('./pages/WhatsAppPage'));
 const FacebookPage          = lazy(() => import('./pages/FacebookPage'));
+const CustomerServicePage    = lazy(() => import('./pages/CustomerServicePage'));
 const LiveStreamPage        = lazy(() => import('./pages/LiveStreamPage'));
 const AIGatewayPage         = lazy(() => import('./pages/AIGatewayPage'));
 
@@ -143,6 +144,7 @@ function AppRoutes() {
         <Route path="orders"        element={<Suspense fallback={<PageLoading />}><OrdersPage /></Suspense>} />
         <Route path="whatsapp"       element={<Suspense fallback={<PageLoading />}><WhatsAppPage /></Suspense>} />
         <Route path="facebook"      element={<Suspense fallback={<PageLoading />}><FacebookPage /></Suspense>} />
+        <Route path="customer-service" element={<Suspense fallback={<PageLoading />}><CustomerServicePage /></Suspense>} />
         <Route path="live-stream"    element={<Suspense fallback={<PageLoading />}><LiveStreamPage /></Suspense>} />
         <Route path="ai-gateway"     element={<Suspense fallback={<PageLoading />}><AIGatewayPage /></Suspense>} />
       </Route>

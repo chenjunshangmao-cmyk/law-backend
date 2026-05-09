@@ -328,49 +328,10 @@ function buildImagePrompt(productName, description, style) {
 
 // ============================================================
 // AI 调用（统一入口）
-// 优先 百炼 → DeepSeek → OpenClaw → 模拟数据
+// 优先 DeepSeek → 百炼（备用）→ 模拟数据
 // ============================================================
 async function callAI(prompt) {
-  // 1. 百炼（阿里云）
-  if (BAILIAN_API_KEY) {
-    try {
-      const response = await fetch(`${BAILIAN_BASE_URL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${BAILIAN_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'qwen-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: '你是一个专业的跨境电商文案专家，精通中/英/俄/日多语言商品文案撰写和翻译。'
-            },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.7,
-          max_tokens: 2000
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`百炼API错误: ${response.status} - ${errorData}`);
-      }
-
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-      if (content) {
-        try { return { text: JSON.parse(content) }; } catch { return { text: content }; }
-      }
-      throw new Error('百炼返回内容为空');
-    } catch (error) {
-      console.error('百炼调用失败:', error.message);
-    }
-  }
-
-  // 2. DeepSeek
+  // 1. DeepSeek（主模型）
   if (DEEPSEEK_API_KEY) {
     try {
       const response = await fetch(DEEPSEEK_API_URL, {

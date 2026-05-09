@@ -5,5 +5,13 @@
     "merchantId": "18956397746",
     "storeSn": "00010101001200200046406",
     "deviceId": "claw-pay-motecg24-0417"
+  },
+  "claw-pay-prod-0507": {
+    "terminalSn": "100111220054832254",
+    "terminalKey": "b68483ae92623c03d5c41d5b40931209",
+    "merchantId": null,
+    "storeSn": "1580000011101653",
+    "deviceId": "claw-pay-prod-0507",
+    "updatedAt": 1778198739964
   }
 }

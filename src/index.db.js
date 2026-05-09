@@ -59,6 +59,8 @@ import liveStreamRoutes from './routes/live-stream.js';
 import proxyStreamRoutes from './routes/proxy-stream.js';
 import agentAIRoutes from './routes/agent-ai.js';
 import facebookRoutes from './routes/facebook.js';
+import lineRoutes from './routes/line.js';
+import wechatCSRoutes from './routes/wechat-cs.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -265,6 +267,8 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/webhook', paymentRoutes);
 app.use('/api/shouqianba', shouqianbaRoutes);
 app.use('/api/facebook', facebookRoutes);
+app.use('/api/line', lineRoutes);
+app.use('/api/wechat-cs', wechatCSRoutes);
 
 // AI团队协作看板（公开访问）
 const _teamDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../team');

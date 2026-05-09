@@ -9,44 +9,22 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.10.002** |
-| 构建时间 | 2026-05-10 01:20 CST |
+| 版本号 | **2026.05.10.004** |
+| 构建时间 | 2026-05-10 06:50 CST |
 | 前端部署 | https://claw-app-2026.pages.dev |
-| 主域名 | https://claw-app-2026.pages.dev (自动指向最新)
+| Git提交 | 待部署 |
+| 构建者 | WorkBuddy AI |
+| 变更内容 | 🎧 新增 AI客服中心模块（LINE + 微信客服智能托管） |
 
 ### 本次变更
 
-**💼 会员业务新增3项服务 + USDT支付修复 + AI网关入口**
-- TK开号+翡翠平台报白 — ¥2,800/次
-- 苹果ID+内购小火箭 — ¥88/次（不分国家地区，不包售后）
-- YouTube粉丝增加 — ¥58/次（100个起，掉粉可补1次）
-- 🐛 cryptoPayment.js SERVICE_PRICES 补全3项新服务（USDT支付报错修复）
-- 🔌 AI网关导航栏管理员入口 + 测试端点修复（tag: 4f23b6e）
-- token-stats.js — 用量查询API
-- initAgentTables.js — 4张AI数据表
-- 🔧 百炼 qwen-plus → qwen-turbo（省成本，功能不受影响）
-- 🐛 修复 agent-ai.js 缺少 AGENT_PERSONALITIES import
-- 🎬 SSE实时预览流 GET /api/live-stream/preview-stream
-- 前端 SceneEditor ▶️实时预览按钮 + 字幕显示
-
-### 本次变更
-
-**👤 AI主播形象选择系统**
-- 4套形象: 小瑞(温柔女)/小青(活泼女)/小云(磁性男)/小王(专业男)
-- 不同外观/配色/发型/配饰, VRMRenderer实时渲染切换
-- 前端: 4宫格卡片选择器, 直播中可切换
-- 之前路由和页面都建好了但忘了加导航入口
-- 新增6个核心服务模块：
-  - `LipSyncEngine.js` — 中文拼音→Viseme映射，唇形同步关键帧生成
-  - `VRMRenderer.js` — 2D SVG数字人渲染器（降级模式，无需GPU）
-  - `RTMPPusher.js` — FFmpeg RTMP推流引擎（支持8大平台）
-  - `RealtimeChat.js` — WebSocket实时弹幕+AI自��回复
-  - `LiveStreamEngine.js` — 直播总控（整合TTS/LipSync/VRM/RTMP/Chat）
-- 新增API路由：`src/routes/live-stream.js`（10个端点）
-- 新增前端页面：`LiveStreamPage.tsx` 直播控制面板
-- 注册到 `index.db.js` 和 `App.tsx`
-- 全部5个服务模块 + 路由 import 链验证通过（5/5）
-- 前端构建通过，LiveStreamPage 10.42 kB
+**🎧 AI客服中心模块上线**
+- 前端: `CustomerServicePage.tsx` — 4个标签页：概览/对话记录/快捷回复/渠道配置
+- 后端: `src/routes/line.js` — LINE Messaging API webhook（台湾市场）
+- 后端: `src/routes/wechat-cs.js` — 微信客服消息 webhook（大陆市场）
+- 服务流程图：广告投放 → AI客服接待 → Claw支付 → 成交
+- 6条预设快捷回复规则（价格/翡翠/支付/广告/问候/售后）
+- 导航新增「AI客服」入口（Headset图标，紫色）
 
 
 

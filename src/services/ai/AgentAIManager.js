@@ -374,7 +374,7 @@ ${topQuestions.map((q, i) => `${i+1}. "${q.question}" (出现${q.count}次)`).jo
   async _callAI(messages) {
     // 检测可用provider
     const deepseekKey = process.env.DEEPSEEK_API_KEY;
-    const bailianKey = process.env.BAILIAN_API_KEY || 'sk-8a07c75081df49ac877d6950a95b06ec';
+    const bailianKey = process.env.BAILIAN_API_KEY || '';
     
     // 按优先级尝试：DeepSeek → 百炼
     const providers = [

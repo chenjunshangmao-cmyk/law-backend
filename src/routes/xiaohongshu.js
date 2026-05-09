@@ -478,36 +478,65 @@ router.get('/status', async (req, res) => {
 });
 
 // =============================================================
-// AI 配置（复用百炼，与 generate.js 共享 env）
+// AI 配置（优先 DeepSeek，回退百炼）
 // =============================================================
-const BAILIAN_API_KEY = process.env.BAILIAN_API_KEY || 'sk-8a07c75081df49ac877d6950a95b06ec';
-const BAILIAN_BASE_URL = process.env.BAILIAN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const DASHSCOPE_API_KEY = process.env.BAILIAN_API_KEY || 'sk-8a07c75081df49ac877d6950a95b06ec';
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+const BAILIAN_API_KEY = process.env.BAILIAN_API_KEY || '';
+const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
+const BAILIAN_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 
 /**
- * 百炼文本调用（Qwen）
+ * AI 文本调用（优先 DeepSeek，回退百炼）
  */
-async function callQwen(messages, model = 'qwen-turbo') {
-  const response = await fetch(`${BAILIAN_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${BAILIAN_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.7,
-      max_tokens: 2000,
-    }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Qwen API错误: ${response.status} - ${errText}`);
+async function callQwen(messages, model = 'deepseek-chat') {
+  // 1. DeepSeek
+  if (DEEPSEEK_API_KEY) {
+    try {
+      const response = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages,
+          temperature: 0.7,
+          max_tokens: 2000,
+        }),
+      });
+      if (!response.ok) throw new Error(`DeepSeek: ${response.status}`);
+      const data = await response.json();
+      return data.choices?.[0]?.message?.content || '';
+    } catch (e) {
+      console.error('[XHS] DeepSeek失败，尝试百炼:', e.message);
+    }
   }
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || '';
+  
+  // 2. 百炼（备用）
+  if (BAILIAN_API_KEY) {
+    const response = await fetch(`${BAILIAN_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${BAILIAN_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'qwen-turbo',
+        messages,
+        temperature: 0.7,
+        max_tokens: 2000,
+      }),
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Qwen API错误: ${response.status} - ${errText}`);
+    }
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || '';
+  }
+  
+  throw new Error('未配置任何API Key');
 }
 
 /**

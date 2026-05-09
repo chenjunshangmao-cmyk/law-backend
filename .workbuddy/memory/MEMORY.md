@@ -1,7 +1,7 @@
 # MEMORY.md - Claw 项目核心记忆
 
 ## 当前时间
-2026-05-08
+2026-05-10
 
 ## 🚨 部署铁律（2026-05-06 血的教训）
 **每次部署前必须遵守，违反一条就出事故：**
@@ -143,10 +143,10 @@ API端点：
 - **两个激活码均失效**: 66172491(EJ05已使用), 81119079(EJ06已过期)
 - **operator参数**: 官方文档要求必填，之前代码遗漏 — v005已修复
 
-## 部署状态（2026-05-07 最新）
-- **前端最新**: Cloudflare Pages ✅ https://df35750b.claw-app-2026.pages.dev（v2026.05.07.009）
+## 部署状态（2026-05-08 12:00 最新）
+- **前端最新**: Cloudflare Pages ✅ https://b09649eb.claw-app-2026.pages.dev（v2026.05.08.009）
 - **主域名**: https://claw-app-2026.pages.dev（自动指向最新生产版）
-- **后端**: claw-backend-2026.onrender.com ✅（Render自动部署，commit 9ace012）
+- **后端**: claw-backend-2026.onrender.com ✅（Render自动部署，commit 300c26f）
 - **后端源码路径**: **根目录 `src/`**（不是 `backend/src/`！Render 用 `src/`）
 - **Gitee**: https://gitee.com/lyshlc/claw.git
 - **GitHub**: git@github.com:chenjunshangmao-cmyk/law-backend.git
@@ -214,11 +214,24 @@ API端点：
 - **前端路由**: `/live-stream`
 - **共享基础设施**（writer/）: ScriptGenerator.js, CopyGenerator.js, NovelGenerator.js, ImageGenerator.js, VideoGenerator.js
 
-## 客户记忆系统（设计已确认，待实现 - 2026-05-08）
-- **核心需求**: 多租户隔离 — 每个B端客户的观众记忆完全独立，互不可见
-- **隔离键**: tenant_id = Claw用户账号ID（从JWT自动提取）
-- **数据库**: `customer_memory` 表，UNIQUE(tenant_id, viewer_platform_id, platform)
-- **服务层**: CustomerMemory.js，所有CRUD方法强制带 tenant_id
-- **AI注入点**: RealtimeChat.generateAIReply() → 查记忆 → 注入 prompt 上下文
-- **待改文件**: CustomerMemory.js(新建), RealtimeChat.js, LiveStreamEngine.js, live-stream.js, DB migration
-- **不改动**: TTS/LipSync/VRMRenderer/RTMPPusher/前端LiveStreamPage
+2026-05-10
+
+## Ollama 千问本地模型 + 网关接入（2026-05-10 建立）
+- **Ollama 服务**: 绑定 0.0.0.0:11434，已安装模型：
+  - `qwen2.5:7b` (4.7 GB) — 主力
+  - `qwen2.5:1.5b` (986 MB)
+  - `qwen:0.5b` (394 MB)
+  - `llama3.2:1b` (1.3 GB)
+- **Ollama Gateway**: `ollama-gateway.cjs`，端口 11435，OpenAI 兼容 API 代理
+- **Nginx 代理**: `/ollama/` 路由 → localhost:11435（在 nginx 端口 8081）
+- **调用地址**:
+  - 本地: `http://localhost:8081/ollama/v1/chat/completions`
+  - 局域网: `http://192.168.3.144:11435/v1/chat/completions`
+- **Nova 集成**: `_call_local()` 方法已预留 Ollama 接口
+- **AI网关**: `src/routes/ai-gateway.js` + `src/services/AIGateway.js`，6/9 平台可用
+
+## Nova AI 系统 v2.1（2026-05-10）
+- 24个工具（截图/系统信息/进程/剪贴板/通知/网页抓取等）
+- 双通道：钉钉✅ + Web:8800✅，QQ⛔（Token过期）
+- 文件: `C:\Users\Administrator\.nova\nova.py`
+- 依赖: pyautogui, psutil, pyperclip, duckduckgo-search

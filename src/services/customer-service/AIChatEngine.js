@@ -583,7 +583,7 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
 
   // 百炼/通义千问 API
   async callBailian(messages) {
-    const apiKey = process.env.BAILIAN_API_KEY || 'sk-8a07c75081df49ac877d6950a95b06ec';
+    const apiKey = process.env.BAILIAN_API_KEY || '';
     if (!apiKey || apiKey === 'your_bailian_api_key') {
       throw new Error('百炼 API Key未配置');
     }
