@@ -59,9 +59,12 @@ class AIGateway {
     };
 
     for (const [name, cfg] of Object.entries(configs)) {
+      // 清洗API Key：Bun runtime 要求 fetch headers/URL 必须是纯 ASCII
+      const cleanKey = String(cfg.apiKey).trim().replace(/[^\x20-\x7E]/g, '');
       this.providers.set(name, {
         ...cfg,
-        enabled: !!cfg.apiKey,
+        apiKey: cleanKey,
+        enabled: !!cleanKey,
         usage: { calls: 0, tokens: 0, cost: 0, lastUsed: null },
       });
     }
@@ -146,7 +149,7 @@ class AIGateway {
       return await this._callGemini(provider, messages, { model, maxTokens, temperature });
     }
 
-    // 标准 OpenAI 兼容接口
+    // 标准 OpenAI 兼容接口（Bun fetch 要求 headers 纯 ASCII）
     const payload = {
       model,
       messages,
@@ -154,11 +157,13 @@ class AIGateway {
       max_tokens: maxTokens,
     };
 
+    // 安全编码 headers，确保 Bun runtime 兼容
+    const safeApiKey = String(provider.apiKey).trim().replace(/[^\x20-\x7E]/g, '');
     const resp = await fetch(`${provider.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${provider.apiKey}`,
+        'Authorization': `Bearer ${safeApiKey}`,
       },
       body: JSON.stringify(payload),
     });
