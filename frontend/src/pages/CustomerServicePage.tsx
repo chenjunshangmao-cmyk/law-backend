@@ -194,7 +194,7 @@ function OverviewTab() {
             服务流程
           </h3>
           <div className="flex items-center gap-2 text-sm">
-            <FlowStep icon={Megaphone} label="广告投放" desc="Google/FB/TikTok" />
+            <FlowStep icon={Megaphone} label="广告投放" desc="全品类全平台" />
             <ArrowRight className="w-4 h-4 text-gray-400 shrink-0" />
             <FlowStep icon={MessageCircle} label="AI客服" desc="自动应答接待" />
             <ArrowRight className="w-4 h-4 text-gray-400 shrink-0" />
@@ -222,12 +222,12 @@ function ConversationsTab() {
     try {
       // 模拟数据 - 实际接入数据库后替换
       const fakeSessions: ChatSession[] = [
-        { sessionId: 's1', platform: 'LINE', userId: 'U123456', firstMessage: '請問你們有賣翡翠手鐲嗎？', lastReply: '我們是代運營服務商，可以幫您管理翡翠銷售渠道...', messageCount: 8, lastActivity: new Date().toISOString(), status: 'active' },
-        { sessionId: 's2', platform: 'WhatsApp', userId: '+886912345678', firstMessage: 'I saw your ad about jade jewelry, can you tell me more?', lastReply: 'Yes! We provide agency services for jade merchants in Ruili...', messageCount: 6, lastActivity: new Date(Date.now() - 120000).toISOString(), status: 'active' },
-        { sessionId: 's3', platform: '微信客服', userId: 'oABCD', firstMessage: '你们接客服外包吗', lastReply: '是的！我们提供客服托管服务，包含LINE+WhatsApp+微信三平台...', messageCount: 5, lastActivity: new Date(Date.now() - 300000).toISOString(), status: 'active' },
+        { sessionId: 's1', platform: 'LINE', userId: 'U123456', firstMessage: '請問你們有在幫忙做代運營嗎？', lastReply: '是的！我們提供全平台客服托管服務，LINE/WhatsApp/微信都能接...', messageCount: 8, lastActivity: new Date().toISOString(), status: 'active' },
+        { sessionId: 's2', platform: 'WhatsApp', userId: '+886912345678', firstMessage: 'I saw your ad about e-commerce services, can you tell me more?', lastReply: 'Sure! We provide customer service hosting for any e-commerce seller...', messageCount: 6, lastActivity: new Date(Date.now() - 120000).toISOString(), status: 'active' },
+        { sessionId: 's3', platform: '微信客服', userId: 'oABCD', firstMessage: '你们接客服外包吗，我卖服装的', lastReply: '接！不限品类，服装/3C/美妆都行，AI自动回复+人工兜底...', messageCount: 5, lastActivity: new Date(Date.now() - 300000).toISOString(), status: 'active' },
         { sessionId: 's4', platform: 'LINE', userId: 'U789012', firstMessage: '我想了解一下收費標準', lastReply: '客服託管費 ¥500/月起，包含AI自動回覆+人工兜底...', messageCount: 12, lastActivity: new Date(Date.now() - 600000).toISOString(), status: 'active' },
-        { sessionId: 's5', platform: 'WhatsApp', userId: '+886987654321', firstMessage: 'Do you handle TikTok ads for jade products?', lastReply: 'Yes we do! Google Ads + TikTok Ads targeting Taiwan market...', messageCount: 4, lastActivity: new Date(Date.now() - 1800000).toISOString(), status: 'active' },
-        { sessionId: 's6', platform: '微信客服', userId: 'oEFGH', firstMessage: '你好', lastReply: '您好！Claw AI客服为您服务，请问有什么可以帮您？', messageCount: 3, lastActivity: new Date(Date.now() - 86400000).toISOString(), status: 'closed' },
+        { sessionId: 's5', platform: 'WhatsApp', userId: '+886987654321', firstMessage: 'Do you handle ads for any product category?', lastReply: 'Yes! We do Google/Facebook/TikTok ads for all categories...', messageCount: 4, lastActivity: new Date(Date.now() - 1800000).toISOString(), status: 'active' },
+        { sessionId: 's6', platform: '微信客服', userId: 'oEFGH', firstMessage: '你好，我是做3C配件的，能用吗', lastReply: '当然能用！不限品类，配置好店铺信息AI就能自动接待～', messageCount: 3, lastActivity: new Date(Date.now() - 86400000).toISOString(), status: 'closed' },
       ];
       setSessions(fakeSessions);
     } catch (err) {
@@ -309,12 +309,12 @@ function ConversationsTab() {
 // ─── 快捷回复页 ───
 function QuickRepliesTab() {
   const [replies, setReplies] = useState<QuickReply[]>([
-    { id: '1', trigger: '价格咨询', keywords: ['多少钱', '价格', '收费', '费用'], response: '客服托管费 ¥500/月起，包含AI自动回复+人工兜底，按咨询量阶梯定价。具体报价请看服务页～', enabled: true },
-    { id: '2', trigger: '翡翠咨询', keywords: ['翡翠', '手镯', '吊坠', '玉器'], response: '我们帮瑞丽翡翠商家做代运营服务（广告投放+客服接待+支付收款），不是直接卖翡翠的哈～如果您是翡翠商家需要托管服务，欢迎咨询！', enabled: true },
+    { id: '1', trigger: '价格咨询', keywords: ['多少钱', '价格', '收费', '费用'], response: '客服托管费 ¥500/月起，包含AI自动回复+人工兜底，按咨询量阶梯定价。全品类通用，不限商品类型～具体报价请看服务页！', enabled: true },
+    { id: '2', trigger: '品类咨询', keywords: ['品类', '类目', '卖什么', '能不能做', '支持'], response: '我们全品类通用！不管是服装、3C、美妆、家居还是珠宝文玩，只要你有店铺，我们都能接客服托管～', enabled: true },
     { id: '3', trigger: '支付方式', keywords: ['支付', '付款', '怎么付', '收款'], response: '我们支持微信/支付宝（收钱吧）和 USDT 加密货币支付，秒到账！需要哪个支付方式？', enabled: true },
-    { id: '4', trigger: '广告投放', keywords: ['广告', '投流', '推广', 'Google'], response: '我们帮您投放Google/Facebook/TikTok广告，精准定位台湾翡翠买家，日预算¥300-500起，效果可追踪～', enabled: true },
-    { id: '5', trigger: '开箱问候', keywords: ['你好', 'hello', '在吗', '您好'], response: '您好！这里是Claw AI客服中心 👋\n我们为翡翠珠宝商家提供客服托管、广告投放、支付收款一站式服务。请问有什么可以帮您？', enabled: true },
-    { id: '6', trigger: '售后问题', keywords: ['退款', '退货', '投诉', '假货'], response: '非常抱歉给您带来不便！请您提供订单号，我会帮您转接人工客服处理。人工客服微信：ailaopojun0416', enabled: true },
+    { id: '4', trigger: '广告投放', keywords: ['广告', '投流', '推广', 'Google'], response: '我们帮您投放Google/Facebook/TikTok广告，全品类不限，日预算¥300-500起，效果可追踪～', enabled: true },
+    { id: '5', trigger: '开箱问候', keywords: ['你好', 'hello', '在吗', '您好'], response: '您好！这里是Claw AI客服中心 👋\n我们为电商卖家提供客服托管、广告投放、支付收款一站式服务，全品类全平台通用。请问有什么可以帮您？', enabled: true },
+    { id: '6', trigger: '售后问题', keywords: ['退款', '退货', '投诉', '售后'], response: '非常抱歉给您带来不便！请您提供订单号，我会帮您转接人工客服处理。人工客服微信：ailaopojun0416', enabled: true },
   ]);
   const [editing, setEditing] = useState<QuickReply | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -481,12 +481,12 @@ function SettingsTab() {
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
                   <label className="text-xs text-violet-700">店铺名称</label>
-                  <input type="text" placeholder="如：瑞丽翡翠行"
+                  <input type="text" placeholder="如：XX优选店铺"
                     className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white" />
                 </div>
                 <div>
                   <label className="text-xs text-violet-700">主营品类</label>
-                  <input type="text" placeholder="如：手镯、挂件、原石"
+                  <input type="text" placeholder="如：服装、3C、美妆"
                     className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white" />
                 </div>
               </div>
@@ -508,7 +508,7 @@ function SettingsTab() {
               </div>
               <div>
                 <label className="text-xs text-violet-700">额外说明（自由发挥）</label>
-                <textarea rows={3} placeholder="如：&#10;• 我们在云南瑞丽姐告口岸有实体店&#10;• 支持视频看货、一物一拍&#10;• 顺丰包邮，7天无理由&#10;• 批发价格，比商场便宜50%以上"
+                <textarea rows={3} placeholder="如：&#10;• 我们是XX品牌官方授权经销商&#10;• 支持视频验货、一件代发&#10;• 顺丰包邮，7天无理由&#10;• 批发价格，量大从优"
                   className="w-full mt-0.5 px-3 py-2 border border-violet-200 rounded text-sm bg-white resize-none" />
               </div>
             </div>
@@ -611,7 +611,7 @@ function SettingsTab() {
                     <option value="">默认（自然亲切）</option><option value="专业">专业严谨</option><option value="热情">热情活泼</option><option value="简洁">简洁高效</option></select></div>
               </div>
               <div><label className="text-xs text-violet-700">额外说明（自由发挥）</label>
-                <textarea rows={3} placeholder="如：我们在瑞丽有实体店、支持视频看货、顺丰包邮...&#10;可以写任何想让AI知道的信息"
+                <textarea rows={3} placeholder="如：品牌授权经销商、支持视频验货、一件代发...&#10;可以写任何想让AI知道的信息"
                   className="w-full mt-0.5 px-3 py-2 border border-violet-200 rounded text-sm bg-white resize-none" /></div>
             </div>
 
@@ -696,7 +696,7 @@ function SettingsTab() {
                     <option value="">默认（自然亲切）</option><option value="专业">专业严谨</option><option value="热情">热情活泼</option><option value="简洁">简洁高效</option></select></div>
               </div>
               <div><label className="text-xs text-violet-700">额外说明（自由发挥）</label>
-                <textarea rows={3} placeholder="如：我们在瑞丽有实体店、支持视频看货、顺丰包邮...&#10;可以写任何想让AI知道的信息"
+                <textarea rows={3} placeholder="如：品牌授权经销商、支持视频验货、一件代发...&#10;可以写任何想让AI知道的信息"
                   className="w-full mt-0.5 px-3 py-2 border border-violet-200 rounded text-sm bg-white resize-none" /></div>
             </div>
 
