@@ -101,7 +101,7 @@ export default function CustomerServicePage() {
 function OverviewTab() {
   const [stats, setStats] = useState({
     totalSessions: 0, activeSessions: 0, totalMessages: 0,
-    lineSessions: 0, wechatSessions: 0, avgResponseTime: '1.2s',
+    lineSessions: 0, wechatSessions: 0, waSessions: 0, avgResponseTime: '1.2s',
     satisfactionRate: '98%'
   });
   const [loading, setLoading] = useState(true);
@@ -114,15 +114,17 @@ function OverviewTab() {
 
   async function loadStats() {
     try {
-      const [csRes, lineRes, wechatRes] = await Promise.allSettled([
+      const [csRes, lineRes, wechatRes, waRes] = await Promise.allSettled([
         api.get('/api/customer-service/stats'),
         api.get('/api/line/stats'),
-        api.get('/api/wechat-cs/stats')
+        api.get('/api/wechat-cs/stats'),
+        api.get('/api/whatsapp-cs/stats')
       ]);
 
       const csStats = csRes.status === 'fulfilled' ? csRes.value.data?.stats || {} : {};
       const lineStats = lineRes.status === 'fulfilled' ? lineRes.value.data?.stats || {} : {};
       const wechatStats = wechatRes.status === 'fulfilled' ? wechatRes.value.data?.stats || {} : {};
+      const waStats = waRes.status === 'fulfilled' ? waRes.value.data?.stats || {} : {};
 
       setStats({
         totalSessions: csStats.totalSessions || 0,
@@ -130,6 +132,7 @@ function OverviewTab() {
         totalMessages: csStats.totalMessages || 0,
         lineSessions: lineStats.lineSessions || 0,
         wechatSessions: wechatStats.wechatSessions || 0,
+        waSessions: waStats.waSessions || 0,
         avgResponseTime: '1.2s',
         satisfactionRate: '98%'
       });
@@ -179,6 +182,7 @@ function OverviewTab() {
           </h3>
           <div className="space-y-4">
             <PlatformBar label="LINE (台湾)" count={stats.lineSessions} total={stats.totalSessions || 1} color="from-green-400 to-green-600" />
+            <PlatformBar label="WhatsApp (海外)" count={stats.waSessions} total={stats.totalSessions || 1} color="from-emerald-400 to-emerald-600" />
             <PlatformBar label="微信客服 (大陆)" count={stats.wechatSessions} total={stats.totalSessions || 1} color="from-blue-400 to-blue-600" />
           </div>
         </div>
@@ -208,7 +212,7 @@ function OverviewTab() {
 function ConversationsTab() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'line' | 'wechat'>('all');
+  const [filter, setFilter] = useState<'all' | 'line' | 'wechat' | 'whatsapp'>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => { loadSessions(); }, []);
@@ -219,9 +223,11 @@ function ConversationsTab() {
       // 模拟数据 - 实际接入数据库后替换
       const fakeSessions: ChatSession[] = [
         { sessionId: 's1', platform: 'LINE', userId: 'U123456', firstMessage: '請問你們有賣翡翠手鐲嗎？', lastReply: '我們是代運營服務商，可以幫您管理翡翠銷售渠道...', messageCount: 8, lastActivity: new Date().toISOString(), status: 'active' },
-        { sessionId: 's2', platform: '微信客服', userId: 'oABCD', firstMessage: '你们接客服外包吗', lastReply: '是的！我们提供客服托管服务，包含LINE+微信双平台...', messageCount: 5, lastActivity: new Date(Date.now() - 300000).toISOString(), status: 'active' },
-        { sessionId: 's3', platform: 'LINE', userId: 'U789012', firstMessage: '我想了解一下收費標準', lastReply: '客服託管費 ¥500/月起，包含AI自動回覆+人工兜底...', messageCount: 12, lastActivity: new Date(Date.now() - 600000).toISOString(), status: 'active' },
-        { sessionId: 's4', platform: '微信客服', userId: 'oEFGH', firstMessage: '你好', lastReply: '您好！Claw AI客服为您服务，请问有什么可以帮您？', messageCount: 3, lastActivity: new Date(Date.now() - 86400000).toISOString(), status: 'closed' },
+        { sessionId: 's2', platform: 'WhatsApp', userId: '+886912345678', firstMessage: 'I saw your ad about jade jewelry, can you tell me more?', lastReply: 'Yes! We provide agency services for jade merchants in Ruili...', messageCount: 6, lastActivity: new Date(Date.now() - 120000).toISOString(), status: 'active' },
+        { sessionId: 's3', platform: '微信客服', userId: 'oABCD', firstMessage: '你们接客服外包吗', lastReply: '是的！我们提供客服托管服务，包含LINE+WhatsApp+微信三平台...', messageCount: 5, lastActivity: new Date(Date.now() - 300000).toISOString(), status: 'active' },
+        { sessionId: 's4', platform: 'LINE', userId: 'U789012', firstMessage: '我想了解一下收費標準', lastReply: '客服託管費 ¥500/月起，包含AI自動回覆+人工兜底...', messageCount: 12, lastActivity: new Date(Date.now() - 600000).toISOString(), status: 'active' },
+        { sessionId: 's5', platform: 'WhatsApp', userId: '+886987654321', firstMessage: 'Do you handle TikTok ads for jade products?', lastReply: 'Yes we do! Google Ads + TikTok Ads targeting Taiwan market...', messageCount: 4, lastActivity: new Date(Date.now() - 1800000).toISOString(), status: 'active' },
+        { sessionId: 's6', platform: '微信客服', userId: 'oEFGH', firstMessage: '你好', lastReply: '您好！Claw AI客服为您服务，请问有什么可以帮您？', messageCount: 3, lastActivity: new Date(Date.now() - 86400000).toISOString(), status: 'closed' },
       ];
       setSessions(fakeSessions);
     } catch (err) {
@@ -232,7 +238,7 @@ function ConversationsTab() {
   }
 
   const filteredSessions = sessions
-    .filter(s => filter === 'all' || s.platform === (filter === 'line' ? 'LINE' : '微信客服'))
+    .filter(s => filter === 'all' || s.platform.toLowerCase() === filter)
     .filter(s => !searchTerm || s.firstMessage.includes(searchTerm) || s.lastReply.includes(searchTerm));
 
   return (
@@ -240,11 +246,11 @@ function ConversationsTab() {
       {/* 筛选栏 */}
       <div className="flex items-center gap-3">
         <div className="flex bg-gray-100 rounded-lg p-1">
-          {['all', 'line', 'wechat'].map(f => (
+          {['all', 'line', 'whatsapp', 'wechat'].map(f => (
             <button key={f} onClick={() => setFilter(f as any)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${filter === f ? 'bg-white shadow-sm text-violet-700' : 'text-gray-500'}`}
             >
-              {f === 'all' ? '全部' : f === 'line' ? 'LINE' : '微信客服'}
+              {f === 'all' ? '全部' : f === 'line' ? 'LINE' : f === 'whatsapp' ? 'WhatsApp' : '微信客服'}
             </button>
           ))}
         </div>
@@ -268,7 +274,7 @@ function ConversationsTab() {
           <div className="p-12 text-center">
             <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500">暂无对话记录</p>
-            <p className="text-sm text-gray-400 mt-1">当有客户通过LINE或微信联系时，这里会显示对话记录</p>
+            <p className="text-sm text-gray-400 mt-1">当有客户通过 LINE / WhatsApp / 微信联系时，这里会显示对话记录</p>
           </div>
         ) : (
           filteredSessions.map(session => (
@@ -276,7 +282,9 @@ function ConversationsTab() {
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    session.platform === 'LINE' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                    session.platform === 'LINE' ? 'bg-green-100 text-green-700' :
+                    session.platform === 'WhatsApp' ? 'bg-emerald-100 text-emerald-700' :
+                    'bg-blue-100 text-blue-700'
                   }`}>{session.platform}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
                     session.status === 'active' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
@@ -398,9 +406,11 @@ function QuickRepliesTab() {
 function SettingsTab() {
   const [platforms, setPlatforms] = useState<PlatformConfig[]>([
     { key: 'line', name: 'LINE (台湾)', configured: false, webhookUrl: 'https://claw-backend-2026.onrender.com/api/line/webhook' },
+    { key: 'whatsapp', name: 'WhatsApp (海外)', configured: false, webhookUrl: 'https://claw-backend-2026.onrender.com/api/whatsapp-cs/webhook' },
     { key: 'wechat', name: '微信客服 (大陆)', configured: false, webhookUrl: 'https://claw-backend-2026.onrender.com/api/wechat-cs/webhook' },
   ]);
   const [showLineConfig, setShowLineConfig] = useState(false);
+  const [showWaConfig, setShowWaConfig] = useState(false);
   const [showWechatConfig, setShowWechatConfig] = useState(false);
   const [copied, setCopied] = useState('');
 
@@ -479,6 +489,69 @@ function SettingsTab() {
         )}
       </div>
 
+      {/* WhatsApp 配置 */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="p-5 flex items-center justify-between cursor-pointer" onClick={() => setShowWaConfig(!showWaConfig)}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+              <Phone className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">WhatsApp Cloud API</h3>
+              <p className="text-sm text-gray-500">海外市场客服对接 · Meta Business Platform</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-2 py-0.5 rounded-full ${platforms[1].configured ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {platforms[1].configured ? '已配置' : '待配置'}
+            </span>
+            <ChevronDown className={`w-5 h-5 text-gray-400 transition ${showWaConfig ? 'rotate-180' : ''}`} />
+          </div>
+        </div>
+        {showWaConfig && (
+          <div className="border-t border-gray-100 p-5 space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+              <strong>💡 WhatsApp 配置步骤：</strong><br />
+              1. 进入 <a href="https://developers.facebook.com/" target="_blank" className="underline">Meta Developers</a> 创建应用<br />
+              2. 添加 WhatsApp 产品 → 获取 Phone Number ID 和 Access Token<br />
+              3. 在 Webhook 设置中填入下方地址，Verify Token 填 <code className="bg-amber-100 px-1 rounded">claw_verify_2026</code>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Phone Number ID</label>
+              <input type="text" placeholder="从 WhatsApp Business 设置中获取..."
+                className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Access Token（永久令牌）</label>
+              <input type="password" placeholder="从 Meta Developers 生成..."
+                className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Webhook URL（复制到 Meta Developers）</label>
+              <div className="flex items-center gap-2 mt-1">
+                <code className="flex-1 px-3 py-2 bg-gray-50 rounded-lg text-xs text-gray-700 break-all">
+                  {platforms[1].webhookUrl}
+                </code>
+                <button onClick={() => copyToClipboard(platforms[1].webhookUrl)}
+                  className="p-2 hover:bg-gray-100 rounded-lg shrink-0">
+                  {copied === platforms[1].webhookUrl ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Verify Token</label>
+              <input type="text" defaultValue="claw_verify_2026" readOnly
+                className="w-full mt-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600" />
+              <p className="text-xs text-gray-400 mt-1">固定值，复制到 Meta Webhook 配置的 Verify Token 字段</p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button className="px-4 py-2 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200">取消</button>
+              <button className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">保存配置</button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* 微信客服配置 */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="p-5 flex items-center justify-between cursor-pointer" onClick={() => setShowWechatConfig(!showWechatConfig)}>
@@ -492,8 +565,8 @@ function SettingsTab() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`text-xs px-2 py-0.5 rounded-full ${platforms[1].configured ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-              {platforms[1].configured ? '已配置' : '待配置'}
+            <span className={`text-xs px-2 py-0.5 rounded-full ${platforms[2].configured ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {platforms[2].configured ? '已配置' : '待配置'}
             </span>
             <ChevronDown className={`w-5 h-5 text-gray-400 transition ${showWechatConfig ? 'rotate-180' : ''}`} />
           </div>
@@ -521,11 +594,11 @@ function SettingsTab() {
               <label className="text-sm font-medium text-gray-700">Webhook URL（复制到微信公众平台）</label>
               <div className="flex items-center gap-2 mt-1">
                 <code className="flex-1 px-3 py-2 bg-gray-50 rounded-lg text-xs text-gray-700 break-all">
-                  {platforms[1].webhookUrl}
+                  {platforms[2].webhookUrl}
                 </code>
-                <button onClick={() => copyToClipboard(platforms[1].webhookUrl)}
+                <button onClick={() => copyToClipboard(platforms[2].webhookUrl)}
                   className="p-2 hover:bg-gray-100 rounded-lg shrink-0">
-                  {copied === platforms[1].webhookUrl ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                  {copied === platforms[2].webhookUrl ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
                 </button>
               </div>
             </div>
