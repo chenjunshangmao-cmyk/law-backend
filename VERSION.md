@@ -9,20 +9,19 @@
 
 | 字段 | 值 |
 |------|-----|
-| 版本号 | **2026.05.10.001** |
-| 构建时间 | 2026-05-10 01:10 CST |
+| 版本号 | **2026.05.10.002** |
+| 构建时间 | 2026-05-10 01:20 CST |
 | 前端部署 | https://claw-app-2026.pages.dev |
 | 主域名 | https://claw-app-2026.pages.dev (自动指向最新)
 
 ### 本次变更
 
-**💼 会员业务新增3项服务**
+**💼 会员业务新增3项服务 + USDT支付修复 + AI网关入口**
 - TK开号+翡翠平台报白 — ¥2,800/次
 - 苹果ID+内购小火箭 — ¥88/次（不分国家地区，不包售后）
 - YouTube粉丝增加 — ¥58/次（100个起，掉粉可补1次）
-- AgentAIManager.js — 4个独立人格AI Agent（小瑞/小青/小云/小王）
-- agent-ai.js — 9个API端点（对话/话术/优化/问答历史/仪表盘）
-- TokenTracker.js — Token用量统计（百炼/DeepSeek 按模型+模块）
+- 🐛 cryptoPayment.js SERVICE_PRICES 补全3项新服务（USDT支付报错修复）
+- 🔌 AI网关导航栏管理员入口 + 测试端点修复（tag: 4f23b6e）
 - token-stats.js — 用量查询API
 - initAgentTables.js — 4张AI数据表
 - 🔧 百炼 qwen-plus → qwen-turbo（省成本，功能不受影响）
