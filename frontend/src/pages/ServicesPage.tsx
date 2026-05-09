@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, Globe, Building2, Video, Facebook, Target, Zap, QrCode, RefreshCw, ExternalLink } from 'lucide-react';
+import { Check, Globe, Building2, Video, Facebook, Target, Zap, QrCode, RefreshCw, ExternalLink, Headset, MessageCircle } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -76,6 +76,42 @@ const SERVICES = [
     popular: false,
     features: ['平台资质审核', '账户安全验证', '支付方式绑定', '投放额度申请', '账户维护指导'],
     duration: '一次性服务，账户永久使用'
+  },
+  {
+    id: 'ai-cs-basic',
+    name: 'AI客服 · 基础版',
+    description: 'AI智能客服托管，1个聊天渠道（LINE/WhatsApp/微信任选），月500条自动回复，全品类通用',
+    price: 299,
+    priceUnit: '/月',
+    icon: Headset,
+    color: 'violet',
+    popular: false,
+    features: ['1个聊天渠道', '月500条消息', 'AI自动应答', '快捷回复配置', '对话记录查看'],
+    duration: '按月订阅，可随时取消'
+  },
+  {
+    id: 'ai-cs-standard',
+    name: 'AI客服 · 标准版',
+    description: '三平台全覆盖（LINE+WhatsApp+微信），月2000条消息，适合成长型电商卖家',
+    price: 599,
+    priceUnit: '/月',
+    icon: MessageCircle,
+    color: 'violet',
+    popular: true,
+    features: ['3个聊天渠道', '月2000条消息', '全平台AI应答', '自定义店铺信息', '回复风格配置'],
+    duration: '按月订阅，可随时取消'
+  },
+  {
+    id: 'ai-cs-pro',
+    name: 'AI客服 · 专业版',
+    description: '5个渠道不限，月5000条消息，适合多店铺大卖家，AI自动接待大批客户',
+    price: 999,
+    priceUnit: '/月',
+    icon: Zap,
+    color: 'violet',
+    popular: false,
+    features: ['5个聊天渠道', '月5000条消息', '优先AI响应', '多店铺管理', '数据分析报表'],
+    duration: '按月订阅，可随时取消'
   }
 ];
 

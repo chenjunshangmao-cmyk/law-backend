@@ -138,7 +138,10 @@ const SERVICES = {
   'website-build': { name: '独立站搭建', amount: 380000 },    // ¥3800
   'youtube-live': { name: 'YouTube 直播号', amount: 100000 },  // ¥1000
   'facebook-live': { name: 'Facebook 直播推广号', amount: 280000 }, // ¥2800
-  'ads-account': { name: '广告户开户', amount: 50000 }        // ¥500
+  'ads-account': { name: '广告户开户', amount: 50000 },        // ¥500
+  'ai-cs-basic': { name: 'AI客服·基础版', amount: 29900 },      // ¥299
+  'ai-cs-standard': { name: 'AI客服·标准版', amount: 59900 },   // ¥599
+  'ai-cs-pro': { name: 'AI客服·专业版', amount: 99900 },        // ¥999
 };
 
 // 默认终端配置（2026-05-06 claw-pay-motecg24-0417 ✅ 新激活）

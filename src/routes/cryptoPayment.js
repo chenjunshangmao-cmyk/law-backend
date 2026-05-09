@@ -42,6 +42,9 @@ const SERVICE_PRICES = {
   'tk-account':     { name: 'TK开号+翡翠平台报白', price: 2800 },
   'apple-id':       { name: '苹果ID+内购小火箭',  price: 88 },
   'youtube-fans':   { name: 'YouTube粉丝增加',   price: 58 },
+  'ai-cs-basic':    { name: 'AI客服·基础版',     price: 299 },
+  'ai-cs-standard': { name: 'AI客服·标准版',     price: 599 },
+  'ai-cs-pro':      { name: 'AI客服·专业版',     price: 999 },
 };
 
 function getPrice(key) {

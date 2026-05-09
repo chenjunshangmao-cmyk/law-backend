@@ -166,6 +166,16 @@ API端点：
 - **汇率**: CoinGecko/ExchangeRate-API 实时 USD/CNY 汇率，缓存10分钟，失败兜底7.2
 - **价格换算**: CNY ÷ 汇率 = USDT（基础版 ¥199 ÷ 7.2 ≈ $27.6）
 
+## AI客服中心模块（2026-05-10 上线）⚠️ 全品类通用
+- **定位**：面向全品类电商卖家的客服托管服务，**不限翡翠**
+- **三平台覆盖**：LINE（台湾）+ WhatsApp（海外）+ 微信客服（大陆）
+- **服务链**：客户授权聊天账号 → 填店铺信息+提示词 → AI自动接待 → 收钱吧/USDT收款
+- **自定义**：每个渠道可单独配置 AI设定（店铺名/品类/价格/风格/额外说明）
+- **后端路由**：`src/routes/line.js` + `src/routes/whatsapp-cs.js` + `src/routes/wechat-cs.js`
+- **前端页面**：`CustomerServicePage.tsx`（概览/对话记录/快捷回复/渠道配置 4标签）
+- **核心引擎**：`src/services/customer-service/AIChatEngine.js`（知识库匹配 + AI模型fallback）
+- **导航入口**：紫色 Headset 图标「AI客服」，路径 `/customer-service`
+
 ## 部署前必做检查（v2 版本管理系统）
 1. **git pull** — 确保本地是最新代码
 2. **重新构建** — `cd frontend && npx vite build`，输出到 `complete-deploy/`
