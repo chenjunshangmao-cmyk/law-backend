@@ -144,7 +144,7 @@ async function sendWaMessage(phoneNumberId, to, text) {
  */
 router.post('/config', (req, res) => {
   try {
-    const { phoneNumberId, accessToken, verifyToken, businessName, phoneNumber } = req.body;
+    const { phoneNumberId, accessToken, verifyToken, businessName, phoneNumber, aiPrompt } = req.body;
 
     if (!phoneNumberId || !accessToken) {
       return res.status(400).json({ success: false, error: 'phoneNumberId和accessToken必填' });
@@ -156,8 +156,12 @@ router.post('/config', (req, res) => {
       verifyToken: verifyToken || 'claw_verify_2026',
       businessName: businessName || '默认企业',
       phoneNumber: phoneNumber || '',
+      aiPrompt: aiPrompt || '',
       configuredAt: new Date().toISOString()
     });
+
+    // 同步提示词到AI引擎
+    chatEngine.setChannelPrompt('whatsapp', aiPrompt);
 
     res.json({
       success: true,

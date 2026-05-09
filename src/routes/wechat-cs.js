@@ -127,7 +127,7 @@ router.post('/webhook', express.text({ type: '*/*' }), async (req, res) => {
  */
 router.post('/config', (req, res) => {
   try {
-    const { appId, appSecret, token, name, merchantId } = req.body;
+    const { appId, appSecret, token, name, merchantId, aiPrompt } = req.body;
     
     const key = name || 'default';
     wechatConfigs.set(key, {
@@ -136,8 +136,12 @@ router.post('/config', (req, res) => {
       token,
       name: name || '默认公众号',
       merchantId: merchantId || null,
+      aiPrompt: aiPrompt || '',
       configuredAt: new Date().toISOString()
     });
+
+    // 同步提示词到AI引擎
+    chatEngine.setChannelPrompt('wechat', aiPrompt);
 
     res.json({
       success: true,

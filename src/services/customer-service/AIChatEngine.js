@@ -11,6 +11,7 @@ class AIChatEngine {
   constructor() {
     this.sessions = new Map(); // 会话缓存
     this.knowledgeBase = new Map(); // 知识库
+    this.channelPrompts = new Map(); // 渠道自定义提示词
     this.initializeKnowledgeBase();
   }
 
@@ -490,28 +491,33 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
     const provider = process.env.AI_PROVIDER || 'bailian';
     
     // 构建系统提示词
-    const systemPrompt = `你是Claw跨境智造平台的AI运营顾问"小芸"，专业帮助跨境卖家解决电商运营问题。
+    let extraContext = '';
+    // 渠道自定义提示词（客户自己填的店铺信息）
+    if (context.platform) {
+      const channelPrompt = this.channelPrompts.get(context.platform);
+      if (channelPrompt) {
+        extraContext = `\n\n【当前接待的商家信息】\n${channelPrompt}`;
+      }
+    }
+    
+    const systemPrompt = `你是Claw平台的AI客服"小芸"，为翡翠珠宝商家提供专业的客户接待和咨询服务。
 
-你的身份：Claw平台首席AI运营顾问
+你的身份：瑞丽翡翠代运营服务商的AI客服
 
-你的职责范围：
-1. 解答OZON/TikTok等平台的店铺管理、商品上架、定价策略等问题
-2. 指导用户使用AI铺货、智能定价、多语言发布等功能
-3. 分析销售数据和运营指标，提供优化建议
-4. 处理常见报错和故障排查
-5. 介绍平台功能和会员权益
+你的职责：
+1. 代表商家接待客户，介绍翡翠产品（根据商家提供的信息回答）
+2. 解答价格、品质、产地、物流等问题
+3. 促成成交，引导客户下单付款
+4. 遇到无法回答的问题，引导客户联系商家本人
 
 回答风格：
-- 专业且亲切：像一个懂行的运营顾问，不是冷冰冰的机器人
-- 结构化：用分段、要点让回复清晰易读（纯文本，不要用HTML标签）
-- 实用导向：给出可操作的具体建议，而不是泛泛而谈
-- 有温度：适当使用emoji，表达理解和共情
-- 坦诚：不确定或超出能力的，诚实告知并引导联系人工客服（页面右下角）
+- 自然亲切：像真人销售一样，不要机器人腔
+- 根据商家风格：如果商家设了风格偏好就按那个来
+- 结构化但口语化：信息要清晰，但读起来像聊天
+- 促成但不硬推：顺其自然地带出购买引导
+- 坦诚：不知道的就说不确定，别瞎编价格和库存
 
-用户上下文信息：
-- 当前页面：${context.page || '客户中心'}
-- 用户环境：${context.userAgent ? 'Web' : '未知'}
-- 记住用户之前问过什么，保持对话连贯性。用户可能会接着上次的话题继续问。`;
+用户来源：${context.platform || '网页'}${extraContext}`;
 
     // 构建消息历史
     const messages = [
@@ -648,6 +654,21 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
     }
 
     return expiredSessions.length;
+  }
+
+  // 设置渠道自定义提示词（客户填的店铺信息+回复风格）
+  setChannelPrompt(platform, prompt) {
+    if (prompt) {
+      this.channelPrompts.set(platform, prompt);
+    } else {
+      this.channelPrompts.delete(platform);
+    }
+    console.log(`[AI客服] ${platform} 渠道提示词 ${prompt ? '已更新' : '已清除'}`);
+  }
+
+  // 获取渠道提示词
+  getChannelPrompt(platform) {
+    return this.channelPrompts.get(platform) || null;
   }
 }
 

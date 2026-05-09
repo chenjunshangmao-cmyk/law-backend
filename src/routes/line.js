@@ -153,7 +153,7 @@ router.post('/push', async (req, res) => {
  */
 router.post('/config', (req, res) => {
   try {
-    const { channelId, channelSecret, channelAccessToken, name } = req.body;
+    const { channelId, channelSecret, channelAccessToken, name, aiPrompt } = req.body;
     
     const key = name || 'default';
     lineConfigs.set(key, {
@@ -161,8 +161,12 @@ router.post('/config', (req, res) => {
       channelSecret,
       channelAccessToken,
       name: name || '默认渠道',
+      aiPrompt: aiPrompt || '',
       configuredAt: new Date().toISOString()
     });
+
+    // 同步提示词到AI引擎
+    chatEngine.setChannelPrompt('line', aiPrompt);
 
     res.json({
       success: true,

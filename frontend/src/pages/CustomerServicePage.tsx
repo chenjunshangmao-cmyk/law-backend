@@ -4,7 +4,7 @@ import {
   Users, Clock, CheckCircle, AlertCircle, RefreshCw,
   MessageSquare, Phone, Zap, Globe, Building2, ArrowRight,
   ExternalLink, QrCode, Copy, Check, X, Plus, ChevronDown,
-  Trash2, Eye, Search, Play, Pause, Info
+  Trash2, Eye, Search, Play, Pause, Info, Sparkles
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -469,6 +469,50 @@ function SettingsTab() {
               <input type="password" placeholder="从 LINE Developers 获取..."
                 className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
             </div>
+            
+            {/* AI 设定 */}
+            <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-lg p-4 border border-violet-200">
+              <label className="text-sm font-semibold text-violet-800 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4" /> AI 设定
+              </label>
+              <p className="text-xs text-violet-600 mt-1 mb-3">
+                告诉AI你的店铺信息，客户咨询时AI会自动用这些信息回复。越详细越准。
+              </p>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="text-xs text-violet-700">店铺名称</label>
+                  <input type="text" placeholder="如：瑞丽翡翠行"
+                    className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white" />
+                </div>
+                <div>
+                  <label className="text-xs text-violet-700">主营品类</label>
+                  <input type="text" placeholder="如：手镯、挂件、原石"
+                    className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="text-xs text-violet-700">价格区间</label>
+                  <input type="text" placeholder="如：¥500-50000"
+                    className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white" />
+                </div>
+                <div>
+                  <label className="text-xs text-violet-700">回复风格</label>
+                  <select className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white">
+                    <option value="">默认（自然亲切）</option>
+                    <option value="专业">专业严谨</option>
+                    <option value="热情">热情活泼</option>
+                    <option value="简洁">简洁高效</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-violet-700">额外说明（自由发挥）</label>
+                <textarea rows={3} placeholder="如：&#10;• 我们在云南瑞丽姐告口岸有实体店&#10;• 支持视频看货、一物一拍&#10;• 顺丰包邮，7天无理由&#10;• 批发价格，比商场便宜50%以上"
+                  className="w-full mt-0.5 px-3 py-2 border border-violet-200 rounded text-sm bg-white resize-none" />
+              </div>
+            </div>
+
             <div>
               <label className="text-sm font-medium text-gray-700">Webhook URL（复制到 LINE Developers）</label>
               <div className="flex items-center gap-2 mt-1">
@@ -544,6 +588,33 @@ function SettingsTab() {
                 className="w-full mt-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600" />
               <p className="text-xs text-gray-400 mt-1">固定值，复制到 Meta Webhook 配置的 Verify Token 字段</p>
             </div>
+
+            {/* AI 设定 */}
+            <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-lg p-4 border border-violet-200">
+              <label className="text-sm font-semibold text-violet-800 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4" /> AI 设定
+              </label>
+              <p className="text-xs text-violet-600 mt-1 mb-3">
+                告诉AI你的店铺信息，客户咨询时AI会自动用这些信息回复。越详细越准。
+              </p>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div><label className="text-xs text-violet-700">店铺名称</label>
+                  <input type="text" placeholder="如：瑞丽翡翠行" className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white" /></div>
+                <div><label className="text-xs text-violet-700">主营品类</label>
+                  <input type="text" placeholder="如：手镯、挂件、原石" className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div><label className="text-xs text-violet-700">价格区间</label>
+                  <input type="text" placeholder="如：¥500-50000" className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white" /></div>
+                <div><label className="text-xs text-violet-700">回复风格</label>
+                  <select className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white">
+                    <option value="">默认（自然亲切）</option><option value="专业">专业严谨</option><option value="热情">热情活泼</option><option value="简洁">简洁高效</option></select></div>
+              </div>
+              <div><label className="text-xs text-violet-700">额外说明（自由发挥）</label>
+                <textarea rows={3} placeholder="如：我们在瑞丽有实体店、支持视频看货、顺丰包邮...&#10;可以写任何想让AI知道的信息"
+                  className="w-full mt-0.5 px-3 py-2 border border-violet-200 rounded text-sm bg-white resize-none" /></div>
+            </div>
+
             <div className="flex justify-end gap-2 pt-2">
               <button className="px-4 py-2 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200">取消</button>
               <button className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">保存配置</button>
@@ -602,6 +673,33 @@ function SettingsTab() {
                 </button>
               </div>
             </div>
+
+            {/* AI 设定 */}
+            <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-lg p-4 border border-violet-200">
+              <label className="text-sm font-semibold text-violet-800 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4" /> AI 设定
+              </label>
+              <p className="text-xs text-violet-600 mt-1 mb-3">
+                告诉AI你的店铺信息，客户咨询时AI会自动用这些信息回复。越详细越准。
+              </p>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div><label className="text-xs text-violet-700">店铺名称</label>
+                  <input type="text" placeholder="如：瑞丽翡翠行" className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white" /></div>
+                <div><label className="text-xs text-violet-700">主营品类</label>
+                  <input type="text" placeholder="如：手镯、挂件、原石" className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div><label className="text-xs text-violet-700">价格区间</label>
+                  <input type="text" placeholder="如：¥500-50000" className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white" /></div>
+                <div><label className="text-xs text-violet-700">回复风格</label>
+                  <select className="w-full mt-0.5 px-3 py-1.5 border border-violet-200 rounded text-sm bg-white">
+                    <option value="">默认（自然亲切）</option><option value="专业">专业严谨</option><option value="热情">热情活泼</option><option value="简洁">简洁高效</option></select></div>
+              </div>
+              <div><label className="text-xs text-violet-700">额外说明（自由发挥）</label>
+                <textarea rows={3} placeholder="如：我们在瑞丽有实体店、支持视频看货、顺丰包邮...&#10;可以写任何想让AI知道的信息"
+                  className="w-full mt-0.5 px-3 py-2 border border-violet-200 rounded text-sm bg-white resize-none" /></div>
+            </div>
+
             <div className="flex justify-end gap-2 pt-2">
               <button className="px-4 py-2 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200">取消</button>
               <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">保存配置</button>
