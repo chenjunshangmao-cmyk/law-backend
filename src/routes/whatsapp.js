@@ -19,9 +19,10 @@ const router = express.Router();
 
 const LINK_LIMITS = {
   free: 1,
-  basic: 3,
+  basic: 2,
   pro: 10,
-  enterprise: Infinity,
+  enterprise: 50,
+  flagship: 100,
 };
 
 function getLinkLimit(user) {
@@ -53,6 +54,7 @@ const FIELD_MAP = {
   clicks: 'clicks',
   last_click_at: 'lastClickAt',
   disabled: 'disabled',
+  expires_at: 'expiresAt',
   created_at: 'createdAt',
   updated_at: 'updatedAt',
 };
@@ -67,6 +69,7 @@ function dbToJs(row) {
   if (obj.lastClickAt) obj.lastClickAt = new Date(obj.lastClickAt).getTime();
   if (obj.createdAt) obj.createdAt = new Date(obj.createdAt).getTime();
   if (obj.updatedAt) obj.updatedAt = new Date(obj.updatedAt).getTime();
+  if (obj.expiresAt) obj.expiresAt = new Date(obj.expiresAt).getTime();
   return obj;
 }
 
@@ -97,6 +100,11 @@ router.get('/', async (req, res) => {
 
     if (link.disabled) {
       return res.status(404).send(renderErrorPage('链接不存在或已停用'));
+    }
+
+    // 检查链接是否过期（免费用户7天试用）
+    if (link.expiresAt && link.expiresAt < Date.now()) {
+      return res.status(410).send(renderErrorPage('链接已过期，请联系升级会员以继续使用'));
     }
 
     // 增加点击计数
@@ -158,9 +166,10 @@ router.post('/links', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: '客户名称和手机号必填' });
     }
 
-    // 会员限额检查
+    // 会员限额检查（不计算已禁用或已过期的链接）
+    const membershipType = (req.user.membership_type || req.user.plan || 'free').toLowerCase();
     const countResult = await pool.query(
-      'SELECT COUNT(*) FROM whatsapp_links WHERE user_id = $1',
+      `SELECT COUNT(*) FROM whatsapp_links WHERE user_id = $1 AND disabled = false AND (expires_at IS NULL OR expires_at > NOW())`,
       [req.userId]
     );
     const userLinkCount = parseInt(countResult.rows[0].count);
@@ -168,7 +177,7 @@ router.post('/links', authenticateToken, async (req, res) => {
     if (userLinkCount >= limit) {
       return res.status(403).json({
         success: false,
-        error: `您的${req.user.membership_type === 'free' ? '免费' : ''}会员最多可创建 ${limit} 个链接`,
+        error: `您的${membershipType === 'free' ? '免费' : membershipType === 'basic' ? '基础版' : membershipType === 'pro' ? '专业版' : membershipType === 'enterprise' ? '企业版' : '旗舰版'}会员最多可创建 ${limit} 个链接`,
         code: 'LINK_LIMIT_REACHED',
         limit,
         current: userLinkCount,
@@ -178,18 +187,38 @@ router.post('/links', authenticateToken, async (req, res) => {
     const linkId = generateId();
     const cleanPhone = phone.replace(/[^0-9]/g, '');
 
-    await pool.query(
-      `INSERT INTO whatsapp_links (link_id, user_id, client_name, phone, msg, page_title, company_name, description, button_text)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [
-        linkId, req.userId, clientName, cleanPhone,
-        msg || '',
-        pageTitle || `${clientName} - 咨询客服`,
-        companyName || 'CLAW 智能服务',
-        description || '您好！欢迎咨询，点击下方按钮立即联系客服',
-        buttonText || '立即咨询'
-      ]
-    );
+    // 免费用户：7天试用期过期
+    const expiresAt = membershipType === 'free'
+      ? `NOW() + INTERVAL '7 days'`
+      : null;
+
+    if (expiresAt) {
+      await pool.query(
+        `INSERT INTO whatsapp_links (link_id, user_id, client_name, phone, msg, page_title, company_name, description, button_text, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${expiresAt})`,
+        [
+          linkId, req.userId, clientName, cleanPhone,
+          msg || '',
+          pageTitle || `${clientName} - 咨询客服`,
+          companyName || 'CLAW 智能服务',
+          description || '您好！欢迎咨询，点击下方按钮立即联系客服',
+          buttonText || '立即咨询'
+        ]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO whatsapp_links (link_id, user_id, client_name, phone, msg, page_title, company_name, description, button_text)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          linkId, req.userId, clientName, cleanPhone,
+          msg || '',
+          pageTitle || `${clientName} - 咨询客服`,
+          companyName || 'CLAW 智能服务',
+          description || '您好！欢迎咨询，点击下方按钮立即联系客服',
+          buttonText || '立即咨询'
+        ]
+      );
+    }
 
     const baseUrl = process.env.API_BASE_URL || process.env.RENDER_EXTERNAL_URL || `https://${req.get('host')}`;
 
