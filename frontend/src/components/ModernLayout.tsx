@@ -54,6 +54,7 @@ const NAV_ITEMS = [
   { path: '/avatar',      icon: Bot,             label: 'AI数字人', color: 'text-violet-500' },
   { path: '/live-stream', icon: Radio,           label: 'AI直播', color: 'text-red-500' },
   { path: '/writer',     icon: PenLine,         label: 'AI文案', color: 'text-sky-500' },
+  { path: '/novel-factory', icon: BookOpen,      label: '小说工场', color: 'text-purple-600' },
   { path: '/video-factory', icon: Clapperboard, label: '短视频', color: 'text-rose-500' },
   { path: '/ai-tools',   icon: Sparkles,        label: 'AI工具箱', color: 'text-cyan-500' },
   { path: '/whatsapp',    icon: MessageCircle,    label: 'WhatsApp中继', color: 'text-green-500' },
@@ -265,7 +266,7 @@ export default function ModernLayout() {
           />
           
           {/* 侧边栏内容 */}
-          <div className="absolute left-0 top-0 bottom-0 w-64 bg-white shadow-xl">
+          <div className="absolute left-0 top-0 bottom-0 w-64 bg-white shadow-xl overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
