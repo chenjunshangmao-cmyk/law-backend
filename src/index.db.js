@@ -62,6 +62,7 @@ import facebookRoutes from './routes/facebook.js';
 import lineRoutes from './routes/line.js';
 import wechatCSRoutes from './routes/wechat-cs.js';
 import whatsappCSRoutes from './routes/whatsapp-cs.js';
+import articlesRoutes from './routes/articles.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -270,6 +271,7 @@ app.use('/api/shouqianba', shouqianbaRoutes);
 app.use('/api/facebook', facebookRoutes);
 app.use('/api/line', lineRoutes);
 app.use('/api/wechat-cs', wechatCSRoutes);
+app.use('/api/articles', articlesRoutes);
 app.use('/api/whatsapp-cs', whatsappCSRoutes);
 
 // AI团队协作看板（公开访问）

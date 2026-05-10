@@ -37,6 +37,7 @@ import {
 
 const NAV_ITEMS = [
   { path: '/dashboard',   icon: LayoutDashboard, label: '工作台', color: 'text-blue-500' },
+  { path: '/articles',    icon: BookOpen,        label: '外贸干货', color: 'text-violet-500' },
   { path: '/trending',    icon: TrendingUp,      label: '爆款选品', color: 'text-red-500' },
   // { path: '/publish',     icon: Rocket,          label: '智能发布', color: 'text-purple-500' },  // 暂时隐藏，功能已拆分到小红书/OZON独立页
   { path: '/ads',         icon: Megaphone,       label: '广告采集', color: 'text-amber-500' },
