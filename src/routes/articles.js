@@ -15,31 +15,18 @@
 import express from 'express';
 import pool from '../config/database.js';
 import { authenticateToken } from '../middleware/auth.js';
+import gateway from '../services/ai/AIGateway.js';
 
 const router = express.Router();
 
-// DeepSeek API 配置
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
-const DEEPSEEK_BASE = 'https://api.deepseek.com/v1';
-
+// 使用 AI 网关（多Provider自动fallback）
 async function callLLM(messages, options = {}) {
   const { temperature = 0.7, maxTokens = 4096 } = options;
-  const res = await fetch(`${DEEPSEEK_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages,
-      temperature,
-      max_tokens: maxTokens
-    })
+  const result = await gateway.chat(messages, 'article_generation', {
+    temperature,
+    maxTokens,
   });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return data.choices[0].message.content;
+  return result.content;
 }
 
 // 分类定义

@@ -52,7 +52,7 @@ class AIGateway {
     
     const configs = {
       deepseek: { apiKey: 'sk-4848b41dad43443c85e4cb57d428273d', baseUrl: 'https://api.deepseek.com/v1', models: ['deepseek-chat'] },
-      aliyun: { apiKey: _env('BAILIAN_API_KEY', 'sk-8a07c75081df49ac877d6950a95b06ec'), baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen-turbo'] },
+      aliyun: { apiKey: _env('BAILIAN_API_KEY', 'sk-4848b41dad43443c85e4cb57d428273d'), baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen-turbo'] },
       baidu: { apiKey: _env('BAIDU_API_KEY', ''), baseUrl: '', models: ['ernie-speed', 'ernie-speed-128k'] },
       zhipu: { apiKey: _env('ZHIPU_API_KEY', '920e782d91584c8d8b032c1abe48a65f.MOlpCPK3QB1Ktfn8'), baseUrl: 'https://open.bigmodel.cn/api/paas/v4', models: ['glm-4-flash'] },
       tencent: { apiKey: _env('HUNYUAN_API_KEY', 'sk-uCrsS2tD3YBwzYR6Wgmw3brZcxj6z4K4lfj1JpWhpu4dx8cJ'), baseUrl: 'https://api.hunyuan.cloud.tencent.com/v1', models: ['hunyuan-lite'] },
