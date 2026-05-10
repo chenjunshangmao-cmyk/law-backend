@@ -32,7 +32,8 @@ import {
   Radio,
   Server,
   Facebook,
-  Headset
+  Headset,
+  ShoppingCart
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -42,6 +43,7 @@ const NAV_ITEMS = [
   // { path: '/publish',     icon: Rocket,          label: '智能发布', color: 'text-purple-500' },  // 暂时隐藏，功能已拆分到小红书/OZON独立页
   { path: '/ads',         icon: Megaphone,       label: '广告采集', color: 'text-amber-500' },
   { path: '/products',    icon: Package,         label: '产品管理', color: 'text-emerald-500' },
+  { path: '/digital-shop', icon: ShoppingCart,    label: '数字商品', color: 'text-pink-500' },
   { path: '/accounts',    icon: Store,           label: '店铺账号', color: 'text-indigo-500' },
   { path: '/calculator',  icon: Calculator,      label: '利润计算', color: 'text-green-500' },
   { path: '/membership',  icon: Crown,           label: '会员中心', color: 'text-yellow-500' },
