@@ -23,6 +23,7 @@ import fs from 'fs';
 import { getLiveStreamEngine, resetLiveStreamEngine, LiveStatus } from '../services/avatar/LiveStreamEngine.js';
 import { getProfileList, getProfile } from '../services/avatar/AvatarProfiles.js';
 import { Avatar2DRenderer, loadImageBase64 } from '../services/avatar/VRMRenderer.js';
+import { textToSpeech } from '../services/avatar/TTSEngine.js';
 
 const router = express.Router();
 

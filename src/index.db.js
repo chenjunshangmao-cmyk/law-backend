@@ -6,16 +6,24 @@ const __dirname_dir = dirname(fileURLToPath(import.meta.url));
 import dotenv from 'dotenv';
 dotenv.config({ path: resolve(__dirname_dir, '.env'), override: true });
 
-// 全局HTTPS代理（使用Clash系统代理，让Gemini API可以直连）
-// 检查系统代理设置，自动配置Node.js代理
+// 全局HTTPS代理（本地使用Clash系统代理让Gemini API直连；Render生产环境不走代理）
+const IS_RENDER = !!process.env.RENDER;
 import { bootstrap } from 'global-agent';
-bootstrap();
-process.env.HTTP_PROXY = process.env.HTTP_PROXY || process.env.http_proxy || '';
-process.env.HTTPS_PROXY = process.env.HTTPS_PROXY || process.env.https_proxy || '';
-// 如果没有设环境变量但系统代理开着，用默认Clash端口
-if (!process.env.HTTPS_PROXY) {
-  process.env.HTTPS_PROXY = 'http://127.0.0.1:6789';
-  process.env.HTTP_PROXY = 'http://127.0.0.1:6789';
+if (!IS_RENDER) {
+  bootstrap();
+  process.env.HTTP_PROXY = process.env.HTTP_PROXY || process.env.http_proxy || '';
+  process.env.HTTPS_PROXY = process.env.HTTPS_PROXY || process.env.https_proxy || '';
+  // 仅在本地且没有配代理时，用默认Clash端口
+  if (!process.env.HTTPS_PROXY) {
+    process.env.HTTPS_PROXY = 'http://127.0.0.1:6789';
+    process.env.HTTP_PROXY = 'http://127.0.0.1:6789';
+    console.log('[Proxy] 使用本地Clash代理: 127.0.0.1:6789');
+  }
+} else {
+  // Render 生产环境：不走本地代理，API直连
+  delete process.env.HTTP_PROXY;
+  delete process.env.HTTPS_PROXY;
+  console.log('[Proxy] Render生产环境，不走本地代理，API直连');
 }
 import express from 'express';
 import cors from 'cors';

@@ -1,30 +1,19 @@
 /**
  * AI小说生成器
  * 利用 LLM API 生成长篇小说、分章节、续写
- * DeepSeek API 作为主引擎（16K+上下文、中文最优、价格最低）
+ * 使用 AI Gateway 统一网关（自动 fallback 免费模型优先）
  */
 
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
-const DEEPSEEK_BASE = 'https://api.deepseek.com/v1';
+import { getGateway } from '../ai/AIGateway.js';
 
 async function callLLM(messages, options = {}) {
   const { temperature = 0.8, maxTokens = 4096 } = options;
-  const res = await fetch(`${DEEPSEEK_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages,
-      temperature,
-      max_tokens: maxTokens
-    })
+  const gateway = getGateway();
+  const result = await gateway.chat(messages, 'writer', {
+    temperature,
+    maxTokens,
   });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return data.choices[0].message.content;
+  return result.content;
 }
 
 /**
