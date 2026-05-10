@@ -28,6 +28,8 @@ const router = express.Router();
 
 // 静态文件服务：主播照片
 router.use('/avatar-photos', express.static(path.join(process.cwd(), 'generated-avatars')));
+// 静态文件服务：TTS试听音频
+router.use('/preview-audio', express.static(path.join(process.cwd(), 'generated-audio')));
 
 // ─── 中间件：确保引擎已初始化 ───
 function ensureEngine(req, res, next) {
@@ -780,6 +782,52 @@ router.get('/preview-stream', async (req, res) => {
     clearInterval(frameInterval);
     console.log(`[LiveStream] 🛑 SSE预览流结束 (${frameNum}帧)`);
   });
+});
+
+/**
+ * POST /api/live-stream/preview-voice
+ * 生成主播语音试听（TTS）
+ * Body: { text, voice, profileId }
+ * 返回: { success, data: { audioUrl, duration } }
+ */
+router.post('/preview-voice', async (req, res) => {
+  try {
+    const {
+      text = '大家好，欢迎来到直播间！',
+      voice = 'zh-CN-XiaoxiaoNeural',
+      profileId,
+    } = req.body;
+
+    // 如果指定了 profileId，使用该形象的语音配置
+    let finalVoice = voice;
+    if (profileId) {
+      const profile = getProfile(profileId);
+      if (profile?.voice) {
+        finalVoice = profile.voice;
+      }
+    }
+
+    console.log(`[LiveStream] 🎙️ 语音试听: "${text.substring(0, 30)}..." (${finalVoice})`);
+
+    const ttsResult = await textToSpeech(text, {
+      voice: finalVoice,
+      outputName: `preview_${profileId || 'default'}_${Date.now()}.mp3`,
+    });
+
+    const audioUrl = `/api/live-stream/preview-audio/${ttsResult.name}`;
+
+    res.json({
+      success: true,
+      data: {
+        audioUrl,
+        voice: finalVoice,
+        text: text.substring(0, 50),
+      },
+    });
+  } catch (e) {
+    console.error('[LiveStream] 语音试听失败:', e);
+    res.json({ success: false, error: e.message });
+  }
 });
 
 export default router;

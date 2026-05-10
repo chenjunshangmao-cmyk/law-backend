@@ -8,6 +8,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './LiveStreamPage.css';
 import ProxyPanel from '../components/ProxyPanel';
 import SceneEditor from '../components/SceneEditor';
+import Avatar3DPreview from '../components/Avatar3DPreview';
 import {
   SceneConfig,
   DEFAULT_PORTRAIT_SCENE,
@@ -330,6 +331,24 @@ export default function LiveStreamPage() {
           {/* ─── 直播配置 ─── */}
           <div className="ls-card">
             <h3>👤 主播形象</h3>
+
+            {/* 3D 预览 */}
+            {profiles.length > 0 && avatarImageUrl && (
+              <div style={{ 
+                display: 'flex', justifyContent: 'center', 
+                marginBottom: 16, marginTop: 8,
+              }}>
+                <Avatar3DPreview
+                  avatarImageUrl={avatarImageUrl}
+                  avatarName={profiles.find(p => p.id === selectedProfile)?.name || 'AI主播'}
+                  voice={profiles.find(p => p.id === selectedProfile)?.voice}
+                  profileId={selectedProfile}
+                  width={320}
+                  height={400}
+                  autoRotate={true}
+                />
+              </div>
+            )}
             
             <div className="ls-profile-grid">
               {profiles.map(profile => {
