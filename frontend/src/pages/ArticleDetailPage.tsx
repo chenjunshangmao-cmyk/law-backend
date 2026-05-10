@@ -2,9 +2,9 @@
  * ArticleDetailPage.tsx — 文章详情页 v1.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, Eye, ArrowLeft, Share2, ExternalLink } from 'lucide-react';
+import { Clock, Eye, ArrowLeft, Share2, ExternalLink, Link, MessageCircle, Mail, X, Copy, Check } from 'lucide-react';
 
 const API_BASE = (import.meta as any).env?.VITE_API_URL || '';
 
@@ -29,6 +29,9 @@ export default function ArticleDetailPage() {
   const [article, setArticle] = useState<Article | null>(null);
   const [related, setRelated] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const shareBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -72,13 +75,87 @@ export default function ArticleDetailPage() {
 
   const handleShare = () => {
     const url = window.location.href;
-    if (navigator.share) {
-      navigator.share({ title: article?.title, url });
-    } else {
-      navigator.clipboard.writeText(url);
-      alert('链接已复制！');
+    const title = article?.title || '外贸干货';
+    // 手机端：使用系统原生分享面板
+    if (/Mobi|Android|iPhone/i.test(navigator.userAgent) && navigator.share) {
+      navigator.share({ title, url }).catch(() => {});
+      return;
+    }
+    // 桌面端：弹出分享菜单
+    setShowShareMenu(!showShareMenu);
+  };
+
+  const handleCopyLink = async () => {
+    const url = window.location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  const shareActions = () => {
+    if (!article) return [];
+    const url = encodeURIComponent(window.location.href);
+    const title = encodeURIComponent(article.title);
+    const summary = encodeURIComponent(article.summary?.substring(0, 120) || '');
+    return [
+      {
+        label: '复制链接',
+        icon: copied ? <Check size={16} /> : <Link size={16} />,
+        color: '#667eea',
+        onClick: handleCopyLink,
+      },
+      {
+        label: 'Twitter / X',
+        icon: <X size={16} />,
+        color: '#e8e8f0',
+        onClick: () => window.open(`https://twitter.com/intent/tweet?text=${title}&url=${url}`, '_blank'),
+      },
+      {
+        label: 'Facebook',
+        icon: <span style={{ fontWeight: 700, fontSize: 14 }}>f</span>,
+        color: '#1877f2',
+        onClick: () => window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank'),
+      },
+      {
+        label: 'WhatsApp',
+        icon: <MessageCircle size={16} />,
+        color: '#25d366',
+        onClick: () => window.open(`https://wa.me/?text=${title}%20${url}`, '_blank'),
+      },
+      {
+        label: '邮件转发',
+        icon: <Mail size={16} />,
+        color: '#ea4335',
+        onClick: () => window.open(`mailto:?subject=${title}&body=${summary}%0A%0A${url}`, '_blank'),
+      },
+    ];
+  };
+
+  // 点击外部关闭菜单
+  useEffect(() => {
+    if (!showShareMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (shareBtnRef.current && !shareBtnRef.current.contains(e.target as Node)) {
+        const menu = document.getElementById('share-popup-menu');
+        if (menu && !menu.contains(e.target as Node)) {
+          setShowShareMenu(false);
+        }
+      }
+    };
+    setTimeout(() => document.addEventListener('click', handler), 0);
+    return () => document.removeEventListener('click', handler);
+  }, [showShareMenu]);
 
   if (loading) {
     return (
@@ -142,16 +219,56 @@ export default function ArticleDetailPage() {
             <Eye size={14} /> {article.view_count} 阅读
           </span>
           <span>· {article.author}</span>
-          <button onClick={handleShare}
+          <button onClick={handleShare} ref={shareBtnRef}
             style={{
               display: 'flex', alignItems: 'center', gap: 4,
               background: 'none', border: 'none', color: '#667eea',
-              cursor: 'pointer', fontSize: 13, marginLeft: 'auto',
+              cursor: 'pointer', fontSize: 13, marginLeft: 'auto', position: 'relative',
             }}>
             <Share2 size={14} /> 分享
           </button>
         </div>
       </div>
+
+      {/* 桌面端分享弹窗 */}
+      {showShareMenu && (
+        <div id="share-popup-menu" style={{
+          position: 'absolute', right: 32, top: 140, zIndex: 1000,
+          background: 'linear-gradient(135deg, #1e1e3a, #252550)',
+          borderRadius: 16, padding: '8px 0',
+          border: '1px solid #3d3d6e',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
+          minWidth: 200,
+          animation: 'fadeIn 0.15s ease',
+        }}>
+          <div style={{ padding: '8px 18px 10px', color: '#8892b0', fontSize: 12, fontWeight: 600, letterSpacing: 0.5 }}>
+            转发分享
+          </div>
+          {shareActions().map((action, i) => (
+            <button
+              key={i}
+              onClick={() => { action.onClick(); if (action.label !== '复制链接') setShowShareMenu(false); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                width: '100%', padding: '10px 18px',
+                background: 'none', border: 'none',
+                color: '#e0e0e0', fontSize: 14, cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+            >
+              <span style={{ width: 20, textAlign: 'center', color: action.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {action.icon}
+              </span>
+              {action.label}
+              {action.label === '复制链接' && copied && (
+                <span style={{ marginLeft: 'auto', color: '#10b981', fontSize: 12 }}>✓ 已复制</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 分割线 */}
       <div style={{ height: 1, background: 'linear-gradient(90deg, #667eea, transparent)', marginBottom: 32 }} />
@@ -163,6 +280,84 @@ export default function ArticleDetailPage() {
         }}
         dangerouslySetInnerHTML={{ __html: renderMarkdown(article.content) }}
       />
+
+      {/* 底部转发按钮 */}
+      <div style={{
+        display: 'flex', justifyContent: 'center', gap: 8, marginTop: 40,
+        flexWrap: 'wrap',
+      }}>
+        <button
+          onClick={handleCopyLink}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(102,126,234,0.3)',
+            background: 'rgba(102,126,234,0.08)', color: '#667eea',
+            cursor: 'pointer', fontSize: 13, fontWeight: 500,
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(102,126,234,0.18)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(102,126,234,0.08)'; }}
+        >
+          {copied ? <Check size={14} /> : <Link size={14} />}
+          {copied ? '已复制链接' : '复制链接'}
+        </button>
+        <button
+          onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(article.title)}&url=${encodeURIComponent(window.location.href)}`, '_blank')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)',
+            background: 'rgba(255,255,255,0.04)', color: '#e0e0e0',
+            cursor: 'pointer', fontSize: 13, fontWeight: 500,
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+        >
+          <X size={14} /> Twitter
+        </button>
+        <button
+          onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`, '_blank')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(24,119,242,0.3)',
+            background: 'rgba(24,119,242,0.08)', color: '#1877f2',
+            cursor: 'pointer', fontSize: 13, fontWeight: 500,
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(24,119,242,0.18)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(24,119,242,0.08)'; }}
+        >
+          <span style={{ fontWeight: 700, fontSize: 12 }}>f</span> Facebook
+        </button>
+        <button
+          onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(article.title)}%20${encodeURIComponent(window.location.href)}`, '_blank')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(37,211,102,0.3)',
+            background: 'rgba(37,211,102,0.08)', color: '#25d366',
+            cursor: 'pointer', fontSize: 13, fontWeight: 500,
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(37,211,102,0.18)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(37,211,102,0.08)'; }}
+        >
+          <MessageCircle size={14} /> WhatsApp
+        </button>
+        <button
+          onClick={() => window.open(`mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(article.summary?.substring(0, 120) || '')}%0A%0A${encodeURIComponent(window.location.href)}`, '_blank')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(234,67,53,0.3)',
+            background: 'rgba(234,67,53,0.08)', color: '#ea4335',
+            cursor: 'pointer', fontSize: 13, fontWeight: 500,
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(234,67,53,0.18)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(234,67,53,0.08)'; }}
+        >
+          <Mail size={14} /> 邮件
+        </button>
+      </div>
 
       {/* 标签 */}
       {article.tags && article.tags.length > 0 && (

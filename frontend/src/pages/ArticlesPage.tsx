@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Sparkles, TrendingUp, Eye, Clock, ChevronRight, PenLine } from 'lucide-react';
+import { Search, Sparkles, Eye, Clock, PenLine, Share2, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const API_BASE = (import.meta as any).env?.VITE_API_URL || '';
@@ -53,6 +53,7 @@ export default function ArticlesPage() {
   const [genKeywords, setGenKeywords] = useState('');
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<any>(null);
+  const [shareToast, setShareToast] = useState<string | null>(null);
 
   const loadArticles = async () => {
     setLoading(true);
@@ -131,6 +132,29 @@ export default function ArticlesPage() {
     if (days === 1) return '昨天';
     if (days < 7) return `${days}天前`;
     return date.toLocaleDateString('zh-CN');
+  };
+
+  const handleCardShare = (e: React.MouseEvent, article: Article) => {
+    e.stopPropagation(); // 防止触发卡片点击跳转
+    const url = `${window.location.origin}/articles/${article.slug}`;
+    if (/Mobi|Android|iPhone/i.test(navigator.userAgent) && navigator.share) {
+      navigator.share({ title: article.title, url }).catch(() => {});
+      return;
+    }
+    // 桌面端复制链接
+    navigator.clipboard.writeText(url).then(() => {
+      setShareToast(article.slug);
+      setTimeout(() => setShareToast(null), 2000);
+    }).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setShareToast(article.slug);
+      setTimeout(() => setShareToast(null), 2000);
+    });
   };
 
   return (
@@ -350,9 +374,36 @@ export default function ArticlesPage() {
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Clock size={12} /> {formatDate(article.created_at)}
                       </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Eye size={12} /> {article.view_count}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Eye size={12} /> {article.view_count}
+                        </span>
+                        <button
+                          onClick={(e) => handleCardShare(e, article)}
+                          title="转发分享"
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 3,
+                            background: shareToast === article.slug ? 'rgba(16,185,129,0.15)' : 'rgba(102,126,234,0.1)',
+                            border: 'none', borderRadius: 6,
+                            padding: '3px 10px',
+                            color: shareToast === article.slug ? '#10b981' : '#667eea',
+                            cursor: 'pointer', fontSize: 11, fontWeight: 500,
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={e => {
+                            if (shareToast !== article.slug) e.currentTarget.style.background = 'rgba(102,126,234,0.2)';
+                          }}
+                          onMouseLeave={e => {
+                            if (shareToast !== article.slug) e.currentTarget.style.background = 'rgba(102,126,234,0.1)';
+                          }}
+                        >
+                          {shareToast === article.slug ? (
+                            <><Check size={12} /> 已复制</>
+                          ) : (
+                            <><Share2 size={12} /> 转发</>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </article>
