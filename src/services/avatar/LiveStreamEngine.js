@@ -204,6 +204,33 @@ class LiveStreamEngine extends EventEmitter {
       this.chatServer.setLLMProvider(this.llmProvider);
     }
 
+    // 解析代理配置（支持 Claw代理池 + 自带代理）
+    let activeProxyConfig = null;
+    if (this.proxyEnabled) {
+      if (this.useOwnProxy && this.ownProxyUrl) {
+        // 解析自带代理 URL: socks5://[user:pass@]host:port
+        try {
+          const url = new URL(this.ownProxyUrl);
+          activeProxyConfig = {
+            type: url.protocol.replace(':', '') || 'socks5',
+            host: url.hostname,
+            port: parseInt(url.port) || 1080,
+            username: decodeURIComponent(url.username || ''),
+            password: decodeURIComponent(url.password || ''),
+            region: 'custom',
+          };
+          console.log(`[LiveStreamEngine] 🔧 自带代理: ${activeProxyConfig.type}://${activeProxyConfig.host}:${activeProxyConfig.port}`);
+        } catch (e) {
+          console.warn('[LiveStreamEngine] 自带代理URL解析失败:', e.message);
+        }
+      } else if (this.proxyConfig) {
+        activeProxyConfig = {
+          ...this.proxyConfig,
+          region: this.proxyConfig.region || 'unknown',
+        };
+      }
+    }
+
     // 初始化RTMP推流器（含代理配置）
     this.rtmpPusher = new RTMPPusher({
       rtmpUrl: this.rtmpUrl,
@@ -212,10 +239,7 @@ class LiveStreamEngine extends EventEmitter {
       fps: this.fps,
       videoBitrate: options.videoBitrate || '2500k',
       audioBitrate: options.audioBitrate || '128k',
-      proxy: this.proxyEnabled && this.proxyConfig ? {
-        ...this.proxyConfig,
-        region: this.proxyConfig.region || 'unknown',
-      } : null,
+      proxy: activeProxyConfig,
     });
 
     // 监听推流事件

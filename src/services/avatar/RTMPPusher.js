@@ -1,12 +1,16 @@
 /**
- * RTMPPusher.js — RTMP推流引擎 v1.0
+ * RTMPPusher.js — RTMP推流引擎 v2.0
  * 
  * 功能：将渲染帧+音频推送到RTMP服务器
  * 
  * 工作模式：
- * 1. FILE_MODE: 渲染帧→PNG文件→FFmpeg pipe→RTMP (稳定但有延迟)
- * 2. PIPE_MODE: 渲染帧→stdin pipe→FFmpeg→RTMP (低延迟)
- * 3. LOCAL_MODE: 渲染帧→本地RTMP服务器→OBS接收 (推荐用于实际直播)
+ * 1. PIPE_MODE: 渲染帧→stdin pipe→FFmpeg→RTMP (低延迟)
+ * 2. SOCAT_MODE: 渲染帧→stdin pipe→FFmpeg→socat隧道→SOCKS5代理→RTMP (海外推流)
+ * 
+ * 代理支持：
+ * - SOCKS5: 自动使用 socat 创建 TCP 隧道（双重代理方案）
+ * - HTTP: 通过 RTMP_PROXY 环境变量
+ * - TUN模式: 系统级代理（无需代码配置，FFmpeg自动走系统路由）
  * 
  * 支持的推流目标:
  * - YouTube Live (rtmp://a.rtmp.youtube.com/live2/STREAM_KEY)
@@ -15,13 +19,40 @@
  * - 自定义RTMP服务器 (rtmp://your-server/live/STREAM_KEY)
  */
 
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { EventEmitter } from 'events';
+import net from 'net';
 
 const OUTPUT_DIR = path.join(process.cwd(), 'generated-stream');
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+
+/**
+ * 查找可用端口
+ */
+function findFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.listen(0, '127.0.0.1', () => {
+      const port = server.address().port;
+      server.close(() => resolve(port));
+    });
+    server.on('error', reject);
+  });
+}
+
+/**
+ * 检查 socat 是否可用
+ */
+function isSocatAvailable() {
+  try {
+    execSync('socat -V', { stdio: 'ignore', timeout: 3000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * 构建代理URL（供环境变量使用）
@@ -31,6 +62,25 @@ function buildProxyUrl(proxy) {
   const { type = 'socks5', host, port, username, password } = proxy;
   const auth = username ? `${encodeURIComponent(username)}:${encodeURIComponent(password || '')}@` : '';
   return `${type}://${auth}${host}:${port}`;
+}
+
+/**
+ * 解析 RTMP URL，提取 host 和 port
+ * rtmp://a.rtmp.youtube.com/live2/streamkey → { host: 'a.rtmp.youtube.com', port: 1935, app: 'live2', streamKey: 'streamkey' }
+ */
+function parseRtmpUrl(rtmpUrl) {
+  try {
+    const u = new URL(rtmpUrl);
+    const pathParts = u.pathname.split('/').filter(Boolean);
+    return {
+      host: u.hostname,
+      port: parseInt(u.port) || 1935,
+      app: pathParts[0] || 'live',
+      streamKey: pathParts.slice(1).join('/') || '',
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -58,6 +108,8 @@ class RTMPPusher extends EventEmitter {
     
     // 内部状态
     this.ffmpegProcess = null;
+    this.socatProcess = null;  // SOCKS5 隧道进程
+    this.tunnelPort = null;     // 本地隧道端口
     this.isStreaming = false;
     this.statsInterval = null;
     this.startTime = null;
@@ -65,13 +117,58 @@ class RTMPPusher extends EventEmitter {
   }
 
   /**
+   * 启动 SOCKS5 → RTMP 隧道（socat）
+   * 
+   * 原理：socat 监听本地端口，将 TCP 流量通过 SOCKS5 代理转发到 RTMP 服务器
+   * 这就是用户说的「双重代理」—— SOCKS5代理 + socat TCP隧道
+   * 
+   * socat TCP-LISTEN:localPort,fork,reuseaddr SOCKS5:proxyHost:rtmpHost:rtmpPort,socksport=proxyPort
+   */
+  async _startSocatTunnel(rtmpInfo) {
+    if (!this.proxy || this.proxy.type !== 'socks5') return null;
+    
+    const tunnelPort = await findFreePort();
+    const { host: proxyHost, port: proxyPort, username, password } = this.proxy;
+    
+    // 构建 socat 参数
+    const socks5Addr = username
+      ? `SOCKS5:${proxyHost}:${rtmpInfo.host}:${rtmpInfo.port},socksport=${proxyPort},socksuser=${username},sockspass=${password}`
+      : `SOCKS5:${proxyHost}:${rtmpInfo.host}:${rtmpInfo.port},socksport=${proxyPort}`;
+
+    const args = [
+      `TCP-LISTEN:${tunnelPort},fork,reuseaddr`,
+      socks5Addr,
+    ];
+
+    console.log(`[RTMPPusher] 🔄 启动SOCKS5隧道: 127.0.0.1:${tunnelPort} → ${rtmpInfo.host}:${rtmpInfo.port} (via ${proxyHost}:${proxyPort})`);
+
+    const socat = spawn('socat', args, {
+      stdio: 'pipe',
+    });
+
+    socat.on('error', (err) => {
+      console.error('[RTMPPusher] socat错误:', err.message);
+    });
+
+    socat.stderr.on('data', (data) => {
+      // socat 日志（静默，除非调试模式）
+    });
+
+    // 等待 socat 就绪
+    await new Promise(r => setTimeout(r, 500));
+
+    this.socatProcess = socat;
+    this.tunnelPort = tunnelPort;
+    
+    return tunnelPort;
+  }
+
+  /**
    * 启动推流（PNG管道模式）
    * 
-   * 工作流: stdin接收PNG帧 → FFmpeg编码h264 → RTMP推送
-   * 
-   * @param {string} audioPath - 背景音频文件路径（可选）
+   * 工作流: stdin接收SVG/PNG帧 → FFmpeg编码h264 → [socat隧道 → SOCKS5代理] → RTMP推送
    */
-  start(audioPath = null) {
+  async start(audioPath = null) {
     if (!this.rtmpUrl) {
       throw new Error('未配置RTMP推流地址');
     }
@@ -81,22 +178,56 @@ class RTMPPusher extends EventEmitter {
       return this;
     }
 
-    console.log(`[RTMPPusher] 开始推流 → ${this.rtmpUrl.replace(/\/[^/]+$/, '/***')}`);
-    console.log(`[RTMPPusher] 参数: ${this.width}x${this.height} ${this.fps}fps ${this.videoBitrate}`);
-    if (this.proxy && this.proxy.host) {
-      console.log(`[RTMPPusher] 🔒 代理: ${this.proxy.type}://${this.proxy.host}:${this.proxy.port} (${this.proxy.region || 'unknown'})`);
+    // 解析RTMP地址
+    const rtmpInfo = parseRtmpUrl(this.rtmpUrl);
+    let actualRtmpUrl = this.rtmpUrl;
+    let needsSocat = false;
+
+    // ═══ SOCKS5 代理处理 ═══
+    if (this.proxy && this.proxy.host && this.proxy.type === 'socks5') {
+      if (isSocatAvailable() && rtmpInfo) {
+        // ✅ socat可用：创建本地TCP隧道 → SOCKS5 → RTMP服务器
+        try {
+          const tunnelPort = await this._startSocatTunnel(rtmpInfo);
+          if (tunnelPort) {
+            // 重写RTMP地址：用本地隧道代替远程地址
+            const newPath = `/${rtmpInfo.app}/${rtmpInfo.streamKey}`;
+            actualRtmpUrl = `rtmp://127.0.0.1:${tunnelPort}${newPath}`;
+            needsSocat = true;
+            console.log(`[RTMPPusher] 🔄 RTMP重写: ${this.rtmpUrl.replace(/\/[^/]+$/, '/***')} → 127.0.0.1:${tunnelPort}`);
+          }
+        } catch (e) {
+          console.warn('[RTMPPusher] socat隧道创建失败:', e.message);
+        }
+      } else {
+        // ⚠️ socat不可用：提示用户使用TUN模式
+        console.warn('[RTMPPusher] ⚠️ 检测到SOCKS5代理但socat未安装！');
+        console.warn('[RTMPPusher] ⚠️ FFmpeg RTMP不走SOCKS5，请使用以下方案之一：');
+        console.warn('[RTMPPusher]     1. 开启TUN模式代理（推荐）：Clash TUN / V2Ray TUN');
+        console.warn('[RTMPPusher]     2. 安装 socat 后重试');
+        console.warn('[RTMPPusher]     3. 使用Proxifier/SocksCap64代理FFmpeg');
+      }
     }
 
-    // 构建代理环境变量（供 FFmpeg/librtmp 使用）
-    const env = { ...process.env };
+    console.log(`[RTMPPusher] 开始推流 → ${actualRtmpUrl.replace(/\/[^/]+$/, '/***')}`);
+    console.log(`[RTMPPusher] 参数: ${this.width}x${this.height} ${this.fps}fps ${this.videoBitrate}`);
     if (this.proxy && this.proxy.host) {
+      const mode = needsSocat ? 'socat隧道' : (this.proxy.type === 'socks5' ? 'TUN模式(系统级)' : 'HTTP代理');
+      console.log(`[RTMPPusher] 🔒 代理: ${this.proxy.type}://${this.proxy.host}:${this.proxy.port} (${this.proxy.region || 'unknown'}) [${mode}]`);
+    }
+
+    // 构建代理环境变量（非socat模式的兜底方案）
+    // 注意：RTMP 不使用 HTTP_PROXY，librtmp 只认 RTMP_PROXY（且仅HTTP代理类型）
+    const env = { ...process.env };
+    if (this.proxy && this.proxy.host && !needsSocat) {
       const proxyUrl = buildProxyUrl(this.proxy);
+      // librtmp 支持的代理环境变量
+      if (this.proxy.type === 'http' || this.proxy.type === 'https') {
+        env.RTMP_PROXY = proxyUrl;  // librtmp HTTP CONNECT代理
+      }
+      // 兜底：TUN模式下系统已处理路由，只设ALL_PROXY仅供参考
       env.ALL_PROXY = proxyUrl;
       env.all_proxy = proxyUrl;
-      env.HTTP_PROXY = proxyUrl;
-      env.HTTPS_PROXY = proxyUrl;
-      // RTMP 协议也走代理（通过 librtmp）
-      env.RTMP_PROXY = proxyUrl;
     }
 
     // FFmpeg参数构建
@@ -142,11 +273,11 @@ class RTMPPusher extends EventEmitter {
       );
     }
 
-    // RTMP输出
+    // RTMP输出（使用实际推流地址：socat隧道模式下是localhost）
     args.push(
       '-f', 'flv',
       '-flvflags', 'no_duration_filesize',
-      this.rtmpUrl
+      actualRtmpUrl
     );
 
     // 启动FFmpeg进程
@@ -255,25 +386,34 @@ class RTMPPusher extends EventEmitter {
 
     // 等待进程退出（最多5秒）
     return new Promise((resolve) => {
+      const cleanup = (forced) => {
+        // 清理 socat 隧道
+        if (this.socatProcess) {
+          try { this.socatProcess.kill('SIGTERM'); } catch (e) {}
+          this.socatProcess = null;
+          console.log('[RTMPPusher] 🔄 SOCKS5隧道已关闭');
+        }
+        this.tunnelPort = null;
+        this.isStreaming = false;
+        this.emit('stopped', { forced });
+        resolve({ forced });
+      };
+
       const timeout = setTimeout(() => {
         if (this.ffmpegProcess) {
           this.ffmpegProcess.kill('SIGTERM');
         }
-        this.isStreaming = false;
-        this.emit('stopped', { forced: true });
-        resolve({ forced: true });
+        cleanup(true);
       }, 5000);
 
       if (this.ffmpegProcess) {
         this.ffmpegProcess.on('close', () => {
           clearTimeout(timeout);
-          this.isStreaming = false;
-          resolve({ forced: false });
+          cleanup(false);
         });
       } else {
         clearTimeout(timeout);
-        this.isStreaming = false;
-        resolve({ alreadyStopped: true });
+        cleanup(false);
       }
     });
   }

@@ -107,6 +107,21 @@ router.post('/start', ensureEngine, async (req, res) => {
     engine.useOwnProxy = useOwnProxy;
     if (useOwnProxy && ownProxyUrl) {
       engine.ownProxyUrl = ownProxyUrl;
+      // 同时解析为 proxyConfig（供 LiveStreamEngine.prepare() 使用）
+      try {
+        const url = new URL(ownProxyUrl);
+        engine.proxyConfig = {
+          type: url.protocol.replace(':', '') || 'socks5',
+          host: url.hostname,
+          port: parseInt(url.port) || 1080,
+          username: decodeURIComponent(url.username || ''),
+          password: decodeURIComponent(url.password || ''),
+          region: 'custom',
+        };
+        console.log(`[LiveStream] 🔧 自带代理已配置: ${engine.proxyConfig.type}://${engine.proxyConfig.host}:${engine.proxyConfig.port}`);
+      } catch (e) {
+        console.warn('[LiveStream] 自带代理URL解析失败:', e.message);
+      }
     }
     if (proxyEnabled && proxyRegion) {
       // 从代理池获取配置
