@@ -71,22 +71,20 @@ const DIGITAL_PRODUCTS = [
     tagColor: 'bg-gray-100 text-gray-700',
     hot: false,
   },
-  {
-    id: 'proxy',
-    name: 'HTTP/Socks5 代理IP',
-    icon: '🌐',
-    emoji: '🌐',
-    price: 30,
-    originalPrice: '市场价 ¥45',
-    description: '全球代理 IP，支持 HTTP/Socks5 协议，可用于多账号管理、跨境访问',
-    features: ['全球节点覆盖', 'HTTP/Socks5 双协议', '高速稳定', '按需购买'],
-    category: '网络工具',
-    color: 'from-green-400 to-emerald-600',
-    bgColor: 'bg-emerald-50',
-    borderColor: 'border-emerald-200',
-    tagColor: 'bg-emerald-100 text-emerald-700',
-    hot: false,
-  },
+];
+
+// 代理IP - 按国家/地区分
+const PROXY_COUNTRIES = [
+  { id: 'proxy-tw', flag: '🇹🇼', name: '台湾', price: 30, ip: '静态住宅IP', speed: '低延迟', tag: '热门' },
+  { id: 'proxy-hk', flag: '🇭🇰', name: '香港', price: 30, ip: '静态住宅IP', speed: '低延迟', tag: '热门' },
+  { id: 'proxy-jp', flag: '🇯🇵', name: '日本', price: 35, ip: '静态住宅IP', speed: '低延迟', tag: '推荐' },
+  { id: 'proxy-sg', flag: '🇸🇬', name: '新加坡', price: 35, ip: '静态机房IP', speed: '低延迟', tag: '' },
+  { id: 'proxy-my', flag: '🇲🇾', name: '马来西亚', price: 30, ip: '静态住宅IP', speed: '稳定', tag: '' },
+  { id: 'proxy-vn', flag: '🇻🇳', name: '越南', price: 30, ip: '静态住宅IP', speed: '稳定', tag: '' },
+  { id: 'proxy-us', flag: '🇺🇸', name: '美国', price: 35, ip: '静态机房IP', speed: '高速', tag: '推荐' },
+  { id: 'proxy-gb', flag: '🇬🇧', name: '英国', price: 35, ip: '静态机房IP', speed: '高速', tag: '' },
+  { id: 'proxy-kr', flag: '🇰🇷', name: '韩国', price: 35, ip: '静态机房IP', speed: '低延迟', tag: '' },
+  { id: 'proxy-th', flag: '🇹🇭', name: '泰国', price: 30, ip: '静态住宅IP', speed: '稳定', tag: '' },
 ];
 
 // 已购 Apple ID + 小火箭（已有服务）
@@ -102,6 +100,11 @@ export default function DigitalShopPage() {
 
   const handleBuy = (product: typeof DIGITAL_PRODUCTS[0]) => {
     const message = encodeURIComponent(`你好，我想购买：${product.emoji} ${product.name}，¥${product.price}`);
+    window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank');
+  };
+
+  const handleProxyBuy = (country: typeof PROXY_COUNTRIES[0]) => {
+    const message = encodeURIComponent(`你好，我想购买：${country.flag} ${country.name} 代理IP，¥${country.price}`);
     window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank');
   };
 
@@ -272,6 +275,111 @@ export default function DigitalShopPage() {
                   WhatsApp 下单
                 </button>
               </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 🌐 代理IP 专区 */}
+      <div style={{ marginTop: 40, marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <span style={{ fontSize: 24 }}>🌐</span>
+          <h3 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: '#1f2937' }}>
+            HTTP / Socks5 代理IP
+          </h3>
+          <span style={{
+            fontSize: 11, padding: '3px 10px', borderRadius: 20,
+            background: 'linear-gradient(135deg, #10b981, #059669)',
+            color: '#fff', fontWeight: 600
+          }}>
+            按国家选择
+          </span>
+        </div>
+        <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>
+          支持 HTTP 和 Socks5 双协议，可用于 TikTok/Google Ads 多账号管理、跨境访问、PK 运营
+        </p>
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+        gap: 14
+      }}>
+        {PROXY_COUNTRIES.map((country) => (
+          <div
+            key={country.id}
+            style={{
+              background: '#fff',
+              borderRadius: 14,
+              border: '1px solid #e5e7eb',
+              padding: '16px 18px',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              position: 'relative',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.08)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.borderColor = '#10b981';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.borderColor = '#e5e7eb';
+            }}
+          >
+            {/* 标签 */}
+            {country.tag && (
+              <div style={{
+                position: 'absolute', top: 10, right: 10,
+                fontSize: 10, fontWeight: 700,
+                padding: '2px 8px', borderRadius: 10,
+                background: country.tag === '热门' ? '#fef2f2' : '#eff6ff',
+                color: country.tag === '热门' ? '#dc2626' : '#2563eb',
+              }}>
+                {country.tag}
+              </div>
+            )}
+
+            {/* 国旗 + 名称 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <span style={{ fontSize: 28 }}>{country.flag}</span>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#1f2937' }}>{country.name}</div>
+                <div style={{ fontSize: 11, color: '#9ca3af' }}>{country.ip}</div>
+              </div>
+            </div>
+
+            {/* 速度 */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 12, color: '#6b7280', marginBottom: 14,
+              padding: '6px 10px', background: '#f9fafb', borderRadius: 8
+            }}>
+              <span>⚡ {country.speed}</span>
+              <span style={{ color: '#d1d5db' }}>|</span>
+              <span>HTTP / Socks5</span>
+            </div>
+
+            {/* 价格 + 按钮 */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <span style={{ fontSize: 22, fontWeight: 800, color: '#d97706' }}>¥{country.price}</span>
+                <span style={{ fontSize: 11, color: '#9ca3af' }}>/月</span>
+              </div>
+              <button
+                onClick={() => handleProxyBuy(country)}
+                style={{
+                  padding: '7px 14px', fontSize: 12, fontWeight: 700,
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  color: '#fff', border: 'none', borderRadius: 8,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
+                }}
+              >
+                <MessageCircle size={13} />
+                购买
+              </button>
             </div>
           </div>
         ))}
