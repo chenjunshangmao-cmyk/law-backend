@@ -28,8 +28,15 @@ let useMemoryMode = false;
 // 创建连接池（如果 DATABASE_URL 存在）
 let pool = null;
 if (databaseUrl) {
+  // ★ 修复：Render 内部 DNS 不稳定时，自动用完整公网域名
+  let fixedUrl = databaseUrl;
+  if (databaseUrl.includes('dpg-') && !databaseUrl.includes('.render.com')) {
+    const original = databaseUrl;
+    fixedUrl = databaseUrl.replace(/@([a-z0-9-]+)(:\d+|$)/, '@$1.virginia-postgres.render.com$2');
+    console.log(`[数据库] 自动修复域名: ${original.split('@')[0]}@... → 使用公网域名`);
+  }
   pool = new Pool({
-    connectionString: databaseUrl,
+    connectionString: fixedUrl,
     ssl: { rejectUnauthorized: false },
     // 增强健壮性：连接池参数优化
     max: 5,           // 最大连接数
