@@ -11,7 +11,8 @@
  */
 
 import express from 'express';
-import { pool } from '../config/database.js';
+import { pool, useMemoryMode, pgFailed } from '../config/database.js';
+import pg from 'pg';
 
 const router = express.Router();
 const START_TIME = Date.now();
@@ -21,21 +22,46 @@ let lastHealthCheck = null;
 let lastCheckTime = 0;
 const CACHE_TTL = 30000; // 30秒缓存
 
+// ★ 直接测试PG连接（绕过smartPool），暴露真实的PG错误
+async function testRawPG() {
+  if (!process.env.DATABASE_URL) return { reachable: false, error: 'DATABASE_URL not set' };
+  try {
+    const client = new pg.Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 5000,
+    });
+    const start = Date.now();
+    await client.connect();
+    await client.query('SELECT 1');
+    const latency = Date.now() - start;
+    await client.end();
+    return { reachable: true, latencyMs: latency };
+  } catch (err) {
+    return { reachable: false, error: err.message, code: err.code };
+  }
+}
+
 async function performHealthCheck() {
   const checks = {};
   let overall = 'healthy';
 
-  // 1. 数据库连通性（含实际模式标识）
+  // 1. 数据库连通性（含实际模式标识 + 原始PG测试）
+  const mode = (typeof pool.getMode === 'function') ? pool.getMode() : 'json';
+  const rawPG = await testRawPG();
+  
   try {
     const start = Date.now();
     await pool.query('SELECT 1');
     const latency = Date.now() - start;
-    // ★ 暴露实际数据库模式（pg/json），0ms延迟通常表示JSON模式
-    const mode = (typeof pool.getMode === 'function') ? pool.getMode() : (latency === 0 ? 'json' : 'pg');
-    checks.database = { status: 'ok', latencyMs: latency, mode };
-    if (mode === 'json') overall = 'degraded';
+    checks.database = { 
+      status: 'ok', latencyMs: latency, mode,
+      pgDirect: rawPG.reachable,
+      pgError: rawPG.error || null,
+    };
+    if (mode === 'json' || !rawPG.reachable) overall = 'degraded';
   } catch (err) {
-    checks.database = { status: 'error', error: err.message, mode: 'error' };
+    checks.database = { status: 'error', error: err.message, mode: 'error', pgDirect: rawPG.reachable, pgError: rawPG.error || null };
     overall = 'degraded';
   }
 
