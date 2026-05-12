@@ -106,6 +106,26 @@ export const findUserById = async (id) => {
     console.log('[findUserById] PG查询结果行数:', result.rows.length, ' 首行:', result.rows[0]?.email || 'null');
   } catch (poolErr) {
     console.error('[findUserById] PostgreSQL 查询失败:', poolErr.message);
+    // ★ 紧急修复：PG 挂了不能直接 return null —— 必须降级到 JSON
+    console.log('[findUserById] 🔄 PG不可用，降级到 JSON 文件查询');
+    const jsonUser = findUserInJsonFile(String(id));
+    if (jsonUser) {
+      console.log('[findUserById] ✅ 从JSON降级找到用户:', jsonUser.email);
+      return jsonUser;
+    }
+    // JSON 也没有，最后试试特殊 ID
+    if (id === 'user-admin-001' || id === 'user-demo-001' || id === 'user-test-001') {
+      const builtinAccounts = {
+        'user-admin-001': { id: 'user-admin-001', email: 'admin@claw.com', name: '管理员', membership_type: 'enterprise', role: 'admin' },
+        'user-demo-001': { id: 'user-demo-001', email: 'user@claw.com', name: '演示用户', membership_type: 'premium', role: 'user' },
+        'user-test-001': { id: 'user-test-001', email: 'test@claw.com', name: '测试用户', membership_type: 'basic', role: 'user' },
+      };
+      const bu = builtinAccounts[id];
+      if (bu) {
+        console.log('[findUserById] ✅ 内置用户降级:', bu.email);
+        return bu;
+      }
+    }
     return null;
   }
 
