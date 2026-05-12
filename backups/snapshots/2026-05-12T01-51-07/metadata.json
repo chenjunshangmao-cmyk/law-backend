@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-12T01:51:07.973Z",
+  "comment": "AI生成文章部署测试",
+  "frontend": {
+    "commit": "5625303dba2907144ae8b3bdcbdd841dae6abcd6",
+    "branch": "master"
+  },
+  "backend": {
+    "commit": "6fbc6ae980862c5258c698ee354eb543b4b955ef"
+  },
+  "database": {
+    "backedUp": false,
+    "url": "postgres://***@dpg-d7dlk6hkh4rs739s00b0-a.virginia-postgres.render.com/claw_db"
+  },
+  "files": [
+    "backend.log",
+    "database.sql",
+    "frontend.log"
+  ]
+}
