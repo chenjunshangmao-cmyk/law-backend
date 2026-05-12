@@ -37,14 +37,14 @@ if (databaseUrl) {
     console.log(`[数据库] 原始: ${original}`);
     console.log(`[数据库] 修复: ${fixedUrl}`);
   }
-  pool = new Pool({
+  const pgConfig = {
     connectionString: fixedUrl,
     ssl: { rejectUnauthorized: false },
-    // 增强健壮性：连接池参数优化
-    max: 5,           // 最大连接数
-    idleTimeoutMillis: 30000,  // 空闲超时
-    connectionTimeoutMillis: 10000,  // 连接超时（10秒，冷启动适配）
-  });
+    max: 5,
+    idleTimeoutMillis: 60000,
+    connectionTimeoutMillis: 15000,
+  };
+  pool = new Pool(pgConfig);
 
   // 监听连接错误，自动重连
   pool.on('error', (err) => {
