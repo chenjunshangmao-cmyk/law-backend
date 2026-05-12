@@ -103,11 +103,12 @@ export default function AIToolsPage() {
     if (extra) extra(fd);
     try {
       const res = await api.aiTools.process(action, fd);
-      const d = res.data;
-      if (d.success && d.data?.result) {
+      const d = res.data; // d = { result, format, note } (authFetch已剥掉外层structure)
+      // ★ 修复：res.success 才是成功标志，d 是内层data
+      if (res.success && d?.result) {
         try {
-          const bytes = new Uint8Array(atob(d.data.result).split('').map(c => c.charCodeAt(0)));
-          const blob = new Blob([bytes], { type: `image/${d.data.format || 'png'}` });
+          const bytes = new Uint8Array(atob(d.result).split('').map(c => c.charCodeAt(0)));
+          const blob = new Blob([bytes], { type: `image/${d.format || 'png'}` });
           if (blob.size < 50) throw new Error('结果图片异常（过小）');
           setResultUrl(URL.createObjectURL(blob));
         } catch (decodeErr: any) {
@@ -116,9 +117,9 @@ export default function AIToolsPage() {
           if (file) setResultUrl(URL.createObjectURL(file));
           setInfo('已返回原图，请重试');
         }
-        if (d.data.note) setInfo(d.data.note); else setInfo('处理完成');
+        if (d.note) setInfo(d.note); else setInfo('处理完成');
       } else {
-        setError(d.error || '处理失败，请重试');
+        setError(d?.error || res.error || '处理失败，请重试');
       }
     } catch (e: any) {
       const status = e?.response?.status;
