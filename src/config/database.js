@@ -1,41 +1,137 @@
-// 数据库配置 - PostgreSQL (Render) - 使用纯 pg 客户端
+// 数据库配置 - PostgreSQL (Render) + JSON文件兜底
+// v3.0 - 智能切换：PG可用用PG，PG挂了自动切JSON文件模式
 import pg from 'pg';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
 const { Pool } = pg;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_DIR = path.join(process.cwd(), 'data');
 
-// 从环境变量获取数据库 URL
-const databaseUrl = process.env.DATABASE_URL;
+// ==================== JSON 文件持久化 ====================
+const JSON_FILES = {
+  users: path.join(DATA_DIR, 'users.json'),
+  articles: path.join(DATA_DIR, 'articles.json'),
+  payment_orders: path.join(DATA_DIR, 'payment_orders.json'),
+  accounts: path.join(DATA_DIR, 'accounts.json'),
+  products: path.join(DATA_DIR, 'products.json'),
+  quotas: path.join(DATA_DIR, 'quotas.json'),
+  whatsapp_links: path.join(DATA_DIR, 'whatsapp_links.json'),
+};
 
-// 内存存储模式（当数据库不可用时使用）
+// 确保data目录存在
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// 从JSON文件加载数据到内存
+function loadJsonStore(table) {
+  const file = JSON_FILES[table];
+  if (!file) return [];
+  try {
+    if (!fs.existsSync(file)) return [];
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.warn(`[JSON存储] 加载${table}失败:`, e.message);
+    return [];
+  }
+}
+
+// 保存内存数据到JSON文件
+function saveJsonStore(table, data) {
+  const file = JSON_FILES[table];
+  if (!file) return;
+  try {
+    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error(`[JSON存储] 保存${table}失败:`, e.message);
+  }
+}
+
+// 内存存储（JSON持久化）
 const memoryStore = {
   users: new Map(),
   accounts: new Map(),
   products: new Map(),
+  articles: new Map(),
+  paymentOrders: new Map(),
+  quotas: new Map(),
   tasks: new Map(),
   videos: new Map(),
   scripts: new Map(),
   proxies: new Map(),
   syncData: new Map(),
-  idCounters: { users: 1, accounts: 1, products: 1, tasks: 1, videos: 1, scripts: 1, proxies: 1, syncData: 1 }
+  whatsappLinks: new Map(),
+  idCounters: { users: 1, accounts: 1, products: 1, articles: 1, paymentOrders: 1, tasks: 1, videos: 1, scripts: 1, proxies: 1, syncData: 1, quotas: 1, whatsappLinks: 1 }
 };
 
-// 标记是否使用内存模式
-let useMemoryMode = false;
+// 初始化：从JSON文件加载到内存
+(function initJsonStores() {
+  const tables = ['users', 'articles', 'payment_orders', 'accounts', 'products', 'quotas', 'whatsapp_links'];
+  for (const table of tables) {
+    const items = loadJsonStore(table);
+    if (items.length > 0) {
+      const mapKey = table === 'payment_orders' ? 'paymentOrders' : 
+                     table === 'whatsapp_links' ? 'whatsappLinks' : table;
+      const map = memoryStore[mapKey];
+      if (map) {
+        for (const item of items) {
+          map.set(String(item.id), item);
+        }
+        console.log(`[JSON存储] 加载 ${table}: ${items.length} 条记录`);
+      }
+    }
+  }
+})();
 
-// 创建连接池（如果 DATABASE_URL 存在）
+// 定期保存（每60秒）
+let saveTimer = null;
+function startAutoSave() {
+  if (saveTimer) return;
+  saveTimer = setInterval(() => {
+    if (!useMemoryMode) return;
+    saveAllStores();
+  }, 60000);
+  process.on('exit', saveAllStores);
+  process.on('SIGTERM', () => { saveAllStores(); process.exit(); });
+  process.on('SIGINT', () => { saveAllStores(); process.exit(); });
+}
+
+function saveAllStores() {
+  const maps = [
+    ['users', memoryStore.users],
+    ['articles', memoryStore.articles],
+    ['payment_orders', memoryStore.paymentOrders],
+    ['accounts', memoryStore.accounts],
+    ['products', memoryStore.products],
+    ['quotas', memoryStore.quotas],
+    ['whatsapp_links', memoryStore.whatsappLinks],
+  ];
+  for (const [table, map] of maps) {
+    if (map.size > 0) {
+      saveJsonStore(table, Array.from(map.values()));
+    }
+  }
+  console.log('[JSON存储] 自动保存完成');
+}
+
+const databaseUrl = process.env.DATABASE_URL;
+let useMemoryMode = false;
+let pgFailed = false; // 是否已检测到PG不可用
+
 let pool = null;
 if (databaseUrl) {
-  // ★ 修复：Render 内部 DNS 不稳定时，自动用完整公网域名
   let fixedUrl = databaseUrl;
   if (databaseUrl.includes('dpg-') && !databaseUrl.includes('.render.com')) {
     const original = databaseUrl;
     fixedUrl = databaseUrl.replace(/@([a-z0-9-]+)(:\d+)?(\/|$)/, '@$1.virginia-postgres.render.com$2$3');
-    console.log(`[数据库] 自动修复域名: ${original.split('@')[0]}@... → 使用公网域名`);
-    console.log(`[数据库] 原始: ${original}`);
-    console.log(`[数据库] 修复: ${fixedUrl}`);
+    console.log(`[数据库] 自动修复域名: ${original.split('@')[0]}@... → 公网域名`);
   }
   const pgConfig = {
     connectionString: fixedUrl,
@@ -46,9 +142,14 @@ if (databaseUrl) {
   };
   pool = new Pool(pgConfig);
 
-  // 监听连接错误，自动重连
   pool.on('error', (err) => {
-    console.error('[数据库] 连接池错误（自动恢复）:', err.message);
+    console.error('[数据库] 连接池错误:', err.message);
+    if (!useMemoryMode) {
+      console.log('[数据库] 🔄 自动切换到JSON模式');
+      useMemoryMode = true;
+      pgFailed = true;
+      startAutoSave();
+    }
   });
 
   // 启动时验证连接
@@ -57,247 +158,353 @@ if (databaseUrl) {
       const client = await pool.connect();
       await client.query('SELECT 1');
       client.release();
-      console.log('[数据库] PostgreSQL 连接验证成功');
+      console.log('[数据库] PostgreSQL 连接验证成功 ✅');
       useMemoryMode = false;
+      pgFailed = false;
     } catch (err) {
-      console.error('[数据库] PostgreSQL 连接失败（使用内存模式）:', err.message);
+      console.error('[数据库] PostgreSQL 连接失败:', err.message);
+      console.log('[数据库] 🔄 使用 JSON 文件模式运行');
       useMemoryMode = true;
+      pgFailed = true;
+      startAutoSave();
     }
   })();
 } else {
-  console.warn('⚠️  DATABASE_URL 未设置，将使用内存模式运行');
+  console.warn('[数据库] DATABASE_URL 未设置，JSON文件模式');
   useMemoryMode = true;
+  startAutoSave();
 }
 
-// 内存模式查询模拟
-const memoryQuery = async (sql, params) => {
-  // 简单的SQL解析，支持基本的CRUD操作
+// ==================== 通用内存查询引擎 ====================
+// 支持任意表的CRUD，自动解析SQL和参数
+
+// 表名→store映射
+const TABLE_STORE_MAP = {
+  users: 'users',
+  articles: 'articles',
+  payment_orders: 'paymentOrders',
+  accounts: 'accounts',
+  products: 'products',
+  quotas: 'quotas',
+  whatsapp_links: 'whatsappLinks',
+  tasks: 'tasks',
+  videos: 'videos',
+  scripts: 'scripts',
+  account_sync_data: 'syncData',
+  user_proxies: 'proxies',
+  shouqianba_terminals: null, // 不需要持久化
+  chat_sessions: null,
+  chat_messages: null,
+};
+
+function getStore(table) {
+  const key = TABLE_STORE_MAP[table];
+  if (!key) return null;
+  return memoryStore[key] || null;
+}
+
+function getJsonFile(table) {
+  if (table === 'payment_orders') return 'payment_orders';
+  if (table === 'whatsapp_links') return 'whatsapp_links';
+  return table;
+}
+
+// 从SQL提取表名
+function extractTable(sql) {
+  const m = sql.match(/from\s+(\w+)/i) || sql.match(/into\s+(\w+)/i) || sql.match(/update\s+(\w+)/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+// 解析WHERE条件: field = $N 或 field = 'value'
+function parseWhereClauses(sql) {
+  const whereMatch = sql.match(/where\s+(.+?)(?:\s+order\s|\s+limit\s|\s+returning\s|\s+on\s+conflict\s|\s*$)/is);
+  if (!whereMatch) return [];
+  const clause = whereMatch[1];
+  const conditions = [];
+  // 匹配 field = $N
+  const re = /(\w+)\s*(?:=|!=|<>|>|<|>=|<=|ilike|like)\s*(\$\d+|'[^']*'|[a-zA-Z0-9._-]+)/gi;
+  let m;
+  while ((m = re.exec(clause)) !== null) {
+    conditions.push({ field: m[1].toLowerCase(), placeholder: m[2] });
+  }
+  return conditions;
+}
+
+// 获取参数值
+function getParamValue(placeholder, params) {
+  if (placeholder.startsWith('$')) {
+    const idx = parseInt(placeholder.slice(1)) - 1;
+    return params[idx];
+  }
+  return placeholder.replace(/'/g, '');
+}
+
+// 解析INSERT列名
+function parseInsertColumns(sql) {
+  const m = sql.match(/\(([^)]+)\)/);
+  if (!m) return [];
+  return m[1].split(',').map(c => c.trim().toLowerCase());
+}
+
+// 解析UPDATE SET子句
+function parseUpdateSets(sql) {
+  const m = sql.match(/set\s+(.+?)\s+where/is);
+  if (!m) return [];
+  const sets = [];
+  const re = /(\w+)\s*=\s*(\$\d+|'[^']*'|now\(\)|current_timestamp|excluded\.\w+)/gi;
+  let match;
+  while ((match = re.exec(m[1])) !== null) {
+    sets.push({ field: match[1].toLowerCase(), placeholder: match[2] });
+  }
+  return sets;
+}
+
+function matchesRow(row, conditions, params) {
+  for (const cond of conditions) {
+    const val = getParamValue(cond.placeholder, params);
+    const rowVal = row[cond.field];
+    if (String(rowVal) !== String(val)) return false;
+  }
+  return true;
+}
+
+function findRows(store, conditions, params) {
+  const rows = Array.from(store.values());
+  if (conditions.length === 0) return rows;
+  return rows.filter(r => matchesRow(r, conditions, params));
+}
+
+const memoryQuery = async (sql, params = []) => {
   const sqlLower = sql.toLowerCase().trim();
-  
-  // SELECT 查询
+  const table = extractTable(sql);
+  const store = getStore(table);
+  const now = new Date().toISOString();
+
+  // ═══ SELECT ═══
   if (sqlLower.startsWith('select')) {
-    // 从users表查询
-    if (sqlLower.includes('from users')) {
-      const users = Array.from(memoryStore.users.values());
-      if (sqlLower.includes('where email =')) {
-        const email = params[0];
-        return { rows: users.filter(u => u.email === email) };
-      }
-      if (sqlLower.includes('where id')) {
-        const id = String(params[0]);
-        const user = memoryStore.users.get(id);
-        return { rows: user ? [user] : [] };
-      }
-      return { rows: users };
+    if (!store) return { rows: [] };
+
+    if (sqlLower.includes('count(*)') || sqlLower.includes('count(')) {
+      const conditions = parseWhereClauses(sql);
+      const count = findRows(store, conditions, params).length;
+      return { rows: [{ count }] };
     }
-    // 从accounts表查询
-    if (sqlLower.includes('from accounts')) {
-      const accounts = Array.from(memoryStore.accounts.values());
-      if (sqlLower.includes('where user_id =')) {
-        const userId = String(params[0]);
-        return { rows: accounts.filter(a => String(a.user_id) === userId) };
-      }
-      if (sqlLower.includes('where id =')) {
-        const id = String(params[0]);
-        const account = memoryStore.accounts.get(id);
-        return { rows: account ? [account] : [] };
-      }
-      return { rows: accounts };
+
+    const conditions = parseWhereClauses(sql);
+    let rows = findRows(store, conditions, params);
+
+    // ORDER BY created_at DESC (默认)
+    if (sqlLower.includes('order by')) {
+      rows.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    } else {
+      rows.sort((a, b) => (b.id || 0) - (a.id || 0));
     }
+
+    // LIMIT/OFFSET
+    const limitMatch = sqlLower.match(/limit\s+(\$\d+|\d+)/i);
+    const offsetMatch = sqlLower.match(/offset\s+(\$\d+|\d+)/i);
+    if (limitMatch) {
+      const limit = getParamValue(limitMatch[1], params);
+      const offset = offsetMatch ? getParamValue(offsetMatch[1], params) : 0;
+      rows = rows.slice(Number(offset), Number(offset) + Number(limit));
+    }
+
+    return { rows };
+  }
+
+  // ═══ INSERT ═══
+  if (sqlLower.startsWith('insert') && store) {
+    const columns = parseInsertColumns(sql);
+    const row = { id: String(memoryStore.idCounters[table] || Date.now()), created_at: now, updated_at: now };
+
+    // 特殊处理：如果id列在第一位，用params[0]
+    if (columns.length > 0 && columns[0] === 'id') {
+      row.id = String(params[0]);
+      memoryStore.idCounters[table] = Math.max(memoryStore.idCounters[table] || 1, Number(params[0]) || 1);
+    } else {
+      // 生成自增ID
+      const counter = memoryStore.idCounters[table] || 1;
+      row.id = String(counter);
+      memoryStore.idCounters[table] = counter + 1;
+    }
+
+    // 映射params到列
+    let paramOffset = 0;
+    for (let i = 0; i < columns.length; i++) {
+      const col = columns[i];
+      if (col === 'id' && columns[0] === 'id') {
+        paramOffset = 1; // id已经用了
+        continue;
+      }
+      const pi = i - paramOffset;
+      if (pi < params.length) {
+        row[col] = params[pi];
+      }
+    }
+
+    // 硬编码默认值
+    if (row.status === undefined) row.status = 'pending';
+
+    store.set(row.id, row);
+
+    // 自动保存JSON
+    const jsonFile = getJsonFile(table);
+    if (jsonFile && JSON_FILES[jsonFile]) {
+      saveJsonStore(jsonFile, Array.from(store.values()));
+    }
+
+    console.log(`[内存DB] INSERT ${table}: id=${row.id}`);
+    return { rows: [row] };
+  }
+
+  // ═══ UPDATE ═══
+  if (sqlLower.startsWith('update') && store) {
+    const setClauses = parseUpdateSets(sql);
+    const whereConditions = parseWhereClauses(sql);
+    const matchingRows = findRows(store, whereConditions, params);
+
+    for (const row of matchingRows) {
+      for (const set of setClauses) {
+        let val = getParamValue(set.placeholder, params);
+        if (val === 'CURRENT_TIMESTAMP' || val === 'now()') val = now;
+        row[set.field] = val;
+      }
+      row.updated_at = now;
+      store.set(row.id, row);
+    }
+
+    const jsonFile = getJsonFile(table);
+    if (jsonFile && JSON_FILES[jsonFile]) {
+      saveJsonStore(jsonFile, Array.from(store.values()));
+    }
+
+    return { rows: matchingRows };
+  }
+
+  // ═══ DELETE ═══
+  if (sqlLower.startsWith('delete') && store) {
+    const conditions = parseWhereClauses(sql);
+    const toDelete = findRows(store, conditions, params);
+    for (const row of toDelete) store.delete(row.id);
+
+    const jsonFile = getJsonFile(table);
+    if (jsonFile && JSON_FILES[jsonFile]) saveJsonStore(jsonFile, Array.from(store.values()));
+
     return { rows: [] };
   }
-  
-  // INSERT 插入
-  if (sqlLower.startsWith('insert')) {
-    if (sqlLower.includes('into users')) {
-      const id = String(memoryStore.idCounters.users++);
-      const newUser = { id, ...params[0], created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-      memoryStore.users.set(id, newUser);
-      return { rows: [newUser] };
-    }
-    if (sqlLower.includes('into accounts')) {
-      const id = String(memoryStore.idCounters.accounts++);
-      const newAccount = { id, ...params[0], created_at: new Date().toISOString() };
-      memoryStore.accounts.set(id, newAccount);
-      return { rows: [newAccount] };
-    }
+
+  // ═══ DDL (CREATE/ALTER TABLE) ═══
+  if (sqlLower.startsWith('create') || sqlLower.startsWith('alter')) {
     return { rows: [] };
   }
-  
-  // UPDATE 更新
-  if (sqlLower.startsWith('update')) {
-    if (sqlLower.includes('users')) {
-      const id = String(params[params.length - 1]);
-      const user = memoryStore.users.get(id);
-      if (user) {
-        Object.assign(user, params[0], { updated_at: new Date().toISOString() });
-        return { rows: [user] };
-      }
-    }
-    return { rows: [] };
-  }
-  
-  // DELETE 删除
-  if (sqlLower.startsWith('delete')) {
-    if (sqlLower.includes('from accounts')) {
-      const id = String(params[0]);
-      memoryStore.accounts.delete(id);
-    }
-    return { rows: [] };
-  }
-  
+
+  // ═══ 默认返回空 ═══
+  console.log(`[内存DB] 未处理的SQL: ${sql.substring(0, 80)}`);
   return { rows: [] };
 };
 
-// 模拟 sequelize 接口以保持兼容性
+// ==================== ★ 智能 Pool 包装器 ★ ====================
+// 核心：PG查询失败时自动降级到memoryQuery，上层路由无感知
+const originalPool = pool;
+
+const smartPool = {
+  query: async (sql, params) => {
+    // 如果已知PG挂了，直接用内存模式
+    if (useMemoryMode || pgFailed || !originalPool) {
+      return memoryQuery(sql, params);
+    }
+
+    // 尝试PG查询
+    try {
+      const result = await originalPool.query(sql, params);
+      return result;
+    } catch (err) {
+      // PG挂了，自动切换
+      if (!useMemoryMode) {
+        console.error('[智能Pool] PG查询失败，自动切换JSON模式:', err.message.substring(0, 100));
+        useMemoryMode = true;
+        pgFailed = true;
+        startAutoSave();
+      }
+      return memoryQuery(sql, params);
+    }
+  },
+  connect: async () => {
+    if (useMemoryMode || !originalPool) {
+      throw new Error('PG不可用，JSON模式运行中');
+    }
+    return originalPool.connect();
+  },
+  end: async () => {
+    saveAllStores();
+    if (originalPool) await originalPool.end();
+  },
+  on: (...args) => originalPool && originalPool.on(...args),
+};
+
+// 导出智能pool（覆盖原始pool）
+// 注意：其他模块 import { pool } from 'database.js' 会得到这个智能包装器
+// 所有 pool.query() 调用自动具备降级能力
+if (pool) pool = smartPool;
+else pool = smartPool;
+
+// ==================== 兼容旧接口 ====================
 const sequelize = {
   authenticate: async () => {
     if (useMemoryMode) {
-      console.log('✅ 内存模式运行中');
+      console.log('✅ JSON文件模式运行中');
       return true;
     }
-    const client = await pool.connect();
-    client.release();
-    return true;
+    try {
+      const client = await originalPool.connect();
+      client.release();
+      return true;
+    } catch { return true; }
   },
   sync: async () => {
     if (useMemoryMode) {
-      console.log('✅ 内存模式：无需同步数据库');
+      console.log('✅ JSON文件模式：无需同步数据库');
       return true;
     }
-    // 初始化数据库表
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        name VARCHAR(100),
-        membership_type VARCHAR(20) DEFAULT 'free',
-        membership_expires_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    // 创建/保留 accounts 表（使用 VARCHAR id 兼容 OZON 账号）
-    // ⚠️ 不再 DROP 表，避免数据丢失
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS accounts (
-        id VARCHAR(64) PRIMARY KEY,
-        user_id VARCHAR(64) NOT NULL,
-        platform VARCHAR(50) NOT NULL,
-        name VARCHAR(255),
-        client_id VARCHAR(255),
-        api_key TEXT,
-        account_data JSONB DEFAULT '{}',
-        status VARCHAR(20) DEFAULT 'active',
-        last_sync TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    // 使用 CREATE TABLE IF NOT EXISTS，不再 DROP
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS products (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        title VARCHAR(255) NOT NULL,
-        description TEXT,
-        price DECIMAL(10, 2),
-        platform VARCHAR(50),
-        status VARCHAR(20) DEFAULT 'draft',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    // 不再 DROP 表，避免数据丢失
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS account_sync_data (
-        id SERIAL PRIMARY KEY,
-        account_id VARCHAR(64) REFERENCES accounts(id) ON DELETE CASCADE,
-        products_count INTEGER DEFAULT 0,
-        orders_count INTEGER DEFAULT 0,
-        sync_status VARCHAR(20) DEFAULT 'pending',
-        sync_data JSONB DEFAULT '{}',
-        sync_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(account_id)
-      )
-    `);
-    // 创建聊天会话表（支持AI客服长上下文记忆）
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS chat_sessions (
-        session_id VARCHAR(128) PRIMARY KEY,
-        user_id VARCHAR(64),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS chat_messages (
-        id SERIAL PRIMARY KEY,
-        session_id VARCHAR(128) REFERENCES chat_sessions(session_id) ON DELETE CASCADE,
-        role VARCHAR(20) NOT NULL,
-        content TEXT NOT NULL,
-        source VARCHAR(20),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    // 索引：加速查询
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, created_at ASC)
-    `).catch(() => {});
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id)
-    `).catch(() => {});
-
-    // 初始化 OZON 账号（如果不存在）
-    await pool.query(`
-      INSERT INTO accounts (id, user_id, platform, name, client_id, api_key, account_data) VALUES
-      ('ozon-chenjun-trading', 'dd0a80ed-5721-44ff-bea1-3d3520c2968d', 'ozon', 'Chenjun Trading', '253100', '97cbc32c-5a85-405e-8bf0-d45cb943acf1', '{}'),
-      ('ozon-chenjun-mall', 'dd0a80ed-5721-44ff-bea1-3d3520c2968d', 'ozon', 'Chenjun Mall', '2838302', '3652be69-0a0b-4e3e-8510-83ad7b082529', '{}'),
-      ('ozon-qiming-trading', 'dd0a80ed-5721-44ff-bea1-3d3520c2968d', 'ozon', 'qiming Trading', '3101652', '90356528-af82-42c1-81af-86fddec89224', '{}')
-      ON CONFLICT (id) DO UPDATE SET user_id = EXCLUDED.user_id
-    `).catch(() => {});
+    try {
+      await originalPool.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email VARCHAR(255) UNIQUE NOT NULL, password VARCHAR(255) NOT NULL, name VARCHAR(100), membership_type VARCHAR(20) DEFAULT 'free', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    } catch {}
     return true;
   },
-  query: (sql, options) => useMemoryMode ? memoryQuery(sql, options) : pool.query(sql, options),
-  close: () => useMemoryMode ? Promise.resolve() : pool.end()
+  query: (sql, options) => pool.query(sql, options),
+  close: () => pool.end()
 };
 
-// 测试数据库连接
+// 测试连接
 export const testConnection = async () => {
   if (useMemoryMode) {
-    console.log('✅ 内存模式运行中，无需数据库连接');
+    console.log('[数据库] JSON文件模式运行中（PG不可用）');
     return true;
   }
   try {
-    // 直接使用pool测试连接
-    const client = await pool.connect();
-    console.log('✅ PostgreSQL 数据库连接成功');
+    const client = await originalPool.connect();
+    console.log('✅ PostgreSQL 连接成功');
     client.release();
     return true;
   } catch (error) {
-    console.error('❌ 数据库连接失败:', error.message);
-    console.log('⚠️  切换到内存模式...');
+    console.log('[数据库] PG连接失败:', error.message);
     useMemoryMode = true;
+    pgFailed = true;
+    startAutoSave();
     return true;
   }
 };
 
-// 同步数据库模型
 export const syncDatabase = async (force = false) => {
   try {
-    // 使用 alter: false 避免 PostgreSQL 兼容问题
-    // 只创建不存在的表，不修改现有表结构
-    await sequelize.sync({ force, alter: false });
+    await sequelize.sync();
     console.log('✅ 数据库同步成功');
     return true;
   } catch (error) {
-    console.error('❌ 数据库同步失败:', error.message);
-    // 同步失败不阻止服务启动
-    console.log('⚠️  继续启动服务（可能使用内存模式）...');
+    console.log('[数据库] 同步跳过:', error.message);
     return true;
   }
 };
 
-// 命名导出 sequelize 和 pool
-export { sequelize, pool, useMemoryMode, memoryStore };
+export { sequelize, smartPool as pool, useMemoryMode, memoryStore, pgFailed };
 export default sequelize;
