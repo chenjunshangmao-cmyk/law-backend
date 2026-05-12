@@ -387,6 +387,8 @@ router.post('/create-order', authenticateToken, async (req, res) => {
     });
 
     // 写入 payment_orders 表（★ 使用从 auth token 获取的 userId）
+    // ★ 修复：DB 写入失败必须回传给前端，不能静默吞掉
+    let dbWriteError = null;
     try {
       const dbUserId = effectiveUserId || 'anonymous';
       const effectivePlan = planType || 'unknown';
@@ -400,8 +402,23 @@ router.post('/create-order', authenticateToken, async (req, res) => {
           amount = EXCLUDED.amount,
           status = 'pending'
       `, [clientSn, String(dbUserId), parseInt(amountFen), effectivePlan, subject || '收钱吧支付', subject || 'Claw会员']);
+      console.log('[收钱吧] ✅ payment_orders 写入成功: ' + clientSn);
     } catch (dbErr) {
-      console.error('[收钱吧] 写入 payment_orders 表失败:', dbErr.message);
+      console.error('[收钱吧] ❌ 写入 payment_orders 表失败:', dbErr.message);
+      dbWriteError = dbErr.message;
+      // ★ 紧急降级：写入本地文件兜底，防止订单丢失
+      saveOrder({
+        clientSn, sn: clientSn,
+        orderStatus: 'CREATED', status: 'CREATED',
+        totalAmount: Number(totalAmount),
+        subject, payUrl,
+        userId: effectiveUserId || null,
+        planType: planType || null,
+        dbWriteFailed: true,
+        dbError: dbErr.message,
+        createdAt: Date.now()
+      });
+      console.log('[收钱吧] 🔧 已降级保存到本地文件（DB写入失败自动恢复记录）');
     }
 
     console.log('[收钱吧] ✅ 支付链接生成:', payUrl);
@@ -412,7 +429,8 @@ router.post('/create-order', authenticateToken, async (req, res) => {
         clientSn,
         totalAmount: parseInt(amountFen),
         payUrl
-      }
+      },
+      ...(dbWriteError ? { warning: '订单已创建但数据库存储异常，支付后可能需联系客服确认', dbError: dbWriteError } : {})
     });
   } catch (err) {
     console.error('[收钱吧] 创建支付订单失败:', err.message);
