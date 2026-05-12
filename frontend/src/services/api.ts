@@ -30,11 +30,14 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout 
 
 export async function authFetch(path: string, options: RequestInit = {}): Promise<any> {
   const token = getToken();
+  // 如果是 FormData，让浏览器自动设置 Content-Type（含 boundary）
+  const isFormData = options.body instanceof FormData;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
   };
-  
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
