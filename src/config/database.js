@@ -32,8 +32,10 @@ if (databaseUrl) {
   let fixedUrl = databaseUrl;
   if (databaseUrl.includes('dpg-') && !databaseUrl.includes('.render.com')) {
     const original = databaseUrl;
-    fixedUrl = databaseUrl.replace(/@([a-z0-9-]+)(:\d+|$)/, '@$1.virginia-postgres.render.com$2');
+    fixedUrl = databaseUrl.replace(/@([a-z0-9-]+)(:\d+)?(\/|$)/, '@$1.virginia-postgres.render.com$2$3');
     console.log(`[数据库] 自动修复域名: ${original.split('@')[0]}@... → 使用公网域名`);
+    console.log(`[数据库] 原始: ${original}`);
+    console.log(`[数据库] 修复: ${fixedUrl}`);
   }
   pool = new Pool({
     connectionString: fixedUrl,
