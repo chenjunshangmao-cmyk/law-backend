@@ -215,14 +215,14 @@ function extractTable(sql) {
   return m ? m[1].toLowerCase() : null;
 }
 
-// 解析WHERE条件: field = $N 或 field = 'value'
+// 解析WHERE条件: field = $N 或 field::type = $N 或 field = 'value'
 function parseWhereClauses(sql) {
   const whereMatch = sql.match(/where\s+(.+?)(?:\s+order\s|\s+limit\s|\s+returning\s|\s+on\s+conflict\s|\s*$)/is);
   if (!whereMatch) return [];
   const clause = whereMatch[1];
   const conditions = [];
-  // 匹配 field = $N
-  const re = /(\w+)\s*(?:=|!=|<>|>|<|>=|<=|ilike|like)\s*(\$\d+|'[^']*'|[a-zA-Z0-9._-]+)/gi;
+  // 匹配 field = $N 或 field::type = $N (去掉::type后缀)
+  const re = /(\w+)(?:::?\w+)?\s*(?:=|!=|<>|>|<|>=|<=|ilike|like)\s*(\$\d+|'[^']*'|[a-zA-Z0-9._-]+)/gi;
   let m;
   while ((m = re.exec(clause)) !== null) {
     conditions.push({ field: m[1].toLowerCase(), placeholder: m[2] });
