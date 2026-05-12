@@ -95,10 +95,10 @@ export default function AIToolsPage() {
     setPreviewUrl(URL.createObjectURL(f));
   }, []);
 
-  // 后端处理
+  // 后端处理 - 增强错误处理
   const processWithBackend = async (action: string, extra?: (fd: FormData) => void) => {
     if (!file) return;
-    setProcessing(true); setError(''); setInfo('处理中...');
+    setProcessing(true); setError(''); setInfo('云端AI处理中（约10-30秒）...');
     const fd = new FormData(); fd.append('image', file);
     if (extra) extra(fd);
     try {
@@ -107,34 +107,62 @@ export default function AIToolsPage() {
       if (d.success && d.data?.result) {
         const bytes = new Uint8Array(atob(d.data.result).split('').map(c => c.charCodeAt(0)));
         setResultUrl(URL.createObjectURL(new Blob([bytes], { type: `image/${d.data.format || 'png'}` })));
-        if (d.data.note) setInfo(d.data.note); else setInfo('');
-      } else setError('处理失败');
-    } catch (e: any) { setError('处理失败: ' + (e?.response?.data?.error || e.message)); }
+        if (d.data.note) setInfo(d.data.note); else setInfo('处理完成');
+      } else {
+        setError(d.error || '处理失败，请重试');
+      }
+    } catch (e: any) {
+      const status = e?.response?.status;
+      if (status === 401) setError('登录已过期，请重新登录');
+      else if (status === 413) setError('图片过大，请压缩后重试（最大20MB）');
+      else if (e?.message?.includes('Network') || e?.message?.includes('timeout')) setError('网络超时，请检查连接后重试');
+      else setError('云处理失败: ' + (e?.response?.data?.error || e.message || '未知错误'));
+      // 降级返回原图
+      if (file) setResultUrl(URL.createObjectURL(file));
+      setInfo('已返回原图');
+    }
     finally { setProcessing(false); }
   };
 
-  // 智能抠图(WASM)
+  // 智能抠图(WASM) - 增强错误处理和降级
   const removeBackground = async () => {
     if (!file) return;
-    setProcessing(true); setError(''); setProgress(0);
+    setProcessing(true); setError(''); setProgress(0); setInfo('正在加载AI模型...');
     try {
       const { removeBackground: doRemove } = await import('@imgly/background-removal');
       let blob: Blob = file;
-      if (file.size > 5 * 1024 * 1024) {
+
+      // 处理大图：超过3MB先压缩
+      if (file.size > 3 * 1024 * 1024) {
+        setInfo('压缩大图中...');
         const bmp = await createImageBitmap(file, { resizeWidth: 1200, resizeHeight: 1200, resizeQuality: 'high' });
         const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
         c.getContext('2d')!.drawImage(bmp, 0, 0);
-        blob = await new Promise(r => c.toBlob(r!, 'image/png')); bmp.close();
+        blob = await new Promise(r => c.toBlob(r!, 'image/png', 0.85)); bmp.close();
       }
+
+      setInfo('AI抠图中（首次需下载约40MB模型）...');
       const resultBlob = await doRemove(blob, {
         progress: (_k: string, cur: number, tot: number) => {
           setProgress(Math.round((cur / tot) * 100));
-          setInfo(`模型加载... ${cur}/${tot}`);
+          setInfo(`下载AI模型中... ${cur}/${tot}`);
         },
         model: 'medium', output: { format: 'image/png', quality: 1 },
       });
-      setResultUrl(URL.createObjectURL(resultBlob)); setInfo('');
-    } catch (e: any) { setError('抠图失败: ' + (e.message || '未知')); }
+      setResultUrl(URL.createObjectURL(resultBlob)); setInfo(''); setProgress(0);
+    } catch (e: any) {
+      const msg = e.message || '未知错误';
+      if (msg.includes('model')) {
+        setError('AI模型下载失败，请检查网络后刷新重试（需下载约40MB模型文件）');
+      } else if (msg.includes('memory') || msg.includes('WASM')) {
+        setError('图片过大导致内存不足，请尝试使用小于3MB的图片');
+      } else {
+        setError('抠图失败: ' + msg);
+      }
+      // 降级：返回原图
+      if (file) setResultUrl(URL.createObjectURL(file));
+      setInfo('抠图失败已返回原图，可尝试其他工具');
+    }
     finally { setProcessing(false); setProgress(0); }
   };
 
