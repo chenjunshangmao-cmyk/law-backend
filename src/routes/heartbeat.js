@@ -11,7 +11,7 @@
  */
 
 import express from 'express';
-import { pool, useMemoryMode, pgFailed } from '../config/database.js';
+import { pool, useMemoryMode, pgFailed, switchDatabase, getCurrentDbUrl } from '../config/database.js';
 import pg from 'pg';
 
 const router = express.Router();
@@ -143,6 +143,24 @@ router.get('/', async (req, res) => {
       error: err.message,
       checkedAt: new Date().toISOString(),
     });
+  }
+});
+
+// ★ POST /api/heartbeat/set-db — 动态更新数据库连接（本地PG隧道地址）
+// 用于本地机器更新隧道地址，无需重新部署
+router.post('/set-db', async (req, res) => {
+  try {
+    const { url, secret } = req.body;
+    if (secret !== (process.env.ADMIN_SECRET || 'claw-admin-2026')) {
+      return res.status(403).json({ success: false, error: '鉴权失败' });
+    }
+    if (!url || !url.startsWith('postgres')) {
+      return res.status(400).json({ success: false, error: '无效的数据库URL' });
+    }
+    const ok = switchDatabase(url);
+    res.json({ success: ok, message: ok ? '数据库已切换' : '切换失败' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

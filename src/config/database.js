@@ -122,27 +122,63 @@ function saveAllStores() {
 }
 
 const databaseUrl = process.env.DATABASE_URL;
+const fallbackUrl = process.env.DATABASE_URL_FALLBACK; // ★ 备选数据库（本地PG隧道）
 let useMemoryMode = false;
 let pgFailed = false; // 是否已检测到PG不可用
+let currentDbUrl = databaseUrl; // 当前使用的数据库URL
 
-let pool = null;
-if (databaseUrl) {
-  let fixedUrl = databaseUrl;
-  if (databaseUrl.includes('dpg-') && !databaseUrl.includes('.render.com')) {
-    const original = databaseUrl;
-    fixedUrl = databaseUrl.replace(/@([a-z0-9-]+)(:\d+)?(\/|$)/, '@$1.virginia-postgres.render.com$2$3');
+// ★ 动态切换数据库源（API可调用）
+export function switchDatabase(newUrl) {
+  console.log('[数据库] 动态切换DATABASE_URL:', newUrl ? newUrl.substring(0, 80) + '...' : 'null');
+  currentDbUrl = newUrl;
+  pgFailed = false;
+  useMemoryMode = false;
+  // 重新创建原始连接池
+  if (originalPool) {
+    try { originalPool.end(); } catch {}
+  }
+  if (newUrl) {
+    originalPool = new pg.Pool({
+      connectionString: newUrl,
+      ssl: { rejectUnauthorized: false },
+      max: 5,
+      idleTimeoutMillis: 60000,
+      connectionTimeoutMillis: 15000,
+    });
+    console.log('[数据库] 已切换到新数据库:', newUrl.split('@')[1]?.substring(0, 40));
+    return true;
+  }
+  return false;
+}
+
+export function getCurrentDbUrl() {
+  return currentDbUrl;
+}
+
+let originalPool = null;
+if (databaseUrl || fallbackUrl) {
+  let fixedUrl = databaseUrl || fallbackUrl;
+  if (fixedUrl && fixedUrl.includes('dpg-') && !fixedUrl.includes('.render.com')) {
+    const original = fixedUrl;
+    fixedUrl = fixedUrl.replace(/@([a-z0-9-]+)(:\d+)?(\/|$)/, '@$1.virginia-postgres.render.com$2$3');
     console.log(`[数据库] 自动修复域名: ${original.split('@')[0]}@... → 公网域名`);
+  }
+  // If primary failed/is empty, try fallback automatically
+  if (!databaseUrl && fallbackUrl) {
+    fixedUrl = fallbackUrl;
+    currentDbUrl = fallbackUrl;
+    console.log('[数据库] 主库未配置，使用备选数据库');
   }
   const pgConfig = {
     connectionString: fixedUrl,
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseUrl ? { rejectUnauthorized: false } : false, // fallback (本地PG)不需要SSL
     max: 5,
     idleTimeoutMillis: 60000,
     connectionTimeoutMillis: 15000,
   };
-  pool = new Pool(pgConfig);
+  originalPool = new pg.Pool(pgConfig);
 
-  pool.on('error', (err) => {
+  originalPool.on('error', (err) => {
     console.error('[数据库] 连接池错误:', err.message);
     if (!useMemoryMode) {
       console.log('[数据库] 🔄 自动切换到JSON模式');
@@ -155,7 +191,7 @@ if (databaseUrl) {
   // 启动时验证连接
   (async () => {
     try {
-      const client = await pool.connect();
+      const client = await originalPool.connect();
       await client.query('SELECT 1');
       client.release();
       console.log('[数据库] PostgreSQL 连接验证成功 ✅');
@@ -416,7 +452,7 @@ const memoryQuery = async (sql, params = []) => {
 //   2. 切回PG时自动同步内存数据到PG
 //   3. 每30秒自动探测PG健康状态
 //   4. 启动时等待PG验证完成后再服务流量
-const originalPool = pool;
+// NOTE: originalPool 已在上方定义为原始PG连接池
 let pgReady = false;       // PG已验证可用
 let pgCheckTimer = null;   // 定期检测定时器
 
@@ -559,8 +595,7 @@ const smartPool = {
 // 导出智能pool（覆盖原始pool）
 // 注意：其他模块 import { pool } from 'database.js' 会得到这个智能包装器
 // 所有 pool.query() 调用自动具备降级能力
-if (pool) pool = smartPool;
-else pool = smartPool;
+let pool = smartPool;
 
 // ==================== 兼容旧接口 ====================
 const sequelize = {

@@ -1,0 +1,27 @@
+❌ 数据库连接失败: Connection terminated unexpectedly
+[YouTube OAuth] ⚠️  表初始化失败: Connection terminated unexpectedly
+创建 publish_tasks 表失败: Connection terminated unexpectedly
+[数据库] PostgreSQL 连接失败（使用内存模式）: Connection terminated unexpectedly
+[迁移] ⚠️ member_id 迁移失败（不影响主服务）: Connection terminated unexpectedly
+node:events:486
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::8089
+    at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+    at listenInCluster (node:net:2005:12)
+    at Server.listen (node:net:2110:7)
+    at app.listen (C:\Users\Administrator\WorkBuddy\Claw\backend\node_modules\express\lib\application.js:635:24)
+    at startServer (file:///C:/Users/Administrator/WorkBuddy/Claw/backend/src/index.db.js:839:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1984:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '::',
+  port: 8089
+}
+
+Node.js v24.14.0
