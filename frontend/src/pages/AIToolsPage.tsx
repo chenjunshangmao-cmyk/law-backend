@@ -1,10 +1,11 @@
 /**
  * AIToolsPage - AI 图像工具箱
- * 会员付费后可使用：智能抠图 / 图片去水印 / 智能消除
+ * 智能抠图：前端 @imgly/background-removal (WASM本地处理)
+ * 去水印/智能消除：后端 Python OpenCV 处理
  */
 import React, { useState, useRef, useCallback } from 'react';
-import { Upload, Download, Scissors, Eraser, Brush, Image as ImageIcon, RefreshCw, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
+import { Upload, Download, Scissors, Eraser, Brush, Image as ImageIcon, RefreshCw, AlertTriangle } from 'lucide-react';
 
 type Tool = 'remove-bg' | 'remove-watermark' | 'smart-erase';
 
@@ -23,14 +24,14 @@ export default function AIToolsPage() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 涂抹坐标（智能消除用）
   const [brushSize, setBrushSize] = useState(30);
-  const [erasePoints, setErasePoints] = useState<{x:number;y:number}[]>([]);
+  const [erasePoints, setErasePoints] = useState<{ x: number; y: number }[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
+
+  const imgRef = useRef<HTMLImageElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback((f: File) => {
     if (!f.type.startsWith('image/')) { setError('请选择图片文件'); return; }
@@ -43,14 +44,54 @@ export default function AIToolsPage() {
     setPreviewUrl(url);
   }, []);
 
+  // ====== 通用：调后端API处理图片 ======
+  const processWithBackend = async (action: string, extraFormData?: (fd: FormData) => void) => {
+    if (!file) return;
+    setProcessing(true); setError(''); setInfo('处理中...');
+
+    const formData = new FormData();
+    formData.append('image', file);
+    if (extraFormData) extraFormData(formData);
+
+    try {
+      const res = await api.aiTools.process(action, formData);
+      const data = res.data;
+
+      if (data.success && data.data?.result) {
+        const base64Data = data.data.result;
+        const binaryStr = atob(base64Data);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: `image/${data.data.format || 'png'}` });
+        setResultUrl(URL.createObjectURL(blob));
+        setInfo('');
+      } else {
+        if (data.data?.note) {
+          // 降级返回原图
+          setInfo('处理效果不理想，已返回原图');
+          // 尝试显示原图
+          if (file) setResultUrl(URL.createObjectURL(file));
+        } else {
+          setError('处理失败: 未知错误');
+        }
+      }
+    } catch (e: any) {
+      console.error('[AI工具] 后端处理失败:', e);
+      setError('处理失败: ' + (e?.response?.data?.error || e.message || '网络错误'));
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   // ====== 智能抠图 (浏览器端 WASM) ======
   const removeBackground = async () => {
     if (!file) return;
     setProcessing(true); setError(''); setProgress(0);
     try {
       const { removeBackground: doRemove } = await import('@imgly/background-removal');
-      
-      // 小图直接用，大图先缩放
+
       let blob: Blob = file;
       if (file.size > 5 * 1024 * 1024) {
         const bmp = await createImageBitmap(file, { resizeWidth: 1200, resizeHeight: 1200, resizeQuality: 'high' });
@@ -81,45 +122,31 @@ export default function AIToolsPage() {
     } finally { setProcessing(false); setProgress(0); }
   };
 
-  // ====== 图片去水印 / 智能消除（后端处理）======
-  const processImage = async (action: 'remove-watermark' | 'smart-erase') => {
-    if (!file) return;
-    setProcessing(true); setError('');
+  // ====== 去水印 ======
+  const handleRemoveWatermark = () => {
+    processWithBackend('remove-watermark');
+  };
 
-    try {
-      const formData = new FormData();
-      formData.append('image', file);
-      
-      if (action === 'smart-erase') {
-        formData.append('maskPoints', JSON.stringify(erasePoints));
-        formData.append('brushSize', String(brushSize));
-      }
-
-      const res = await api.aiTools.process(action, formData);
-      
-      if (res?.data?.resultUrl) {
-        setResultUrl(res.data.resultUrl);
-      } else if (res?.data?.result) {
-        // base64 result
-        const byteStr = atob(res.data.result);
-        const byteArr = new Uint8Array(byteStr.length);
-        for (let i = 0; i < byteStr.length; i++) byteArr[i] = byteStr.charCodeAt(i);
-        const blob = new Blob([byteArr], { type: 'image/png' });
-        setResultUrl(URL.createObjectURL(blob));
-      } else {
-        setError('处理失败，未返回结果');
-      }
-    } catch (e: any) {
-      setError(e.message || '处理失败');
-    } finally { setProcessing(false); }
+  // ====== 智能消除 ======
+  const handleSmartErase = () => {
+    if (erasePoints.length === 0) {
+      setError('请先在图片上涂抹要消除的区域');
+      return;
+    }
+    processWithBackend('smart-erase', (fd) => {
+      fd.append('maskPoints', JSON.stringify(erasePoints));
+      fd.append('brushSize', String(brushSize));
+    });
   };
 
   const handleProcess = () => {
     if (activeTool === 'remove-bg') removeBackground();
-    else processImage(activeTool);
+    else if (activeTool === 'remove-watermark') handleRemoveWatermark();
+    else if (activeTool === 'smart-erase') handleSmartErase();
   };
 
-  // Canvas 涂抹
+  // Canvas 涂抹（智能消除用）
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const c = canvasRef.current; if (!c) return null;
     const rect = c.getBoundingClientRect();
@@ -148,14 +175,13 @@ export default function AIToolsPage() {
     setErasePoints([]); setProgress(0);
   };
 
-  // 结果展示
   const currentTool = TOOLS.find(t => t.key === activeTool)!;
 
   return (
     <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
       <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>🤖 AI 图像工具箱</h2>
       <p style={{ fontSize: 13, color: '#888', marginBottom: 20 }}>
-        会员专属 AI 图像处理工具 · 本地处理不消耗额度
+        智能抠图在浏览器本地处理 · 去水印/消除由 AI 云端处理
       </p>
 
       {/* 工具选择 */}
@@ -176,7 +202,7 @@ export default function AIToolsPage() {
 
       {/* 主区域 */}
       <div style={{ display: 'grid', gridTemplateColumns: previewUrl ? '1fr 1fr' : '1fr', gap: 16 }}>
-        {/* 上传区域 */}
+        {/* 上传/预览区域 */}
         <div style={{
           background: '#fff', borderRadius: 14, border: '2px dashed #d1d5db', padding: 30,
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -196,7 +222,7 @@ export default function AIToolsPage() {
           ) : (
             <div style={{ width: '100%', position: 'relative' }}>
               <img ref={imgRef} src={previewUrl} alt="preview" style={{ width: '100%', maxHeight: 500, objectFit: 'contain', borderRadius: 8 }} />
-              
+
               {/* 涂抹层（智能消除模式） */}
               {activeTool === 'smart-erase' && (
                 <canvas ref={canvasRef}
@@ -213,8 +239,19 @@ export default function AIToolsPage() {
 
               {/* 涂抹提示 */}
               {activeTool === 'smart-erase' && (
-                <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 12 }}>
-                  ✏️ 涂抹要消除的区域 · 笔刷大小: {brushSize}px
+                <div style={{
+                  position: 'absolute', bottom: 8, left: 8, right: 8,
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  background: 'rgba(0,0,0,0.7)', color: '#fff', padding: '6px 10px', borderRadius: 6, fontSize: 12,
+                }}>
+                  <span>✏️ 涂抹要消除的区域 · {erasePoints.length} 个涂抹点</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>笔刷:</span>
+                    <input type="range" min="10" max="60" value={brushSize}
+                      onChange={e => setBrushSize(Number(e.target.value))}
+                      style={{ width: 80 }} />
+                    <span>{brushSize}px</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -257,10 +294,25 @@ export default function AIToolsPage() {
               <div style={{ textAlign: 'center' }}>
                 <ImageIcon size={40} color="#d1d5db" style={{ marginBottom: 12 }} />
                 <p style={{ color: '#9ca3af', marginBottom: 16 }}>{currentTool.desc}</p>
-                <button onClick={handleProcess}
-                  style={{ padding: '10px 28px', background: currentTool.color, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6, margin: '0 auto' }}>
-                  <currentTool.icon size={18} /> {currentTool.name}
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                  {activeTool === 'smart-erase' && erasePoints.length > 0 && (
+                    <p style={{ fontSize: 12, color: '#f59e0b' }}>已涂抹 {erasePoints.length} 个点</p>
+                  )}
+                  {activeTool === 'smart-erase' && erasePoints.length === 0 && (
+                    <p style={{ fontSize: 12, color: '#9ca3af' }}>请在左侧图片上涂抹要消除的区域</p>
+                  )}
+                  <button onClick={handleProcess}
+                    disabled={activeTool === 'smart-erase' && erasePoints.length === 0}
+                    style={{
+                      padding: '10px 28px', background: currentTool.color, color: '#fff', border: 'none', borderRadius: 8,
+                      cursor: activeTool === 'smart-erase' && erasePoints.length === 0 ? 'not-allowed' : 'pointer',
+                      fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6,
+                      opacity: activeTool === 'smart-erase' && erasePoints.length === 0 ? 0.5 : 1,
+                      margin: '0 auto',
+                    }}>
+                    <currentTool.icon size={18} /> {currentTool.name}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -276,7 +328,8 @@ export default function AIToolsPage() {
 
       {/* 底部说明 */}
       <div style={{ marginTop: 24, padding: 16, background: '#f9fafb', borderRadius: 10, fontSize: 12, color: '#6b7280' }}>
-        <strong>💡 提示：</strong> 智能抠图在浏览器本地完成，图片不会上传服务器。去水印和智能消除需要上传处理，处理完自动删除。
+        <strong>💡 提示：</strong> 智能抠图在浏览器本地完成（使用 WASM 模型）。去水印和智能消除由 AI 云端处理。
+        去水印自动识别图片中的水印/文字区域进行修复。智能消除需要先涂抹要清除的区域。
       </div>
     </div>
   );

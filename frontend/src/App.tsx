@@ -37,6 +37,7 @@ const AIGatewayPage         = lazy(() => import('./pages/AIGatewayPage'));
 const ArticlesPage          = lazy(() => import('./pages/ArticlesPage'));
 const ArticleDetailPage     = lazy(() => import('./pages/ArticleDetailPage'));
 const DigitalShopPage       = lazy(() => import('./pages/DigitalShopPage'));
+const NovelFactoryPage      = lazy(() => import('./pages/NovelFactoryPage'));
 
 // Google OAuth 回调处理组件（处理 google_token + google_user URL参数）
 function GoogleCallbackHandler({ children }: { children: React.ReactNode }) {
@@ -152,6 +153,7 @@ function AppRoutes() {
         <Route path="ai-gateway"     element={<Suspense fallback={<PageLoading />}><AIGatewayPage /></Suspense>} />
         <Route path="articles"       element={<Suspense fallback={<PageLoading />}><ArticlesPage /></Suspense>} />
         <Route path="articles/:slug" element={<Suspense fallback={<PageLoading />}><ArticleDetailPage /></Suspense>} />
+        <Route path="novel-factory"  element={<Suspense fallback={<PageLoading />}><NovelFactoryPage /></Suspense>} />
         <Route path="digital-shop"   element={<Suspense fallback={<PageLoading />}><DigitalShopPage /></Suspense>} />
       </Route>
 

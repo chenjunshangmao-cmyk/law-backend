@@ -1,0 +1,12 @@
+import cv2, numpy as np
+print('OpenCV:', cv2.__version__)
+img = np.zeros((200, 400, 3), dtype=np.uint8)
+cv2.putText(img, 'TEST WATERMARK', (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+_, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+mask = cv2.bitwise_not(binary)
+kernel = np.ones((5,5), np.uint8)
+mask = cv2.dilate(mask, kernel, iterations=2)
+result = cv2.inpaint(img, mask, 5, cv2.INPAINT_TELEA)
+print('Watermark removed, result shape:', result.shape)
+print('OpenCV works normally')
