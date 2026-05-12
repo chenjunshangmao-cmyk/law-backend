@@ -105,8 +105,17 @@ export default function AIToolsPage() {
       const res = await api.aiTools.process(action, fd);
       const d = res.data;
       if (d.success && d.data?.result) {
-        const bytes = new Uint8Array(atob(d.data.result).split('').map(c => c.charCodeAt(0)));
-        setResultUrl(URL.createObjectURL(new Blob([bytes], { type: `image/${d.data.format || 'png'}` })));
+        try {
+          const bytes = new Uint8Array(atob(d.data.result).split('').map(c => c.charCodeAt(0)));
+          const blob = new Blob([bytes], { type: `image/${d.data.format || 'png'}` });
+          if (blob.size < 50) throw new Error('结果图片异常（过小）');
+          setResultUrl(URL.createObjectURL(blob));
+        } catch (decodeErr: any) {
+          console.error('Base64解码失败:', decodeErr.message);
+          setError('图片解码失败: ' + decodeErr.message);
+          if (file) setResultUrl(URL.createObjectURL(file));
+          setInfo('已返回原图，请重试');
+        }
         if (d.data.note) setInfo(d.data.note); else setInfo('处理完成');
       } else {
         setError(d.error || '处理失败，请重试');
@@ -142,26 +151,47 @@ export default function AIToolsPage() {
       }
 
       setInfo('AI抠图中（首次需下载约40MB模型）...');
+      // ★ 修复：用安全回调包装 progress，防止回调异常导致整个抠图失败
+      let lastProgress = 0;
       const resultBlob = await doRemove(blob, {
-        progress: (_k: string, cur: number, tot: number) => {
-          setProgress(Math.round((cur / tot) * 100));
-          setInfo(`下载AI模型中... ${cur}/${tot}`);
+        progress: (key: string, cur: number, tot: number) => {
+          try {
+            if (tot > 0) {
+              const pct = Math.round((cur / tot) * 100);
+              if (pct !== lastProgress) {
+                lastProgress = pct;
+                setProgress(pct);
+              }
+            }
+            setInfo(`AI抠图中... ${cur}/${tot}`);
+          } catch {
+            // 回调异常不应该中断抠图流程
+          }
         },
         model: 'medium', output: { format: 'image/png', quality: 1 },
       });
-      setResultUrl(URL.createObjectURL(resultBlob)); setInfo(''); setProgress(0);
+      // ★ 验证结果是否为有效图像
+      if (resultBlob && resultBlob.size > 100) {
+        setResultUrl(URL.createObjectURL(resultBlob));
+        setInfo('抠图完成');
+        setProgress(0);
+      } else {
+        throw new Error('抠图结果异常（文件过小），请尝试更换图片');
+      }
     } catch (e: any) {
       const msg = e.message || '未知错误';
       if (msg.includes('model')) {
         setError('AI模型下载失败，请检查网络后刷新重试（需下载约40MB模型文件）');
-      } else if (msg.includes('memory') || msg.includes('WASM')) {
+      } else if (msg.includes('memory') || msg.includes('WASM') || msg.includes('out of')) {
         setError('图片过大导致内存不足，请尝试使用小于3MB的图片');
+      } else if (msg.includes('abort') || msg.includes('AbortError')) {
+        setError('操作已取消或超时，请重试');
       } else {
         setError('抠图失败: ' + msg);
       }
       // 降级：返回原图
       if (file) setResultUrl(URL.createObjectURL(file));
-      setInfo('抠图失败已返回原图，可尝试其他工具');
+      setInfo('已返回原图，可尝试更换图片或使用其他工具');
     }
     finally { setProcessing(false); setProgress(0); }
   };

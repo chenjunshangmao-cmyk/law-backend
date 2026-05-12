@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Check, Crown, Zap, Building2, QrCode, RefreshCw, Bot, Shield, ChevronDown, ChevronUp, Users, XCircle, Coins, Copy, ExternalLink, Globe, Monitor, Youtube, Share2, TrendingUp, Rocket, UserPlus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Check, CheckCircle, Crown, Zap, Building2, QrCode, RefreshCw, Bot, Shield, ChevronDown, ChevronUp, Users, XCircle, Coins, Copy, ExternalLink, Globe, Monitor, Youtube, Share2, TrendingUp, Rocket, UserPlus, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { PaymentOrder } from '../types';
@@ -142,6 +143,7 @@ const SERVICES = [
 
 export default function MembershipPage() {
   const { user, refreshUser } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [order, setOrder] = useState<PaymentOrder | null>(null);
@@ -239,14 +241,20 @@ export default function MembershipPage() {
         totalAmount: String(orderData.totalAmount)
       });
 
+      // ★ 处理后端 DB 写入失败的警告
+      if (res.warning) {
+        setError('⚠️ ' + res.warning);
+        console.warn('[收钱吧] 后端警告:', res.warning, res.dbError);
+      }
+
       // 启动自动跳转倒计时（20秒后跳订单页，够客户拿手机扫码）
       setSqRedirectCountdown(20);
       const countdownTimer = setInterval(() => {
         setSqRedirectCountdown(prev => {
           if (prev <= 1) {
             clearInterval(countdownTimer);
-            // 跳转到订单页
-            window.location.href = '/orders?new=' + encodeURIComponent(orderData.clientSn);
+            // ★ 使用 React Router navigate 替代 window.location.href，避免整页刷新丢失状态
+            navigate('/orders?new=' + encodeURIComponent(orderData.clientSn));
             return 0;
           }
           return prev - 1;
