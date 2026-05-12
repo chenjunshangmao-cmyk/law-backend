@@ -25,6 +25,7 @@ import customerServiceRoutes from './routes/customerService.js';
 import shouqianbaRoutes from './routes/shouqianba.db.js';
 import paymentRoutes from './routes/payment.db.js';
 import whatsappRoutes from './routes/whatsapp.js';
+import adminRoutes from './routes/admin.js';
 
 const app = express();
 const PORT = process.env.PORT || 8089;
@@ -139,6 +140,9 @@ app.use('/api/webhook', paymentRoutes); // 收钱吧支付回调（webhook）
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/go', whatsappRoutes); // 公共跳转页
 
+// 管理员路由
+app.use('/api/admin', adminRoutes);
+
 // 404处理
 app.use(notFoundHandler);
 
@@ -205,6 +209,9 @@ app.listen(PORT, () => {
 ║  ├─ POST   /api/browser/youtube/upload - YouTube上传视频         ║
 ║  ├─ POST   /api/browser/close   - 关闭所有浏览器                  ║
 ║  └─ GET    /api/browser/list-sessions - 列出保存的session        ║
+║  [🔧 管理员]                                                     ║
+║  ├─ POST   /api/admin/backup   - 数据库备份                      ║
+║  └─ GET    /api/admin/backup/status - 备份状态                  ║
 ╚══════════════════════════════════════════════════════════════════╝
   `);
 });
