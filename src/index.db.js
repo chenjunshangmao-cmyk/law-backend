@@ -36,7 +36,7 @@ import { findUserById } from './services/dbService.js';
 
 // 中间件
 import { requestLogger, securityHeaders, errorHandler, notFoundHandler, healthCheck } from './middleware/errorHandler.js';
-import { rateLimitMiddleware } from './middleware/auth.js';
+import { rateLimitMiddleware, authenticateToken, requireRole } from './middleware/auth.js';
 
 // 路由
 import authRoutes from './routes/auth.min.js';
@@ -943,6 +943,25 @@ setTimeout(() => {
   };
   startMembershipCron();
 }, 30000);
+
+// ========== 数据库自动备份 API ==========
+app.get('/api/admin/backup', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
+  try {
+    const tables = ['users', 'products', 'accounts', 'payment_orders', 'articles', 'quotas', 'whatsapp_links'];
+    const backup = { timestamp: new Date().toISOString(), tables: {} };
+    for (const table of tables) {
+      try {
+        const result = await pool.query(`SELECT * FROM ${table} ORDER BY id DESC LIMIT 500`);
+        backup.tables[table] = { count: result.rows.length, rows: result.rows };
+      } catch (e) {
+        backup.tables[table] = { count: 0, error: e.message };
+      }
+    }
+    res.json({ success: true, data: backup });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 startServer();
 
