@@ -74,6 +74,11 @@ export const findUserById = async (id) => {
       const users = Array.from(memoryStore.users.values());
       user = users.find(u => u.email === 'admin@claw.com');
     }
+    // ★ 内存Store没有 → 尝试 JSON 文件（auth.min.js 直接写JSON，不经过memoryStore）
+    if (!user) {
+      user = findUserInJsonFile(String(id));
+      if (user) console.log('[findUserById] 内存模式→JSON兜底找到:', user.email);
+    }
     console.log('[findUserById] 内存模式结果:', user ? '找到' : '未找到');
     return user || null;
   }
@@ -198,6 +203,13 @@ export const createUser = async (userData) => {
       updated_at: new Date().toISOString()
     };
     memoryStore.users.set(id, newUser);
+    // ★ 同步保存到JSON文件，确保auth.min.js也能看到新用户
+    try {
+      const existing = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8') || '[]');
+      existing.push(newUser);
+      fs.writeFileSync(USERS_FILE, JSON.stringify(existing, null, 2));
+      console.log('[createUser] JSON文件已同步:', email);
+    } catch (e) { console.warn('[createUser] JSON同步失败:', e.message); }
     return newUser;
   }
   
