@@ -25,13 +25,17 @@ async function performHealthCheck() {
   const checks = {};
   let overall = 'healthy';
 
-  // 1. 数据库连通性
+  // 1. 数据库连通性（含实际模式标识）
   try {
     const start = Date.now();
     await pool.query('SELECT 1');
-    checks.database = { status: 'ok', latencyMs: Date.now() - start };
+    const latency = Date.now() - start;
+    // ★ 暴露实际数据库模式（pg/json），0ms延迟通常表示JSON模式
+    const mode = (typeof pool.getMode === 'function') ? pool.getMode() : (latency === 0 ? 'json' : 'pg');
+    checks.database = { status: 'ok', latencyMs: latency, mode };
+    if (mode === 'json') overall = 'degraded';
   } catch (err) {
-    checks.database = { status: 'error', error: err.message };
+    checks.database = { status: 'error', error: err.message, mode: 'error' };
     overall = 'degraded';
   }
 

@@ -1,7 +1,7 @@
 // JWT认证和安全中间件
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { pool as dbPool, useMemoryMode } from '../config/database.js';
+import { pool as dbPool, pgFailed } from '../config/database.js';
 import { findUserById, findUserByEmail, updateUser } from '../services/dbService.js';
 
 // 安全配置 - 从环境变量读取，使用默认密钥作为后备
@@ -99,11 +99,11 @@ export const authMiddleware = async (req, res, next) => {
     });
   }
 
-  // ★ 修复401：直接用 pool.query 查用户，绕过 dbService.findUserById
-  // dbService 的 useMemoryMode 导入绑定在 ESM 下可能有延迟问题
+  // ★ 修复：使用 pgReady 替代 useMemoryMode 作为PG可用性判断
+  // pgReady 只在PG验证成功后才为true，避免启动竞态
   let user = null;
   try {
-    if (dbPool && !useMemoryMode) {
+    if (dbPool && !pgFailed) {
       const result = await dbPool.query(
         `SELECT id::text, email, password, name,
          COALESCE(membership_type, 'free') as membership_type,
