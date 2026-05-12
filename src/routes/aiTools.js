@@ -20,7 +20,9 @@ const upload = multer({
 });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SCRIPTS_DIR = path.join(__dirname, '..', '..', '..', 'scripts');
+// Python脚本放在 backend/src/ai-tools-scripts/ 下
+// 线上 Render 只部署 backend 子模块，所以不能引用主仓库的 scripts/
+const SCRIPTS_DIR = path.join(__dirname, '..', 'ai-tools-scripts');
 
 /**
  * 执行 Python OpenCV 脚本进行图像处理
