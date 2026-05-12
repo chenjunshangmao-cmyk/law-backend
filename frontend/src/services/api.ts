@@ -1021,6 +1021,12 @@ export const api = {
         body: formData,
         headers: {}, // 让浏览器自动设置 Content-Type: multipart/form-data
       }),
+    generateCopy: (data: { product: string; template: string; prompt: string }) =>
+      authFetch('/api/ai-tools/generate-copy', {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+      }),
   },
 };
 
