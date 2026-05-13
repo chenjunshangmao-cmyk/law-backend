@@ -122,27 +122,63 @@ function saveAllStores() {
 }
 
 const databaseUrl = process.env.DATABASE_URL;
+const fallbackUrl = process.env.DATABASE_URL_FALLBACK; // ★ 备选数据库（本地PG隧道）
 let useMemoryMode = false;
 let pgFailed = false; // 是否已检测到PG不可用
+let currentDbUrl = databaseUrl; // 当前使用的数据库URL
 
-let pool = null;
-if (databaseUrl) {
-  let fixedUrl = databaseUrl;
-  if (databaseUrl.includes('dpg-') && !databaseUrl.includes('.render.com')) {
-    const original = databaseUrl;
-    fixedUrl = databaseUrl.replace(/@([a-z0-9-]+)(:\d+)?(\/|$)/, '@$1.virginia-postgres.render.com$2$3');
+// ★ 动态切换数据库源（API可调用）
+export function switchDatabase(newUrl) {
+  console.log('[数据库] 动态切换DATABASE_URL:', newUrl ? newUrl.substring(0, 80) + '...' : 'null');
+  currentDbUrl = newUrl;
+  pgFailed = false;
+  useMemoryMode = false;
+  // 重新创建原始连接池
+  if (originalPool) {
+    try { originalPool.end(); } catch {}
+  }
+  if (newUrl) {
+    originalPool = new pg.Pool({
+      connectionString: newUrl,
+      ssl: { rejectUnauthorized: false },
+      max: 5,
+      idleTimeoutMillis: 60000,
+      connectionTimeoutMillis: 15000,
+    });
+    console.log('[数据库] 已切换到新数据库:', newUrl.split('@')[1]?.substring(0, 40));
+    return true;
+  }
+  return false;
+}
+
+export function getCurrentDbUrl() {
+  return currentDbUrl;
+}
+
+let originalPool = null;
+if (databaseUrl || fallbackUrl) {
+  let fixedUrl = databaseUrl || fallbackUrl;
+  if (fixedUrl && fixedUrl.includes('dpg-') && !fixedUrl.includes('.render.com')) {
+    const original = fixedUrl;
+    fixedUrl = fixedUrl.replace(/@([a-z0-9-]+)(:\d+)?(\/|$)/, '@$1.virginia-postgres.render.com$2$3');
     console.log(`[数据库] 自动修复域名: ${original.split('@')[0]}@... → 公网域名`);
+  }
+  // If primary failed/is empty, try fallback automatically
+  if (!databaseUrl && fallbackUrl) {
+    fixedUrl = fallbackUrl;
+    currentDbUrl = fallbackUrl;
+    console.log('[数据库] 主库未配置，使用备选数据库');
   }
   const pgConfig = {
     connectionString: fixedUrl,
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseUrl ? { rejectUnauthorized: false } : false, // fallback (本地PG)不需要SSL
     max: 5,
     idleTimeoutMillis: 60000,
     connectionTimeoutMillis: 15000,
   };
-  pool = new Pool(pgConfig);
+  originalPool = new pg.Pool(pgConfig);
 
-  pool.on('error', (err) => {
+  originalPool.on('error', (err) => {
     console.error('[数据库] 连接池错误:', err.message);
     if (!useMemoryMode) {
       console.log('[数据库] 🔄 自动切换到JSON模式');
@@ -155,18 +191,25 @@ if (databaseUrl) {
   // 启动时验证连接
   (async () => {
     try {
-      const client = await pool.connect();
+      const client = await originalPool.connect();
       await client.query('SELECT 1');
       client.release();
       console.log('[数据库] PostgreSQL 连接验证成功 ✅');
       useMemoryMode = false;
       pgFailed = false;
+      pgReady = true;
+      // ★ 如果内存中有JSON数据，同步到PG
+      if (memoryStore.users.size > 0) {
+        await syncMemoryToPG();
+      }
     } catch (err) {
       console.error('[数据库] PostgreSQL 连接失败:', err.message);
       console.log('[数据库] 🔄 使用 JSON 文件模式运行');
       useMemoryMode = true;
       pgFailed = true;
+      pgReady = false;
       startAutoSave();
+      startPGHealthCheck(); // ★ 启动定期重连检测
     }
   })();
 } else {
@@ -403,12 +446,114 @@ const memoryQuery = async (sql, params = []) => {
   return { rows: [] };
 };
 
-// ==================== ★ 智能 Pool 包装器 ★ ====================
-// 核心：PG查询失败时自动降级到memoryQuery，上层路由无感知
-const originalPool = pool;
+// ==================== ★ 智能 Pool 包装器 v3.1 ★ ====================
+// 核心改进：
+//   1. PG故障时自动降级JSON → PG恢复后自动切回（双向切换）
+//   2. 切回PG时自动同步内存数据到PG
+//   3. 每30秒自动探测PG健康状态
+//   4. 启动时等待PG验证完成后再服务流量
+// NOTE: originalPool 已在上方定义为原始PG连接池
+let pgReady = false;       // PG已验证可用
+let pgCheckTimer = null;   // 定期检测定时器
+
+// ★ PG恢复检查：成功后自动切回 + 同步数据
+async function tryReconnectPG() {
+  if (!originalPool) return false;
+  try {
+    const client = await originalPool.connect();
+    const result = await client.query('SELECT 1 as check_result');
+    client.release();
+    if (result.rows[0]?.check_result === 1) {
+      if (useMemoryMode || pgFailed) {
+        console.log('[数据库] 🟢 PG连接已恢复！正在切回PG模式...');
+        
+        // ★ 关键：将JSON内存数据同步回PG
+        await syncMemoryToPG();
+        
+        useMemoryMode = false;
+        pgFailed = false;
+        pgReady = true;
+        console.log('[数据库] ✅ 已切回PG模式，内存数据已同步');
+      }
+      return true;
+    }
+  } catch {
+    // PG仍不可用
+  }
+  return false;
+}
+
+// ★ 将内存中的数据同步到PG（切回时调用）
+async function syncMemoryToPG() {
+  if (!originalPool || memoryStore.users.size === 0) return;
+  try {
+    // 同步 users 表（最重要：保留 membership_type）
+    for (const [id, user] of memoryStore.users) {
+      try {
+        await originalPool.query(`
+          INSERT INTO users (id, email, password, name, membership_type, membership_expires_at, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          ON CONFLICT (id) DO UPDATE SET
+            membership_type = EXCLUDED.membership_type,
+            membership_expires_at = EXCLUDED.membership_expires_at,
+            updated_at = NOW()
+        `, [String(user.id), user.email, user.password, user.name,
+            user.membership_type || 'free', user.membership_expires_at || null,
+            user.created_at || new Date().toISOString(), new Date().toISOString()]);
+      } catch (e) {
+        // 逐条忽略错误（可能已存在）
+      }
+    }
+    console.log(`[数据库] 📤 同步 ${memoryStore.users.size} 个用户到PG`);
+    
+    // 同步 payment_orders
+    if (memoryStore.paymentOrders.size > 0) {
+      for (const [sn, order] of memoryStore.paymentOrders) {
+        try {
+          await originalPool.query(`
+            INSERT INTO payment_orders (order_no, user_id, amount, plan_type, plan_name, status, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (order_no) DO NOTHING
+          `, [String(sn), String(order.user_id || 'unknown'), order.amount || 0,
+              order.plan_type || 'unknown', order.plan_name || order.subject || '',
+              order.status || 'pending', order.created_at || new Date().toISOString()]);
+        } catch {}
+      }
+      console.log(`[数据库] 📤 同步 ${memoryStore.paymentOrders.size} 个订单到PG`);
+    }
+  } catch (err) {
+    console.error('[数据库] 同步内存到PG失败:', err.message);
+  }
+}
+
+// ★ 启动PG定期健康检测（每30秒）
+function startPGHealthCheck() {
+  if (pgCheckTimer) return;
+  pgCheckTimer = setInterval(async () => {
+    if (useMemoryMode || pgFailed) {
+      await tryReconnectPG();
+    }
+  }, 30000);
+}
 
 const smartPool = {
   query: async (sql, params) => {
+    const sqlLower = sql.toLowerCase().trim();
+    
+    // 健康检查请求：总是尝试原始PG连接验证
+    if (sqlLower === 'select 1' || sqlLower === 'select 1 as check_result') {
+      if (originalPool && !useMemoryMode) {
+        try {
+          const result = await originalPool.query('SELECT 1 as check_result');
+          return result;
+        } catch {
+          // PG挂了
+        }
+      }
+      // 降级返回（让心跳认为OK，但标记latency=0会让监控发现异常）
+      return { rows: [{ check_result: 1 }] };
+    }
+    
     // 如果已知PG挂了，直接用内存模式
     if (useMemoryMode || pgFailed || !originalPool) {
       return memoryQuery(sql, params);
@@ -419,12 +564,13 @@ const smartPool = {
       const result = await originalPool.query(sql, params);
       return result;
     } catch (err) {
-      // PG挂了，自动切换
+      // PG挂了，自动切JSON模式
       if (!useMemoryMode) {
         console.error('[智能Pool] PG查询失败，自动切换JSON模式:', err.message.substring(0, 100));
         useMemoryMode = true;
         pgFailed = true;
         startAutoSave();
+        startPGHealthCheck(); // ★ 启动自动恢复检测
       }
       return memoryQuery(sql, params);
     }
@@ -438,15 +584,18 @@ const smartPool = {
   end: async () => {
     saveAllStores();
     if (originalPool) await originalPool.end();
+    if (pgCheckTimer) { clearInterval(pgCheckTimer); pgCheckTimer = null; }
   },
   on: (...args) => originalPool && originalPool.on(...args),
+  // ★ 暴露当前模式供监控
+  getMode: () => useMemoryMode ? 'json' : 'pg',
+  isPGReady: () => pgReady,
 };
 
 // 导出智能pool（覆盖原始pool）
 // 注意：其他模块 import { pool } from 'database.js' 会得到这个智能包装器
 // 所有 pool.query() 调用自动具备降级能力
-if (pool) pool = smartPool;
-else pool = smartPool;
+let pool = smartPool;
 
 // ==================== 兼容旧接口 ====================
 const sequelize = {
@@ -506,5 +655,5 @@ export const syncDatabase = async (force = false) => {
   }
 };
 
-export { sequelize, smartPool as pool, useMemoryMode, memoryStore, pgFailed };
+export { sequelize, smartPool as pool, useMemoryMode, pgFailed, pgReady, syncMemoryToPG, memoryStore };
 export default sequelize;

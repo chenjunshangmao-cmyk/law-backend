@@ -3,6 +3,7 @@ import pool, { useMemoryMode, memoryStore } from '../config/database.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { v4 as uuidv4 } from 'uuid';
 
 // JSON文件兜底（auth.min.js 注册用户先写 JSON，异步同步 PG）
 // authMiddleware 通过这里找用户，必须支持 JSON 文件兜底
@@ -214,8 +215,8 @@ export const createUser = async (userData) => {
   }
   
   const result = await pool.query(
-    'INSERT INTO users (email, password, name, membership_type) VALUES ($1, $2, $3, $4) RETURNING id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at',
-    [email, password, name, membership_type]
+    'INSERT INTO users (id, email, password, name, membership_type) VALUES ($1, $2, $3, $4, $5) RETURNING id::text, email, password, name, membership_type, membership_expires_at, created_at, updated_at',
+    [uuidv4(), email, password, name, membership_type]
   );
   return result.rows[0];
 };

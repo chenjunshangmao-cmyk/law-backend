@@ -11,7 +11,8 @@
  */
 
 import express from 'express';
-import { pool } from '../config/database.js';
+import { pool, useMemoryMode, pgFailed, switchDatabase, getCurrentDbUrl } from '../config/database.js';
+import pg from 'pg';
 
 const router = express.Router();
 const START_TIME = Date.now();
@@ -21,17 +22,46 @@ let lastHealthCheck = null;
 let lastCheckTime = 0;
 const CACHE_TTL = 30000; // 30秒缓存
 
+// ★ 直接测试PG连接（绕过smartPool），暴露真实的PG错误
+async function testRawPG() {
+  if (!process.env.DATABASE_URL) return { reachable: false, error: 'DATABASE_URL not set' };
+  try {
+    const client = new pg.Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 5000,
+    });
+    const start = Date.now();
+    await client.connect();
+    await client.query('SELECT 1');
+    const latency = Date.now() - start;
+    await client.end();
+    return { reachable: true, latencyMs: latency };
+  } catch (err) {
+    return { reachable: false, error: err.message, code: err.code };
+  }
+}
+
 async function performHealthCheck() {
   const checks = {};
   let overall = 'healthy';
 
-  // 1. 数据库连通性
+  // 1. 数据库连通性（含实际模式标识 + 原始PG测试）
+  const mode = (typeof pool.getMode === 'function') ? pool.getMode() : 'json';
+  const rawPG = await testRawPG();
+  
   try {
     const start = Date.now();
     await pool.query('SELECT 1');
-    checks.database = { status: 'ok', latencyMs: Date.now() - start };
+    const latency = Date.now() - start;
+    checks.database = { 
+      status: 'ok', latencyMs: latency, mode,
+      pgDirect: rawPG.reachable,
+      pgError: rawPG.error || null,
+    };
+    if (mode === 'json' || !rawPG.reachable) overall = 'degraded';
   } catch (err) {
-    checks.database = { status: 'error', error: err.message };
+    checks.database = { status: 'error', error: err.message, mode: 'error', pgDirect: rawPG.reachable, pgError: rawPG.error || null };
     overall = 'degraded';
   }
 
@@ -113,6 +143,24 @@ router.get('/', async (req, res) => {
       error: err.message,
       checkedAt: new Date().toISOString(),
     });
+  }
+});
+
+// ★ POST /api/heartbeat/set-db — 动态更新数据库连接（本地PG隧道地址）
+// 用于本地机器更新隧道地址，无需重新部署
+router.post('/set-db', async (req, res) => {
+  try {
+    const { url, secret } = req.body;
+    if (secret !== (process.env.ADMIN_SECRET || 'claw-admin-2026')) {
+      return res.status(403).json({ success: false, error: '鉴权失败' });
+    }
+    if (!url || !url.startsWith('postgres')) {
+      return res.status(400).json({ success: false, error: '无效的数据库URL' });
+    }
+    const ok = switchDatabase(url);
+    res.json({ success: ok, message: ok ? '数据库已切换' : '切换失败' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

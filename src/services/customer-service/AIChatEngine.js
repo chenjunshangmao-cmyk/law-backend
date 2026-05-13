@@ -6,6 +6,7 @@
 import { OpenAI } from 'openai';
 import axios from 'axios';
 import { pool, useMemoryMode } from '../../config/database.js';
+import { getGateway } from '../ai/AIGateway.js';
 
 class AIChatEngine {
   constructor() {
@@ -487,7 +488,8 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
 
   // 调用AI模型
   async callAIModel(message, history, context) {
-    // 默认使用 bailian（百炼），因为我们有有效的百炼 API key
+    // provider 优先级: AI_PROVIDER > bailian(默认)
+    // bailian 失败后会自动 fallback 到 AI Gateway
     const provider = process.env.AI_PROVIDER || 'bailian';
     
     // 构建系统提示词
@@ -530,16 +532,22 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
       { role: 'user', content: message }
     ];
 
-    // 根据provider调用不同模型
-    switch (provider) {
-      case 'deepseek':
-        return await this.callDeepSeek(messages);
-      case 'openai':
-        return await this.callOpenAI(messages);
-      case 'bailian':
-        return await this.callBailian(messages);
-      default:
-        return await this.callDeepSeek(messages);
+    // 根据provider调用不同模型，失败时自动fallback到AI Gateway
+    try {
+      switch (provider) {
+        case 'deepseek':
+          return await this.callDeepSeek(messages);
+        case 'openai':
+          return await this.callOpenAI(messages);
+        case 'bailian':
+          return await this.callBailian(messages);
+        default:
+          return await this.callDeepSeek(messages);
+      }
+    } catch (err) {
+      console.log(`[AIChatEngine] ${provider} 调用失败:`, err.message);
+      console.log('[AIChatEngine] 自动切换到 AI Gateway fallback');
+      return await this.callGateway(messages);
     }
   }
 
@@ -670,6 +678,16 @@ OZON售价建议：₽1500~₽1890（约¥120~¥150）
   // 获取渠道提示词
   getChannelPrompt(platform) {
     return this.channelPrompts.get(platform) || null;
+  }
+
+  // AI Gateway fallback — 当主模型不可用时自动切换
+  async callGateway(messages) {
+    const gateway = getGateway();
+    const result = await gateway.chat(messages, 'customer-service', {
+      maxTokens: 1000,
+      temperature: 0.7,
+    });
+    return result.content;
   }
 }
 

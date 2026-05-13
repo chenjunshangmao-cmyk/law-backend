@@ -191,7 +191,7 @@ router.get('/', authenticateToken, async (req, res) => {
       });
     }
 
-    const plan = user.plan || 'free';
+    const plan = user.membership_type || user.plan || 'free';
     const planInfo = PLANS[plan] || PLANS.free;
 
     // 获取额度使用情况（失败不影响主流程）
@@ -293,7 +293,7 @@ router.get('/quota', authenticateToken, async (req, res) => {
       } : { plan: 'free' };
     }
 
-    const plan = user.plan || 'free';
+    const plan = user.membership_type || user.plan || 'free';
     const planInfo = PLANS[plan] || PLANS.free;
 
     let quotaData = {
@@ -380,7 +380,7 @@ router.post('/consume', authenticateToken, async (req, res) => {
     if (!user && req.user) user = { plan: req.user.plan || 'free' };
     if (!user) user = { plan: 'free' };
 
-    const plan = user.plan || 'free';
+    const plan = user.membership_type || user.plan || 'free';
     const planInfo = PLANS[plan] || PLANS.free;
 
     // 从 planInfo 获取对应 limit
