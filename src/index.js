@@ -146,6 +146,10 @@ import scraperRoutes from './routes/scraper.js';
 app.use('/api/scraper', scraperRoutes);
 app.use('/api/competitor', scraperRoutes);
 
+// OZON 自动发布
+import ozonAutoPublishRoutes from './routes/ozonAutoPublish.js';
+app.use('/api/ozon-publish', ozonAutoPublishRoutes);
+
 // AI智能选品
 app.use('/api/picking', pickingRoutes);
 
