@@ -5,25 +5,18 @@ import AIChatWidget from './AIChatWidget';
 import {
   LayoutDashboard, 
   TrendingUp, 
-  Rocket, 
-  Megaphone,
   Package,
   Store,
-  Briefcase,
   Calculator,
   Crown,
   Settings,
-  Bot,
   Menu,
   X,
   LogOut,
   User,
   Globe,
-  Zap,
-  DollarSign,
-  Receipt,
-  BookOpen,
   Sparkles,
+  ChevronDown,
   ChevronRight,
   MessageCircle,
   Youtube,
@@ -33,36 +26,65 @@ import {
   Server,
   Facebook,
   Headset,
-  ShoppingCart
+  ShoppingCart,
+  BarChart3,
+  Zap,
+  ChevronUp
 } from 'lucide-react';
 
-const NAV_ITEMS = [
-  { path: '/dashboard',   icon: LayoutDashboard, label: '工作台', color: 'text-blue-500' },
-  { path: '/articles',    icon: BookOpen,        label: '外贸干货', color: 'text-violet-500' },
-  { path: '/trending',    icon: TrendingUp,      label: '爆款选品', color: 'text-red-500' },
-  // { path: '/publish',     icon: Rocket,          label: '智能发布', color: 'text-purple-500' },  // 暂时隐藏，功能已拆分到小红书/OZON独立页
-  { path: '/ads',         icon: Megaphone,       label: '广告采集', color: 'text-amber-500' },
-  { path: '/products',    icon: Package,         label: '产品管理', color: 'text-emerald-500' },
-  { path: '/digital-shop', icon: ShoppingCart,    label: '数字商品', color: 'text-pink-500' },
-  { path: '/accounts',    icon: Store,           label: '店铺账号', color: 'text-indigo-500' },
-  { path: '/calculator',  icon: Calculator,      label: '利润计算', color: 'text-green-500' },
-  { path: '/membership',  icon: Crown,           label: '会员中心', color: 'text-yellow-500' },
-  { path: '/orders',     icon: Receipt,         label: '订单', color: 'text-orange-500' },
-  { path: '/xiaohongshu', icon: BookOpen,        label: '小红书', color: 'text-red-500' },
-  { path: '/ozon-publish', icon: Globe,          label: 'OZON发布', color: 'text-blue-600' },
-  { path: '/ai-content',  icon: Sparkles,        label: 'AI智能图文', color: 'text-fuchsia-500' },
-  { path: '/avatar',      icon: Bot,             label: 'AI数字人', color: 'text-violet-500' },
-  { path: '/live-stream', icon: Radio,           label: 'AI直播', color: 'text-red-500' },
-  { path: '/writer',     icon: PenLine,         label: 'AI文案', color: 'text-sky-500' },
-  { path: '/novel-factory', icon: BookOpen,      label: '小说工场', color: 'text-purple-600' },
-  { path: '/video-factory', icon: Clapperboard, label: '短视频', color: 'text-rose-500' },
-  { path: '/ai-tools',   icon: Sparkles,        label: 'AI工具箱', color: 'text-cyan-500' },
-  { path: '/whatsapp',    icon: MessageCircle,    label: 'WhatsApp中继', color: 'text-green-500' },
-  { path: '/facebook',   icon: Facebook,          label: 'Facebook', color: 'text-blue-600' },
-  { path: '/customer-service', icon: Headset,    label: 'AI客服', color: 'text-violet-600' },
-  { path: '/youtube',    icon: Youtube,          label: 'YouTube', color: 'text-red-600' },
-  { path: '/ai-gateway', icon: Server,           label: 'AI网关', color: 'text-violet-500', adminOnly: true },
-  { path: '/settings',    icon: Settings,        label: '设置', color: 'text-gray-500' },
+// 侧边栏分组
+const NAV_GROUPS = [
+  {
+    label: '核心工具',
+    items: [
+      { path: '/dashboard',   icon: LayoutDashboard, label: '工作台', color: 'text-blue-500', badge: '' },
+      { path: '/trending',    icon: TrendingUp,      label: 'AI选品', color: 'text-red-500', badge: 'NEW' },
+      { path: '/products',    icon: Package,         label: '产品库', color: 'text-emerald-500', badge: '' },
+      { path: '/digital-shop', icon: ShoppingCart,   label: '数字商品', color: 'text-pink-500', badge: '' },
+    ]
+  },
+  {
+    label: '发布与营销',
+    items: [
+      { path: '/accounts',    icon: Store,           label: '店铺账号', color: 'text-indigo-500', badge: '' },
+      { path: '/ozon-publish', icon: Globe,           label: 'OZON发布', color: 'text-blue-600', badge: '' },
+      { path: '/articles',    icon: BarChart3,       label: '外贸干货', color: 'text-violet-500', badge: '' },
+      { path: '/ads',         icon: Zap,             label: '广告采集', color: 'text-amber-500', badge: '' },
+      { path: '/calculator',  icon: Calculator,      label: '利润计算', color: 'text-green-500', badge: '' },
+    ]
+  },
+  {
+    label: 'AI 创作',
+    collapsed: true,
+    items: [
+      { path: '/ai-content',     icon: Sparkles,     label: 'AI智能图文', color: 'text-fuchsia-500', badge: '' },
+      { path: '/writer',         icon: PenLine,      label: 'AI文案', color: 'text-sky-500', badge: '' },
+      { path: '/avatar',         icon: User,          label: 'AI数字人', color: 'text-violet-500', badge: '' },
+      { path: '/live-stream',    icon: Radio,         label: 'AI直播', color: 'text-red-500', badge: '' },
+      { path: '/video-factory',  icon: Clapperboard,  label: '短视频工场', color: 'text-rose-500', badge: '' },
+      { path: '/novel-factory',  icon: BarChart3,     label: '小说工场', color: 'text-purple-600', badge: '' },
+      { path: '/ai-tools',       icon: Sparkles,     label: 'AI工具箱', color: 'text-cyan-500', badge: '' },
+    ]
+  },
+  {
+    label: '社媒与客服',
+    collapsed: true,
+    items: [
+      { path: '/whatsapp',         icon: MessageCircle, label: 'WhatsApp', color: 'text-green-500', badge: '' },
+      { path: '/facebook',         icon: Facebook,       label: 'Facebook', color: 'text-blue-600', badge: '' },
+      { path: '/youtube',          icon: Youtube,        label: 'YouTube', color: 'text-red-600', badge: '' },
+      { path: '/customer-service', icon: Headset,       label: 'AI客服', color: 'text-violet-600', badge: '' },
+    ]
+  },
+  {
+    label: '系统',
+    collapsed: true,
+    items: [
+      { path: '/membership',  icon: Crown,    label: '会员中心', color: 'text-yellow-500', badge: '' },
+      { path: '/ai-gateway',  icon: Server,   label: 'AI网关', color: 'text-violet-500', badge: '', adminOnly: true },
+      { path: '/settings',    icon: Settings, label: '设置', color: 'text-gray-500', badge: '' },
+    ]
+  },
 ];
 
 export default function ModernLayout() {
@@ -70,17 +92,16 @@ export default function ModernLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   // 管理员检测
   const isAdmin = user?.email === 'lyshlc@163.com' || user?.email?.includes('lyshlc');
-  const filteredNavItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
 
   async function handleLogout() {
     await logout();
     navigate('/login');
   }
 
-  // 用户套餐颜色映射
   const getPlanColor = (plan: string) => {
     switch (plan) {
       case 'basic': return 'bg-blue-100 text-blue-800';
@@ -99,334 +120,214 @@ export default function ModernLayout() {
     }
   };
 
+  const toggleGroup = (label: string) => {
+    setCollapsedGroups(prev => ({ ...prev, [label]: !prev[label] }));
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* 移动端顶部栏 */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg hover:bg-gray-100"
-          >
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
-              <Zap size={18} className="text-white" />
-            </div>
-            <span className="font-bold text-gray-900">Claw</span>
-          </div>
-        </div>
-        
-        {user && (
-          <div className="flex items-center gap-3">
-            <div className={`px-2 py-1 rounded-full text-xs font-medium ${getPlanColor(user.membershipType || 'free')}`}>
-              {getPlanName(user.membershipType || 'free')}
-            </div>
-            <button 
-              onClick={handleLogout}
-              className="p-2 rounded-lg hover:bg-gray-100"
-            >
-              <LogOut size={18} className="text-gray-600" />
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* 侧边栏 - 桌面端 */}
-      <aside className={`
-        hidden lg:flex flex-col fixed left-0 top-0 h-screen z-40
-        transition-all duration-300 ease-in-out
-        ${sidebarOpen ? 'w-64' : 'w-20'}
-        bg-white border-r border-gray-200
-      `}>
-        {/* Logo区域 */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Zap size={22} className="text-white" />
-            </div>
-            {sidebarOpen && (
-              <div className="flex-1 min-w-0">
-                <h1 className="font-bold text-gray-900 text-lg truncate">Claw 跨境智造</h1>
-                <p className="text-xs text-gray-500 truncate">AI驱动的外贸电商平台</p>
-              </div>
-            )}
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 flex-shrink-0"
-            >
-              <ChevronRight className={`transition-transform ${sidebarOpen ? '' : 'rotate-180'}`} size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* 用户信息 */}
-        {user && sidebarOpen && (
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                <User size={20} className="text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 truncate">{user.name || user.email}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPlanColor(user.membershipType || 'free')}`}>
-                    {getPlanName(user.membershipType || 'free')}
-                  </span>
-                  {user.membershipExpiresAt && (
-                    <span className="text-xs text-gray-500">
-                      到期: {new Date(user.membershipExpiresAt).toLocaleDateString('zh-CN')}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 导航菜单 */}
-        <nav className="flex-1 p-4 overflow-y-auto">
-          <div className="space-y-1">
-            {filteredNavItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={({ isActive }) => `
-                    flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all
-                    ${isActive 
-                      ? 'bg-blue-50 text-blue-700 border border-blue-100' 
-                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                    }
-                    ${sidebarOpen ? 'justify-start' : 'justify-center'}
-                  `}
-                >
-                  <Icon size={20} className={`flex-shrink-0 ${item.color}`} />
-                  {sidebarOpen && (
-                    <span className="font-medium text-sm truncate">{item.label}</span>
-                  )}
-                </NavLink>
-              );
-            })}
-          </div>
-
-          {/* 业务特色提示 */}
-          {sidebarOpen && (
-            <div className="mt-8 p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
-              <div className="flex items-center gap-2 mb-2">
-                <Globe size={16} className="text-blue-600" />
-                <span className="text-sm font-medium text-blue-800">跨境特色</span>
-              </div>
-              <p className="text-xs text-blue-700">
-                支持 TikTok Shop、OZON、YouTube 等多平台
-              </p>
-            </div>
-          )}
-        </nav>
-
-        {/* 版本信息 */}
-        {sidebarOpen && (
-          <div className="px-4 py-2">
-            <p className="text-[10px] text-gray-400 text-center select-all">
-              v{__CLAW_VERSION__}
-            </p>
-          </div>
-        )}
-
-        {/* 底部操作 */}
-        <div className="p-4 border-t border-gray-200">
-          {sidebarOpen ? (
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-xl transition-colors"
-            >
-              <LogOut size={18} className="text-gray-500" />
-              <span className="font-medium text-sm">退出登录</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center p-2.5 text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-xl transition-colors"
-            >
-              <LogOut size={18} className="text-gray-500" />
-            </button>
-          )}
-        </div>
-      </aside>
-
-      {/* 移动端侧边栏 */}
+    <div style={{ display: 'flex', height: '100vh', background: '#f5f6fa' }}>
+      {/* 移动端遮罩 */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-40">
-          {/* 遮罩层 */}
-          <div 
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-          
-          {/* 侧边栏内容 */}
-          <div className="absolute left-0 top-0 bottom-0 w-64 bg-white shadow-xl overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center">
-                    <Zap size={22} className="text-white" />
-                  </div>
-                  <div>
-                    <h1 className="font-bold text-gray-900">Claw</h1>
-                    <p className="text-xs text-gray-500">跨境智造平台</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-2 rounded-lg hover:bg-gray-100"
-                >
-                  <X size={20} />
-                </button>
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40 }}
+        />
+      )}
+
+      {/* 侧边栏 */}
+      <aside style={{
+        width: sidebarOpen ? 240 : 60,
+        minHeight: '100vh',
+        background: '#1a1a2e',
+        color: '#fff',
+        transition: 'width 0.25s ease',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'fixed',
+        left: 0,
+        top: 0,
+        zIndex: 50,
+        overflowX: 'hidden',
+      }}>
+        {/* Logo + 收起按钮 */}
+        <div style={{
+          padding: '16px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          minHeight: 64,
+        }}>
+          {sidebarOpen && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: 8,
+                background: 'linear-gradient(135deg, #6366f1, #a78bfa)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 16, fontWeight: 800,
+              }}>C</div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>Claw</div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>跨境智造</div>
               </div>
             </div>
+          )}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            style={{
+              background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.6)',
+              cursor: 'pointer', padding: 4, fontSize: 18,
+            }}
+          >
+            <Menu size={18} />
+          </button>
+        </div>
 
-            {/* 用户信息 */}
-            {user && (
-              <div className="p-4 border-b border-gray-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                    <User size={20} className="text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{user.name || user.email}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPlanColor(user.membershipType || 'free')}`}>
-                        {getPlanName(user.membershipType || 'free')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+        {/* 导航 */}
+        <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+          {NAV_GROUPS.map(group => {
+            const visibleItems = group.items.filter(item => !item.adminOnly || isAdmin);
+            if (visibleItems.length === 0) return null;
+            const isCollapsed = collapsedGroups[group.label];
 
-            {/* 导航菜单 */}
-            <nav className="p-4">
-              <div className="space-y-1">
-                {filteredNavItems.map((item) => {
-                  const Icon = item.icon;
-                  if (item.path === '/publish') {
-                    return (
-                      <div key={item.path}>
-                        <NavLink
-                          to={item.path}
-                          onClick={() => setPlatformsExpanded(!platformsExpanded)}
-                          className={({ isActive }) => `
-                            flex items-center gap-3 px-3 py-2.5 rounded-xl
-                            ${isActive || platformsExpanded
-                              ? 'bg-purple-50 text-purple-700 border border-purple-100' 
-                              : 'text-gray-700 hover:bg-gray-100'
-                            }
-                          `}
-                        >
-                          <Icon size={20} className={item.color} />
-                          <span className="font-medium text-sm flex-1">{item.label}</span>
-                          <ChevronRight className={`w-4 h-4 transition-transform ${platformsExpanded ? 'rotate-90' : ''}`} />
-                        </NavLink>
-                        {platformsExpanded && (
-                          <div className="ml-6 mt-1 space-y-1 border-l-2 border-purple-100 pl-3">
-                            {PLATFORM_PAGES.map((p) => {
-                              const PIcon = p.icon;
-                              return (
-                                <NavLink
-                                  key={p.path}
-                                  to={p.path}
-                                  onClick={() => setMobileMenuOpen(false)}
-                                  className={({ isActive }) => `
-                                    flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm
-                                    ${isActive 
-                                      ? 'bg-purple-50 text-purple-700 font-medium' 
-                                      : 'text-gray-600 hover:bg-gray-50'
-                                    }
-                                  `}
-                                >
-                                  <PIcon size={16} className={p.color} />
-                                  <span>{p.label}</span>
-                                </NavLink>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
+            return (
+              <div key={group.label} style={{ marginBottom: 4 }}>
+                {/* 分组标题 */}
+                {sidebarOpen && (
+                  <div
+                    onClick={() => group.items.length > 1 && toggleGroup(group.label)}
+                    style={{
+                      padding: '6px 16px', fontSize: 10, fontWeight: 600,
+                      color: 'rgba(255,255,255,0.35)',
+                      textTransform: 'uppercase', letterSpacing: 1,
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      cursor: group.items.length > 1 ? 'pointer' : 'default',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <span>{group.label}</span>
+                    {group.collapsed && (isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />)}
+                  </div>
+                )}
+
+                {visibleItems.map(item => {
+                  const isItemCollapsed = group.collapsed && isCollapsed;
+                  if (sidebarOpen && isItemCollapsed) return null;
+
                   return (
                     <NavLink
                       key={item.path}
                       to={item.path}
                       onClick={() => setMobileMenuOpen(false)}
-                      className={({ isActive }) => `
-                        flex items-center gap-3 px-3 py-2.5 rounded-xl
-                        ${isActive 
-                          ? 'bg-blue-50 text-blue-700 border border-blue-100' 
-                          : 'text-gray-700 hover:bg-gray-100'
-                        }
-                      `}
+                      style={({ isActive }) => ({
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: sidebarOpen ? '10px 16px' : '10px 0',
+                        justifyContent: sidebarOpen ? 'flex-start' : 'center',
+                        textDecoration: 'none',
+                        color: isActive ? '#fff' : 'rgba(255,255,255,0.65)',
+                        background: isActive ? 'rgba(99,102,241,0.2)' : 'transparent',
+                        borderLeft: isActive ? '3px solid #6366f1' : '3px solid transparent',
+                        transition: 'all 0.15s',
+                        fontSize: 14,
+                        whiteSpace: 'nowrap',
+                        position: 'relative',
+                        margin: '1px 0',
+                      })}
+                      onMouseEnter={e => {
+                        if (!e.currentTarget.className.includes('active'))
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                      }}
+                      onMouseLeave={e => {
+                        if (!e.currentTarget.className.includes('active'))
+                          e.currentTarget.style.background = 'transparent';
+                      }}
                     >
-                      <Icon size={20} className={item.color} />
-                      <span className="font-medium text-sm">{item.label}</span>
+                      <item.icon size={sidebarOpen ? 18 : 20} className={item.color} />
+                      {sidebarOpen && (
+                        <>
+                          <span style={{ flex: 1 }}>{item.label}</span>
+                          {item.badge && (
+                            <span style={{
+                              fontSize: 9, fontWeight: 700, padding: '1px 6px',
+                              borderRadius: 8, background: '#ef4444', color: '#fff',
+                            }}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </>
+                      )}
                     </NavLink>
                   );
                 })}
               </div>
-            </nav>
+            );
+          })}
+        </nav>
+
+        {/* 用户信息 */}
+        {sidebarOpen && (
+          <div style={{
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+            padding: 12, marginTop: 'auto',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 14, fontWeight: 700,
+              }}>
+                {user?.name?.[0] || 'U'}
+              </div>
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {user?.name || user?.email?.split('@')[0] || '用户'}
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+                  {user?.email || ''}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              style={{
+                width: '100%', padding: '8px 0', borderRadius: 8,
+                background: 'rgba(239,68,68,0.15)', color: '#fca5a5',
+                border: '1px solid rgba(239,68,68,0.2)',
+                fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            >
+              <LogOut size={14} /> 退出登录
+            </button>
           </div>
-        </div>
-      )}
+        )}
+      </aside>
 
-      {/* 主内容区域 */}
-      <main className={`
-        pt-16 lg:pt-0
-        ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}
-        transition-all duration-300
-        min-h-screen
-      `}>
-        <div className="p-4 lg:p-6">
-          <Outlet />
+      {/* 主内容 */}
+      <main style={{
+        flex: 1,
+        marginLeft: sidebarOpen ? 240 : 60,
+        transition: 'margin-left 0.25s ease',
+        padding: 0,
+        minHeight: '100vh',
+        overflowY: 'auto',
+      }}>
+        {/* 移动端顶部栏 */}
+        <div style={{
+          display: 'none',
+          position: 'sticky', top: 0, zIndex: 30,
+          background: '#fff', padding: '12px 16px',
+          borderBottom: '1px solid #e0e0e0',
+        }}>
+          <button onClick={() => setMobileMenuOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+            <Menu size={24} color="#333" />
+          </button>
         </div>
+
+        <Outlet />
+        <AIChatWidget />
       </main>
-
-      {/* 全局样式 */}
-      <style>{`
-        /* 自定义滚动条 */
-        ::-webkit-scrollbar {
-          width: 6px;
-          height: 6px;
-        }
-        
-        ::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 3px;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-          background: #c1c1c1;
-          border-radius: 3px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-          background: #a1a1a1;
-        }
-        
-        /* 平滑过渡 */
-        * {
-          transition: background-color 0.2s ease, border-color 0.2s ease;
-        }
-        
-        /* 聚焦样式 */
-        :focus-visible {
-          outline: 2px solid #3b82f6;
-          outline-offset: 2px;
-        }
-      `}</style>
-      {/* AI 客服悬浮窗 */}
-      <AIChatWidget />
     </div>
   );
 }
