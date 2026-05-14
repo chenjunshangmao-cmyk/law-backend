@@ -13,6 +13,8 @@
 3. **只改 `frontend/src/`** — 不碰 `backend/frontend/`
 4. **禁止 `git rebase`**
 5. 构建输出：只用 `complete-deploy/`，`deploy-package/` 已废弃
+6. **每次部署前必须 `npx vite build` 完整重建** — 禁止复用旧 complete-deploy/ 文件（2026-05-13血泪教训：旧构建产物只有20个chunk，缺失30+页面包括USDT支付）
+7. **构建后验证**: grep "USDT" complete-deploy/assets/app.js 确认关键模块存在
 6. 版本号格式：YYYY.MM.DD.NNN，deploy.bat 一键部署
 
 ## 🛡️ 三层部署保障
@@ -57,3 +59,17 @@
 - Ollama: 0.0.0.0:11434 (qwen2.5:7b 主力)
 - Gateway: 端口 11435，Nginx 代理 `/ollama/`
 - Nova AI: 24工具，钉钉+Web双通道，`~\.nova\nova.py`
+
+## 数据库智能降级机制 (2026-05-13)
+- `database.js` v3.0: 智能Pool包装器，PG挂了自动切JSON文件模式
+- 所有 `pool.query()` 调用自动感知PG状态，失败时降级到内存查询引擎
+- 内存查询引擎支持：users, articles, payment_orders, accounts, products, quotas, whatsapp_links 等表
+- JSON文件每60秒自动保存，启动时自动加载
+- findUserById 内存模式也带JSON文件兜底（兼容auth.min.js直写JSON）
+
+## AI工具箱 v2 (2026-05-13)
+- 参考美图设计室(designkit.cn)设计
+- 11个工具、3大分类：电商套图/图片处理/AI内容
+- AI文案支持4种模板：标题优化、卖点提炼、详情描述、短视频脚本
+- 后端API: /api/ai-tools/generate-copy (DeepSeek Gateway驱动)
+- 图片类工具采用AI降级策略（原图返回+AI分析建议）

@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://claw-backend-2026.onrender.com';
+const API_BASE = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8089' : 'https://claw-backend-2026.onrender.com');
 
 /** 带认证token的 fetch */
 async function authFetch(path: string, options: RequestInit = {}): Promise<any> {
@@ -171,8 +171,10 @@ export default function WhatsAppPage() {
   }
 
   const getLinkUrl = (linkId) => {
-    // 跳转链接走后端（/go 路由在 claw-backend）
-    const backendHost = import.meta.env.VITE_API_URL || 'https://claw-backend-2026.onrender.com';
+    // 动态获取跳转链接：前台也用后端域名（/go 路由在后端）
+    const backendHost = window.location.hostname === 'localhost'
+      ? 'http://localhost:8089'
+      : (import.meta.env.VITE_API_URL || 'https://claw-backend-2026.onrender.com');
     return `${backendHost}/go?id=${linkId}`;
   };
 

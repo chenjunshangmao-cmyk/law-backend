@@ -10,22 +10,10 @@ interface Stats {
   ozonAccounts: number;
 }
 
-interface OzonAccount {
-  id: string;
-  platform: string;
-  name: string;
-  username: string | null;
-  status: string;
-  createdAt: string;
-}
-
 export default function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState<Stats>({ products: 0, accounts: 0, tasks: 0, ozonAccounts: 0 });
-  const [ozonAccounts, setOzonAccounts] = useState<OzonAccount[]>([]);
-  const [syncing, setSyncing] = useState<Record<string, boolean>>({});
-  const [syncResults, setSyncResults] = useState<Record<string, any>>({});
 
   useEffect(() => {
     loadStats();
@@ -37,7 +25,6 @@ export default function DashboardPage() {
       api.accounts.list(),
       api.tasks.list(),
     ]);
-
     const allAccounts = accounts.status === 'fulfilled' ? (accounts.value?.data || []) : [];
     setStats({
       products: products.status === 'fulfilled' ? (products.value?.total ?? products.value?.data?.length ?? 0) : 0,
@@ -45,22 +32,6 @@ export default function DashboardPage() {
       tasks: tasks.status === 'fulfilled' ? (tasks.value?.data?.length ?? 0) : 0,
       ozonAccounts: allAccounts.filter((a: any) => a.platform === 'ozon').length,
     });
-
-    // 保存 OZON 账号列表
-    const ozonList = allAccounts.filter((a: any) => a.platform === 'ozon');
-    setOzonAccounts(ozonList);
-  };
-
-  const handleSync = async (accountId: string) => {
-    setSyncing(prev => ({ ...prev, [accountId]: true }));
-    try {
-      const result = await api.accounts.sync(accountId);
-      setSyncResults(prev => ({ ...prev, [accountId]: result?.data || result }));
-    } catch (err: any) {
-      setSyncResults(prev => ({ ...prev, [accountId]: { error: err?.message || '同步失败' } }));
-    } finally {
-      setSyncing(prev => ({ ...prev, [accountId]: false }));
-    }
   };
 
   const getGreeting = () => {
@@ -73,188 +44,226 @@ export default function DashboardPage() {
     return '晚上好';
   };
 
-  const QUICK_ACTIONS = [
-    { icon: '🔥', title: '爆款选品', desc: '一键抓取热销商品', path: '/trending', color: '#ff6b35' },
-    { icon: '🚀', title: '智能发布', desc: '多平台一键上架', path: '/publish', color: '#6366f1' },
-    { icon: '📢', title: '广告采集', desc: '竞品广告素材采集', path: '/ads', color: '#10b981' },
-    { icon: '💰', title: '利润计算', desc: '快速核算利润空间', path: '/calculator', color: '#f59e0b' },
+  // 核心工具卡片（大号，带描述）
+  const CORE_TOOLS = [
+    { path: '/trending',    icon: '🔥', title: 'AI选品', desc: 'AI搜索全网爆款单品，20维评分评估爆款概率，链接测款', color: '#ff6b35', tag: '新' },
+    { path: '/products',    icon: '📦', title: '产品库', desc: '管理你的所有产品，支持多平台产品同步', color: '#10b981', tag: '' },
+    { path: '/ozon-publish', icon: '🌐', title: 'OZON上架', desc: '批量发布产品到俄罗斯 OZON 平台', color: '#005BFF', tag: '' },
+    { path: '/calculator',  icon: '💰', title: '利润计算', desc: '快速核算各平台利润，智能定价推荐', color: '#f59e0b', tag: '' },
   ];
 
-  const STAT_CARDS = [
-    { icon: '📦', label: '产品库', value: stats.products, unit: '件', color: '#6366f1', path: '/products' },
-    { icon: '🏪', label: '店铺账号', value: stats.accounts, unit: '个', color: '#10b981', path: '/accounts' },
-    { icon: '🛒', label: 'OZON账号', value: stats.ozonAccounts, unit: '个', color: '#005BFF', path: '/accounts' },
-    { icon: '⭐', label: '会员等级', value: user?.membershipType === 'enterprise' ? '企业版' : user?.membershipType || '免费版', unit: '', color: '#f59e0b', path: '/membership' },
-    { icon: '📋', label: '进行任务', value: stats.tasks, unit: '条', color: '#ec4899', path: '/products' },
+  // 常用快捷入口（小号）
+  const QUICK_LINKS = [
+    { path: '/accounts',    icon: '🏪', title: '店铺账号', color: '#6366f1' },
+    { path: '/articles',    icon: '📖', title: '外贸干货', color: '#8b5cf6' },
+    { path: '/ads',         icon: '📢', title: '广告采集', color: '#ef4444' },
+    { path: '/digital-shop', icon: '🛒', title: '数字商品', color: '#ec4899' },
+    { path: '/ai-content',  icon: '✨', title: 'AI图文', color: '#d946ef' },
+    { path: '/writer',      icon: '✍️', title: 'AI文案', color: '#0ea5e9' },
+  ];
+
+  // 按业务场景推荐
+  const SCENARIOS = [
+    {
+      role: '新手卖家',
+      icon: '🌱',
+      desc: '刚入跨境电商，不知道卖什么',
+      actions: [
+        { label: '🔥 去AI选品找货', path: '/trending' },
+        { label: '📖 阅读外贸干货', path: '/articles' },
+      ]
+    },
+    {
+      role: '运营卖家',
+      icon: '🚀',
+      desc: '已有产品，需要上架和推广',
+      actions: [
+        { label: '🌐 OZON上架', path: '/ozon-publish' },
+        { label: '✍️ AI写文案', path: '/writer' },
+        { label: '💰 算利润', path: '/calculator' },
+      ]
+    },
+    {
+      role: '内容玩家',
+      icon: '🎬',
+      desc: '做短视频/直播/TikTok',
+      actions: [
+        { label: '🎬 短视频工场', path: '/video-factory' },
+        { label: '🤖 AI数字人', path: '/avatar' },
+        { label: '🔴 AI直播', path: '/live-stream' },
+      ]
+    },
   ];
 
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      {/* 欢迎横幅 */}
+      {/* 欢迎条 */}
       <div style={{
-        background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)',
+        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
         borderRadius: 16, padding: '28px 32px', marginBottom: 24,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        boxShadow: '0 8px 24px rgba(99,102,241,0.3)',
         flexWrap: 'wrap', gap: 16,
       }}>
         <div>
-          <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, marginBottom: 6 }}>
+          <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, marginBottom: 4 }}>
             {getGreeting()}，{user?.name || user?.email?.split('@')[0]} 👋
           </h1>
-          <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>
-            OZON 店铺已绑定：{stats.ozonAccounts} 个 | 企业版会员
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>
+            产品 {stats.products} 件 · 店铺 {stats.accounts} 个 · OZON {stats.ozonAccounts} 个
           </p>
         </div>
-        <button
-          onClick={() => navigate('/trending')}
-          style={{
-            background: 'rgba(255,255,255,0.2)', color: '#fff',
-            padding: '10px 20px', borderRadius: 8, fontWeight: 600, fontSize: 14,
-            border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer',
-            backdropFilter: 'blur(4px)',
-          }}
-        >
-          开始选品 →
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => navigate('/trending')}
+            style={{
+              background: 'linear-gradient(135deg, #ff6b35, #f59e0b)',
+              color: '#fff', padding: '10px 20px', borderRadius: 8,
+              fontWeight: 600, fontSize: 14, border: 'none', cursor: 'pointer',
+            }}
+          >
+            🔥 AI选品
+          </button>
+          <button
+            onClick={loadStats}
+            style={{
+              background: 'rgba(255,255,255,0.1)', color: '#fff',
+              padding: '10px 16px', borderRadius: 8, fontSize: 13,
+              border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer',
+            }}
+          >
+            🔄 刷新
+          </button>
+        </div>
       </div>
 
-      {/* 统计卡片 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
-        {STAT_CARDS.map(card => (
-          <div key={card.label}
-            onClick={() => navigate(card.path)}
-            style={{
-              background: '#fff', borderRadius: 12, padding: '20px 24px',
-              cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-              border: '1px solid #f0f0f0',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)', e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)')}
-            onMouseLeave={e => (e.currentTarget.style.transform = '', e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)')}
-          >
-            <div style={{ fontSize: 28, marginBottom: 10 }}>{card.icon}</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: card.color, marginBottom: 4 }}>
-              {card.value}{card.unit}
+      {/* 业务场景引导 */}
+      <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', marginBottom: 12 }}>
+        💡 你是哪类卖家？
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginBottom: 28 }}>
+        {SCENARIOS.map(scenario => (
+          <div key={scenario.role} style={{
+            background: '#fff', borderRadius: 12, padding: 20,
+            border: '1px solid #f0f0f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+          }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>{scenario.icon}</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: '#1a1a2e', marginBottom: 2 }}>
+              {scenario.role}
             </div>
-            <div style={{ color: '#888', fontSize: 13 }}>{card.label}</div>
+            <div style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>{scenario.desc}</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {scenario.actions.map(action => (
+                <button
+                  key={action.path}
+                  onClick={() => navigate(action.path)}
+                  style={{
+                    padding: '6px 14px', borderRadius: 6,
+                    background: '#f0f4ff', color: '#6366f1',
+                    border: '1px solid #e0e7ff', fontSize: 13,
+                    cursor: 'pointer', fontWeight: 500,
+                  }}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
           </div>
         ))}
       </div>
 
-      {/* OZON 店铺数据 */}
-      {ozonAccounts.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a2e' }}>🛒 OZON 店铺数据</h2>
-            <button
-              onClick={loadStats}
-              style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 13, color: '#666' }}
-            >🔄 刷新</button>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-            {ozonAccounts.map(acc => {
-              const isSyncing = syncing[acc.id];
-              const syncRes = syncResults[acc.id];
-              return (
-                <div key={acc.id} style={{
-                  background: '#fff', borderRadius: 12, padding: 20,
-                  border: '1px solid #e8f0fe', boxShadow: '0 2px 8px rgba(0,91,255,0.06)',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 15, color: '#1a1a2e' }}>{acc.name || acc.id}</div>
-                      <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-                        {acc.createdAt ? new Date(acc.createdAt).toLocaleDateString('zh-CN') + ' 绑定' : ''}
-                      </div>
-                    </div>
-                    <div style={{
-                      background: acc.status === 'active' ? '#ecfdf5' : '#fef3c7',
-                      color: acc.status === 'active' ? '#059669' : '#d97706',
-                      padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600
-                    }}>
-                      {acc.status === 'active' ? '已连接' : '未同步'}
-                    </div>
-                  </div>
-
-                  {/* 同步数据 */}
-                  {syncRes && !syncRes.error && (
-                    <div style={{ marginBottom: 12, padding: '10px 12px', background: '#f8faff', borderRadius: 8 }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <div>
-                          <div style={{ fontSize: 11, color: '#888' }}>产品数</div>
-                          <div style={{ fontSize: 18, fontWeight: 800, color: '#6366f1' }}>
-                            {syncRes.products_count ?? '-'}
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 11, color: '#888' }}>订单数</div>
-                          <div style={{ fontSize: 18, fontWeight: 800, color: '#059669' }}>
-                            {syncRes.orders_count ?? '-'}
-                          </div>
-                        </div>
-                      </div>
-                      {syncRes.sync_time && (
-                        <div style={{ fontSize: 11, color: '#aaa', marginTop: 6 }}>
-                          上次同步：{new Date(syncRes.sync_time).toLocaleString('zh-CN')}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {syncRes?.error && (
-                    <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fef2f2', borderRadius: 8, color: '#dc2626', fontSize: 13 }}>
-                      ⚠️ {syncRes.error}
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => handleSync(acc.id)}
-                    disabled={isSyncing}
-                    style={{
-                      width: '100%', padding: '8px 0', borderRadius: 8,
-                      background: isSyncing ? '#e0e7ff' : '#6366f1',
-                      color: isSyncing ? '#6366f1' : '#fff',
-                      border: 'none', fontSize: 14, fontWeight: 600, cursor: isSyncing ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    {isSyncing ? '⏳ 同步中...' : '📥 同步 OZON 数据'}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 快速操作 */}
-      <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a2e', marginBottom: 16 }}>快速操作</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-        {QUICK_ACTIONS.map(action => (
-          <div key={action.path}
-            onClick={() => navigate(action.path)}
+      {/* 核心工具 */}
+      <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', marginBottom: 12 }}>
+        ⭐ 核心工具
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 28 }}>
+        {CORE_TOOLS.map(tool => (
+          <div
+            key={tool.path}
+            onClick={() => navigate(tool.path)}
             style={{
-              background: '#fff', borderRadius: 12, padding: '24px',
-              cursor: 'pointer', transition: 'all 0.15s',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-              border: '1px solid #f0f0f0',
-              display: 'flex', alignItems: 'center', gap: 16,
+              background: '#fff', borderRadius: 12, padding: 20, cursor: 'pointer',
+              border: '1px solid #f0f0f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              position: 'relative', transition: 'all 0.15s',
             }}
-            onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)', e.currentTarget.style.borderColor = action.color)}
-            onMouseLeave={e => (e.currentTarget.style.transform = '', e.currentTarget.style.borderColor = '#f0f0f0')}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)';
+              e.currentTarget.style.borderColor = tool.color;
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = '';
+              e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)';
+              e.currentTarget.style.borderColor = '#f0f0f0';
+            }}
           >
-            <div style={{
-              width: 48, height: 48, borderRadius: 12, fontSize: 24,
-              background: `${action.color}18`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {action.icon}
+            {tool.tag && (
+              <span style={{
+                position: 'absolute', top: 10, right: 10,
+                background: '#ef4444', color: '#fff',
+                fontSize: 9, fontWeight: 700, padding: '2px 6px',
+                borderRadius: 6,
+              }}>
+                {tool.tag}
+              </span>
+            )}
+            <div style={{ fontSize: 28, marginBottom: 8 }}>{tool.icon}</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: '#1a1a2e', marginBottom: 4 }}>
+              {tool.title}
             </div>
-            <div>
-              <div style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15 }}>{action.title}</div>
-              <div style={{ color: '#888', fontSize: 13, marginTop: 2 }}>{action.desc}</div>
+            <div style={{ fontSize: 13, color: '#888', lineHeight: 1.4 }}>{tool.desc}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 快捷入口 */}
+      <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', marginBottom: 12 }}>
+        ⚡ 常用入口
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 28 }}>
+        {QUICK_LINKS.map(link => (
+          <div
+            key={link.path}
+            onClick={() => navigate(link.path)}
+            style={{
+              background: '#fff', borderRadius: 10, padding: '14px 16px', cursor: 'pointer',
+              border: '1px solid #f0f0f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              display: 'flex', alignItems: 'center', gap: 10,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = link.color; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#f0f0f0'; e.currentTarget.style.transform = ''; }}
+          >
+            <span style={{ fontSize: 22 }}>{link.icon}</span>
+            <span style={{ fontWeight: 600, fontSize: 13, color: '#1a1a2e' }}>{link.title}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* 数据概览 */}
+      <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', marginBottom: 12 }}>
+        📊 数据概览
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+        {[
+          { icon: '📦', label: '产品数', value: stats.products, color: '#6366f1', path: '/products' },
+          { icon: '🏪', label: '店铺账号', value: stats.accounts, color: '#10b981', path: '/accounts' },
+          { icon: '🌐', label: 'OZON账号', value: stats.ozonAccounts, color: '#005BFF', path: '/accounts' },
+          { icon: '📋', label: '进行任务', value: stats.tasks, color: '#ec4899', path: '/products' },
+        ].map(card => (
+          <div
+            key={card.label}
+            onClick={() => navigate(card.path)}
+            style={{
+              background: '#fff', borderRadius: 12, padding: 16, cursor: 'pointer',
+              border: '1px solid #f0f0f0', textAlign: 'center',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+            }}
+          >
+            <div style={{ fontSize: 24, marginBottom: 6 }}>{card.icon}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: card.color, marginBottom: 2 }}>
+              {card.value}
             </div>
+            <div style={{ fontSize: 12, color: '#888' }}>{card.label}</div>
           </div>
         ))}
       </div>
