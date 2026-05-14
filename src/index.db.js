@@ -1,4 +1,4 @@
-// Claw外贸网站后端API - 完整版（PostgreSQL + 全部功能）
+﻿// Claw外贸网站后端API - 完整版（PostgreSQL + 全部功能）
 import 'dotenv/config';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -966,3 +966,4 @@ app.get('/api/admin/backup', authenticateToken, requireRole(['admin', 'super_adm
 startServer();
 
 export default app;
+

@@ -12,6 +12,13 @@
 import express from 'express';
 import { pool } from '../config/database.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DATA_DIR = path.join(__dirname, '../../data');
+const WA_FILE = path.join(DATA_DIR, 'whatsapp_links.json');
 
 const router = express.Router();
 
@@ -87,16 +94,53 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      'SELECT * FROM whatsapp_links WHERE link_id = $1',
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).send(renderErrorPage('链接不存在或已停用'));
+    let link = null;
+    
+    // 先尝试 PostgreSQL
+    try {
+      const result = await pool.query(
+        'SELECT * FROM whatsapp_links WHERE link_id = $1',
+        [id]
+      );
+      if (result.rows.length > 0) {
+        link = dbToJs(result.rows[0]);
+      }
+    } catch (dbErr) {
+      // PostgreSQL 不可用，走 JSON 存储
+    }
+    
+    // PostgreSQL 没查到，尝试 JSON 文件
+    if (!link) {
+      try {
+        const raw = await fs.readFile(WA_FILE, 'utf-8');
+        const records = JSON.parse(raw);
+        const found = records.find(r => r.link_id === id);
+        if (found) {
+          link = {
+            linkId: found.link_id,
+            phone: found.phone,
+            msg: found.msg || '',
+            pageTitle: found.page_title || '咨询客服',
+            companyName: found.company_name || 'CLAW',
+            description: found.description || '',
+            buttonText: found.button_text || '立即咨询',
+            logoUrl: found.logo_url || '',
+            bgColor: found.bg_color || '#f5f7fa',
+            accentColor: found.accent_color || '#25D366',
+            autoRedirectMs: found.auto_redirect_ms || 3000,
+            clicks: found.clicks || 0,
+            disabled: found.disabled || false,
+            expiresAt: found.expires_at || null,
+          };
+        }
+      } catch (jsonErr) {
+        console.error('JSON存储读取失败:', jsonErr.message);
+      }
     }
 
-    const link = dbToJs(result.rows[0]);
+    if (!link) {
+      return res.status(404).send(renderErrorPage('链接不存在或已停用'));
+    }
 
     if (link.disabled) {
       return res.status(404).send(renderErrorPage('链接不存在或已停用'));
@@ -107,11 +151,15 @@ router.get('/', async (req, res) => {
       return res.status(410).send(renderErrorPage('链接已过期，请联系升级会员以继续使用'));
     }
 
-    // 增加点击计数
-    await pool.query(
-      'UPDATE whatsapp_links SET clicks = clicks + 1, last_click_at = NOW() WHERE link_id = $1',
-      [id]
-    );
+    // 增加点击计数（兼容 JSON 模式和 PG 模式）
+    try {
+      await pool.query(
+        'UPDATE whatsapp_links SET clicks = clicks + 1, last_click_at = NOW() WHERE link_id = $1',
+        [id]
+      );
+    } catch (countErr) {
+      // JSON 模式下忽略 PG 写入错误
+    }
 
     // 覆盖全局 CSP：落地页需要内联样式和脚本
     res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:;");

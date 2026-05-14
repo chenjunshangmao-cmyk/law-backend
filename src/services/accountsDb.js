@@ -164,27 +164,31 @@ export async function deleteAccount(id, userId) {
  * 初始化 accounts 表
  */
 export async function initAccountsTable() {
-  const db = getPool();
-  if (db) {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS accounts (
-        id VARCHAR(64) PRIMARY KEY,
-        user_id VARCHAR(64) NOT NULL,
-        platform VARCHAR(32) NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        client_id VARCHAR(255),
-        api_key TEXT,
-        api_secret TEXT,
-        username VARCHAR(255),
-        email VARCHAR(255),
-        password TEXT,
-        credentials JSONB,
-        status VARCHAR(32) DEFAULT 'active',
-        last_sync TIMESTAMP,
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-    console.log('[accountsDb] accounts 表就绪');
+  try {
+    const db = getPool();
+    if (db) {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS accounts (
+          id VARCHAR(64) PRIMARY KEY,
+          user_id VARCHAR(64) NOT NULL,
+          platform VARCHAR(32) NOT NULL,
+          name VARCHAR(255) NOT NULL,
+          client_id VARCHAR(255),
+          api_key TEXT,
+          api_secret TEXT,
+          username VARCHAR(255),
+          email VARCHAR(255),
+          password TEXT,
+          credentials JSONB,
+          status VARCHAR(32) DEFAULT 'active',
+          last_sync TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      console.log('[accountsDb] accounts 表就绪');
+    }
+  } catch (err) {
+    console.warn('[accountsDb] 数据库不可用，使用JSON存储模式:', err.message);
   }
 }
