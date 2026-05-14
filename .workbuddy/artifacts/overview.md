@@ -1,70 +1,69 @@
-# 🎥 AI数字人直播系统 — 实施完成报告
+# 会员系统彻底修复报告 — v2026.05.13.009
 
-**日期**: 2026-05-08 08:15  
-**版本**: 2026.05.08.004  
-**部署**: https://d26a6fa0.claw-app-2026.pages.dev
-
----
-
-## 完成情况
-
-✅ **6个核心服务模块全部实现**
-✅ **API路由 + 前端控制面板**  
-✅ **全部验证通过 (5/5 import + 构建)**
-✅ **代码已推送 GitHub → Render 自动部署后端**
-✅ **前端已部署 Cloudflare Pages**
+**时间**: 2026-05-13 09:07-09:55 CST  
+**状态**: ✅ 已修复并验证
 
 ---
 
-## 新建文件清单
+## 诚实回答：昨天为什么说"永远不会有问题"但问题还在？
 
-| 文件 | 功能 | 
-|------|------|
-| `src/services/avatar/LipSyncEngine.js` | 中文拼音→Viseme映射，21个viseme的BlendShape驱动 |
-| `src/services/avatar/VRMRenderer.js` | 2D SVG数字人渲染器，无需GPU，支持实时/离线两种模式 |
-| `src/services/avatar/RTMPPusher.js` | FFmpeg推流引擎，支持8大平台(YT/TT/FB/B站/抖音/快手/Twitch/自定义) |
-| `src/services/avatar/RealtimeChat.js` | WebSocket实时弹幕服务+AI自动回复+敏感词过滤 |
-| `src/services/avatar/LiveStreamEngine.js` | 直播总控，整合TTS→LipSync→VRM→RTMP→Chat五大模块 |
-| `src/routes/live-stream.js` | 10个REST API端点 |
-| `frontend/src/pages/LiveStreamPage.tsx` | 前端直播控制面板 |
-| `frontend/src/pages/LiveStreamPage.css` | 暗色主题样式 |
+| 环节 | 昨天做了 | 实际效果 |
+|------|---------|---------|
+| 代码开发 | ✅ database.js v3.2 + switchDatabase + set-db端点 | ✅ 已推送 |
+| 本地PG | ✅ PostgreSQL 18 安装 + claw数据库 + 表结构 | ✅ 一直在运行 |
+| **隧道守护进程** | ✅ 脚本开发完成 | ❌ **从未启动** — 这是问题的根因 |
+| Render实际状态 | 以为已切换到PG | ❌ 一整晚都在JSON模式 |
 
-## 修改文件清单
-
-| 文件 | 改动 |
-|------|------|
-| `src/index.db.js` | +import +app.use +API文档 |
-| `frontend/src/App.tsx` | +lazy import +Route `/live-stream` |
-| `VERSION.md` | 版本号 003→004 |
+**结论**: 昨天开发了完整的解决方案，但最后一步——启动pinggy隧道——没有执行。就像修好了路但忘了通车。
 
 ---
 
-## 直播架构
+## 修复的3个致命bug
 
+### Bug 1: `membership.db.js` plan字段永远读不到
 ```
-直播间弹幕 → RealtimeChat(WebSocket) → AI回复 → TTS语音
-                                              ↓
-脚本队列 → TTSEngine → 音频 → LipSyncEngine(口型) → VRMRenderer(SVG帧)
-                                                          ↓
-                                                   RTMPPusher(FFmpeg)
-                                                          ↓
-                                              YouTube/TikTok/FB等平台
+修复前: const plan = user.plan || 'free';    ← PG存的是membership_type，读不到
+修复后: const plan = user.membership_type || user.plan || 'free';
 ```
+影响: admin在PG中是flagship，但API永远返回free
 
-## 前端控制面板功能
+### Bug 2: `createUser` PG模式插入失败
+```
+修复前: INSERT INTO users (email, password, name, ...)  ← 缺少id列（NOT NULL）
+修复后: INSERT INTO users (id, email, password, name, ...) + uuidv4()
+```
+影响: 新用户注册永远写不进PG，只存内存/JSON
 
-- 🔴 开播/⏹️ 下播/⏸️ 暂停/▶️ 继续
-- 📺 平台选择 (YouTube/TikTok/Facebook/B站/抖音/快手/Twitch/自定义RTMP)
-- 👤 AI主播配置 (名称、语音)
-- 🤖 AI自动回复弹幕开关
-- 📝 直播脚本队列管理
-- 🤖 AI一键生成直播脚本 (基于产品信息)
-- 📢 主播公告发送
-- 📊 实时监控面板 (帧率/分辨率/在线人数/弹幕/礼物/错误)
+### Bug 3: `auth.min.js` 有自己的死连接池
+```
+修复前: auth.min.js用独立的getPool() → 连接死掉的Render PG → 永远失败
+修复后: auth.min.js改用database.js的smartPool → 隧道切换自动生效
+```
+影响: 这是最隐蔽的bug。switchDatabase切换了database.js的池，但auth.min.js完全不受影响
 
-## 后续需要做的事
+---
 
-1. **Render 后端自动部署** — GitHub已收到commit 952999b，Render会自动部署新路由
-2. **测试直播流程** — 访问 `/live-stream` 页面，配置推流密钥后开播测试
-3. **实际推流验证** — 需要有真实RTMP服务器或平台推流密钥
-4. **GPU/3D模式** — 当前用2D SVG降级模式，后续可升级Three.js VRM 3D渲染
+## 当前运行状态
+
+| 组件 | 状态 | 说明 |
+|------|------|------|
+| Render后端 | 🟢 mode=pg | 通过隧道连接本地PG |
+| 本地PostgreSQL | 🟢 运行中 | 端口5432，3个用户 |
+| pinggy隧道 | 🟢 守护进程运行 | 60分钟自动续期 |
+| admin@claw.com | 🟢 flagship旗舰版 | 全功能无限，永不过期 |
+| 新用户注册 | 🟢 UUID写入PG | 已验证 permanent@claw.com |
+
+---
+
+## 管理员账号
+
+- **邮箱**: admin@claw.com
+- **密码**: admin123（请尽快在网站上修改）
+- **会员**: flagship旗舰版（5888元/年，所有功能无限）
+- **到期**: 2099-12-31（永久）
+
+## 需要持续关注
+
+1. **pinggy免费隧道60分钟过期** — 守护进程会自动续期，但本机不能关机
+2. **Render每次部署会重启** — 守护进程会自动重新切换数据库
+3. **如本机重启** — 需重新启动 `node scripts/pg-tunnel-daemon.cjs`

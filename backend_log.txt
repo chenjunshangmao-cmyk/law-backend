@@ -1,0 +1,71 @@
+[JSON存储] 加载 users: 4 条记录
+[JSON存储] 加载 accounts: 4 条记录
+[JSON存储] 加载 products: 2 条记录
+[JSON存储] 加载 quotas: 1 条记录
+[JSON存储] 加载 whatsapp_links: 1 条记录
+[收钱吧] 已从文件加载终端: [ 'claw-pay-motecg24-0417', 'claw-pay-prod-0507' ]
+
+╔══════════════════════════════════════════════════════════════════╗
+║                  Claw外贸网站后端API 已启动                       ║
+╠══════════════════════════════════════════════════════════════════╣
+║  端口: 8089                                                     ║
+║  状态: http://localhost:8089/api/health                         ║
+║  环境: production                    ║
+╠══════════════════════════════════════════════════════════════════╣
+║  [📊 监控]                                                        ║
+║  ├─ GET    /api/health          - 系统健康检查                    ║
+║  [🔐 认证]                                                        ║
+║  ├─ POST   /api/auth/register   - 用户注册                        ║
+║  ├─ POST   /api/auth/login      - 用户登录                        ║
+║  ├─ POST   /api/auth/logout     - 用户登出                        ║
+║  ├─ GET    /api/auth/profile    - 获取用户信息                    ║
+║  └─ GET    /api/auth/quota      - 获取用户额度                    ║
+║  [🛍️ 产品]                                                       ║
+║  ├─ GET    /api/products        - 获取产品列表                    ║
+║  ├─ POST   /api/products        - 创建产品                        ║
+║  ├─ GET    /api/products/:id    - 获取单个产品                    ║
+║  ├─ PUT    /api/products/:id    - 更新产品                        ║
+║  └─ DELETE /api/products/:id    - 删除产品                        ║
+║  [🤖 AI生成]                                                      ║
+║  ├─ POST   /api/generate/text   - 生成文案                        ║
+║  └─ POST   /api/generate/image  - 生成图片描述                    ║
+║  [💰 利润计算]                                                     ║
+║  ├─ POST   /api/calculate/profit - 计算利润                       ║
+║  └─ POST   /api/calculate/quick  - 快速定价                       ║
+║  [👥 账号管理]                                                     ║
+║  ├─ GET    /api/accounts        - 获取账号列表                    ║
+║  ├─ POST   /api/accounts        - 添加账号                        ║
+║  ├─ GET    /api/accounts/:id    - 获取单个账号                    ║
+║  ├─ PUT    /api/accounts/:id    - 更新账号                        ║
+║  ├─ DELETE /api/accounts/:id    - 删除账号                        ║
+║  └─ POST   /api/accounts/:id/test - 测试连接                      ║
+║  [📝 任务管理]                                                     ║
+║  ├─ GET    /api/tasks           - 获取任务列表                    ║
+║  ├─ POST   /api/tasks           - 创建任务                        ║
+║  ├─ GET    /api/tasks/:id       - 获取单个任务                    ║
+║  ├─ PUT    /api/tasks/:id       - 更新任务状态                    ║
+║  ├─ DELETE /api/tasks/:id       - 删除任务                        ║
+║  └─ GET    /api/tasks/:id/logs  - 获取执行日志                    ║
+║  [👑 会员管理]                                                     ║
+║  ├─ GET    /api/membership      - 获取会员信息                    ║
+║  ├─ GET    /api/membership/plans - 获取套餐列表                   ║
+║  ├─ GET    /api/quota           - 获取额度详情                    ║
+║  ├─ POST   /api/quota/consume   - 消费额度                        ║
+║  ├─ POST   /api/quota/release   - 释放额度                        ║
+║  └─ POST   /api/membership/upgrade - 升级套餐                     ║
+║  [🌐 浏览器自动化]                                                 ║
+║  ├─ POST   /api/browser/tiktok/login - TikTok登录                ║
+║  ├─ GET    /api/browser/tiktok/status - TikTok状态检查           ║
+║  ├─ POST   /api/browser/tiktok/publish - TikTok发布产品          ║
+║  ├─ POST   /api/browser/youtube/login - YouTube登录              ║
+║  ├─ GET    /api/browser/youtube/status - YouTube状态检查         ║
+║  ├─ POST   /api/browser/youtube/upload - YouTube上传视频         ║
+║  ├─ POST   /api/browser/close   - 关闭所有浏览器                  ║
+║  └─ GET    /api/browser/list-sessions - 列出保存的session        ║
+║  [🔧 管理员]                                                     ║
+║  ├─ POST   /api/admin/backup   - 数据库备份                      ║
+║  └─ GET    /api/admin/backup/status - 备份状态                  ║
+╚══════════════════════════════════════════════════════════════════╝
+  
+[数据库] 🔄 使用 JSON 文件模式运行
+[JSON存储] 自动保存完成

@@ -13,6 +13,8 @@
 3. **只改 `frontend/src/`** — 不碰 `backend/frontend/`
 4. **禁止 `git rebase`**
 5. 构建输出：只用 `complete-deploy/`，`deploy-package/` 已废弃
+6. **每次部署前必须 `npx vite build` 完整重建** — 禁止复用旧 complete-deploy/ 文件（2026-05-13血泪教训：旧构建产物只有20个chunk，缺失30+页面包括USDT支付）
+7. **构建后验证**: grep "USDT" complete-deploy/assets/app.js 确认关键模块存在
 6. 版本号格式：YYYY.MM.DD.NNN，deploy.bat 一键部署
 
 ## 🛡️ 三层部署保障
