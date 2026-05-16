@@ -39,6 +39,7 @@ async function initPublishTasksTable() {
         content TEXT,
         tags JSONB DEFAULT '[]',
         images JSONB DEFAULT '[]',
+        video_path TEXT,
         
         -- 执行结果
         result JSONB,
@@ -67,13 +68,17 @@ initPublishTasksTable();
 router.post('/tasks', authMiddleware, async (req, res) => {
   try {
     const userId = req.user?.id || req.user?.userId;
-    const { platform, accountId, title, content, tags, images } = req.body;
+    const { platform, accountId, title, content, tags, images, videoPath } = req.body;
+
+    // 验证平台
+    const VALID_PLATFORMS = ['xiaohongshu', 'tiktok_shop', 'tiktok_web', 'youtube', 'ozon', 
+      'douyin', 'kuaishou', 'bilibili', 'baijiahao', 'shipinhao', 'tiktok_global'];
+    if (!VALID_PLATFORMS.includes(platform)) {
+      return res.status(400).json({ success: false, error: '不支持该平台' });
+    }
 
     if (!title && !content) {
       return res.status(400).json({ success: false, error: '请提供标题或正文' });
-    }
-    if (!images || images.length === 0) {
-      return res.status(400).json({ success: false, error: '请至少提供一张图片' });
     }
 
     // 图片处理：base64 太大不存数据库，保存为文件存路径
@@ -90,10 +95,6 @@ router.post('/tasks', authMiddleware, async (req, res) => {
       }
     }
 
-    if (imageRefs.length === 0) {
-      return res.status(400).json({ success: false, error: '没有可用的图片' });
-    }
-
     const taskData = {
       user_id: String(userId),
       platform: platform || 'xiaohongshu',
@@ -103,6 +104,7 @@ router.post('/tasks', authMiddleware, async (req, res) => {
       content: content || '',
       tags: JSON.stringify(tags || []),
       images: JSON.stringify(imageRefs),
+      video_path: req.body.videoPath || null,
     };
 
     let task;

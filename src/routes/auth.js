@@ -22,7 +22,7 @@ router.post('/login', async (req, res) => {
       id: 'user-' + Date.now(),
       email: email || 'admin@claw.com',
       name: email ? email.split('@')[0] : '管理员',
-      role: email === 'admin@claw.com' ? 'admin' : 'user',
+      role: (email === 'admin@claw.com' || email === 'lyshlc@163.com') ? 'admin' : 'user',
       plan: 'pro',
       created_at: new Date().toISOString()
     };

@@ -1,0 +1,54 @@
+{
+  "COMPANY_NAME": "您的品牌名",
+  "COMPANY_LOGO": "LOGO名称",
+  "COMPANY_DESC": "品牌描述（SEO用）",
+  "HERO_TAGLINE": "品质好物，尽在掌握",
+  "HERO_DESC": "精选优质商品，给你更好的购物体验",
+  "PRODUCTS": [
+    {
+      "id": "p1",
+      "name": "商品名称1",
+      "price": 99.00,
+      "original_price": 129.00,
+      "desc": "商品简短描述，突出卖点",
+      "image": "https://via.placeholder.com/400x400?text=Product+1",
+      "category": "分类一"
+    },
+    {
+      "id": "p2",
+      "name": "商品名称2",
+      "price": 199.00,
+      "original_price": 259.00,
+      "desc": "商品简短描述，突出卖点",
+      "image": "https://via.placeholder.com/400x400?text=Product+2",
+      "category": "分类一"
+    },
+    {
+      "id": "p3",
+      "name": "商品名称3",
+      "price": 49.00,
+      "desc": "商品简短描述，突出卖点",
+      "image": "https://via.placeholder.com/400x400?text=Product+3",
+      "category": "分类二"
+    },
+    {
+      "id": "p4",
+      "name": "商品名称4",
+      "price": 299.00,
+      "original_price": 399.00,
+      "desc": "商品简短描述，突出卖点",
+      "image": "https://via.placeholder.com/400x400?text=Product+4",
+      "category": "分类二"
+    }
+  ],
+  "ABOUT_IMAGE": "https://via.placeholder.com/600x400?text=About+Shop",
+  "ABOUT_TITLE": "关于我们",
+  "ABOUT_DESC": "我们致力于为客户提供优质的商品和贴心的服务。所有商品均经过严格挑选，确保品质。",
+  "CONTACT_TITLE": "联系我们",
+  "CONTACT_SUBTITLE": "有任何问题欢迎咨询",
+  "CONTACT_PHONE": "138-0000-0000",
+  "CONTACT_EMAIL": "shop@example.com",
+  "CONTACT_WECHAT": "微信号：shopwechat",
+  "CONTACT_ADDRESS": "山东省青岛市XX区XX路XX号",
+  "YEAR": "2026"
+}

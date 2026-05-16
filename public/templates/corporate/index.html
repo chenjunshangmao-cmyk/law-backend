@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{COMPANY_NAME}} - 官方主页</title>
+    <meta name="description" content="{{COMPANY_DESC}}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #1a1a2e; }
+        
+        /* 导航 */
+        .nav {
+            position: fixed; top: 0; width: 100%; z-index: 100;
+            background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+            border-bottom: 1px solid #eee;
+        }
+        .nav-inner {
+            max-width: 1200px; margin: 0 auto; padding: 16px 24px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .nav-logo { font-size: 22px; font-weight: 700; color: #1a1a2e; text-decoration: none; }
+        .nav-links { display: flex; gap: 32px; list-style: none; }
+        .nav-links a { text-decoration: none; color: #555; font-size: 15px; transition: color 0.2s; }
+        .nav-links a:hover { color: #1a1a2e; }
+        .nav-cta {
+            padding: 8px 20px; background: #1a1a2e; color: #fff !important;
+            border-radius: 6px; font-weight: 600;
+        }
+        .nav-cta:hover { background: #2d2d4e; }
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+        }
+
+        /* 首屏 */
+        .hero {
+            min-height: 85vh; display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #f8f9ff 0%, #eef1ff 100%);
+            padding: 120px 24px 80px;
+        }
+        .hero-content { max-width: 800px; text-align: center; }
+        .hero h1 { font-size: clamp(36px, 5vw, 56px); font-weight: 800; line-height: 1.2; margin-bottom: 20px; }
+        .hero h1 span { background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p { font-size: 18px; color: #666; line-height: 1.7; margin-bottom: 36px; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .hero-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .btn-primary {
+            padding: 14px 36px; background: #1a1a2e; color: #fff; border: none;
+            border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer;
+            text-decoration: none; transition: transform 0.2s;
+        }
+        .btn-primary:hover { transform: translateY(-2px); }
+        .btn-secondary {
+            padding: 14px 36px; background: transparent; color: #1a1a2e; border: 2px solid #1a1a2e;
+            border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer;
+            text-decoration: none; transition: all 0.2s;
+        }
+        .btn-secondary:hover { background: #1a1a2e; color: #fff; }
+
+        /* 通用区块 */
+        .section { padding: 100px 24px; }
+        .section-inner { max-width: 1200px; margin: 0 auto; }
+        .section-title { text-align: center; font-size: clamp(28px, 3vw, 36px); font-weight: 700; margin-bottom: 16px; }
+        .section-sub { text-align: center; color: #888; font-size: 16px; margin-bottom: 56px; max-width: 600px; margin-left: auto; margin-right: auto; }
+
+        /* 服务卡片 */
+        .services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+        .service-card {
+            padding: 40px 28px; background: #fff; border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06); transition: transform 0.3s;
+            border: 1px solid #f0f0f5;
+        }
+        .service-card:hover { transform: translateY(-4px); }
+        .service-icon { font-size: 40px; margin-bottom: 16px; }
+        .service-card h3 { font-size: 20px; margin-bottom: 12px; }
+        .service-card p { color: #777; line-height: 1.6; font-size: 15px; }
+
+        /* 数据 */
+        .stats { background: #1a1a2e; color: #fff; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 32px; text-align: center; }
+        .stat-number { font-size: 42px; font-weight: 800; margin-bottom: 8px; }
+        .stat-label { color: rgba(255,255,255,0.7); font-size: 15px; }
+
+        /* 关于 */
+        .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+        .about-grid img { width: 100%; border-radius: 16px; }
+        .about-text h3 { font-size: 24px; margin-bottom: 16px; }
+        .about-text p { color: #666; line-height: 1.8; margin-bottom: 16px; }
+        @media (max-width: 768px) { .about-grid { grid-template-columns: 1fr; } }
+
+        /* 联系 */
+        .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+        .contact-info { display: flex; flex-direction: column; gap: 20px; }
+        .contact-item { display: flex; gap: 12px; align-items: flex-start; }
+        .contact-item .icon { font-size: 24px; }
+        .contact-item div h4 { font-size: 16px; margin-bottom: 4px; }
+        .contact-item div p { color: #888; font-size: 14px; }
+        @media (max-width: 768px) { .contact-grid { grid-template-columns: 1fr; } }
+
+        /* 页脚 */
+        .footer {
+            background: #1a1a2e; color: rgba(255,255,255,0.6); padding: 48px 24px; text-align: center;
+            font-size: 14px;
+        }
+        .footer a { color: rgba(255,255,255,0.8); text-decoration: none; margin: 0 12px; }
+
+        /* AI 功能模块 */
+        .ai-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: #fff; border-radius: 20px; font-size: 12px; font-weight: 600;
+        }
+
+        /* 响应式 */
+        @media (max-width: 480px) {
+            .hero { min-height: auto; padding: 100px 20px 60px; }
+            .section { padding: 60px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- 导航栏 -->
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="#" class="nav-logo">{{COMPANY_LOGO}}</a>
+        <ul class="nav-links">
+            <li><a href="#services">服务</a></li>
+            <li><a href="#about">关于</a></li>
+            <li><a href="#contact">联系</a></li>
+            <li><a href="#contact" class="nav-cta">立即咨询</a></li>
+        </ul>
+    </div>
+</nav>
+
+<!-- 首屏 -->
+<section class="hero">
+    <div class="hero-content">
+        <h1>{{COMPANY_NAME}}<br><span>{{HERO_TAGLINE}}</span></h1>
+        <p>{{HERO_DESC}}</p>
+        <div class="hero-buttons">
+            <a href="#contact" class="btn-primary">立即咨询</a>
+            <a href="#services" class="btn-secondary">了解更多</a>
+        </div>
+    </div>
+</section>
+
+<!-- 服务/产品 -->
+<section class="section" id="services">
+    <div class="section-inner">
+        <h2 class="section-title">我们的服务</h2>
+        <p class="section-sub">{{SERVICES_SUBTITLE}}</p>
+        <div class="services-grid">
+            {{SERVICES_CARDS}}
+        </div>
+    </div>
+</section>
+
+<!-- 数据 -->
+<section class="section stats">
+    <div class="section-inner">
+        <div class="stats-grid">
+            {{STATS_ITEMS}}
+        </div>
+    </div>
+</section>
+
+<!-- 关于 -->
+<section class="section" id="about">
+    <div class="section-inner">
+        <div class="about-grid">
+            <div>
+                <img src="{{ABOUT_IMAGE}}" alt="{{COMPANY_NAME}}">
+            </div>
+            <div class="about-text">
+                <span class="ai-badge">🤖 AI 驱动</span>
+                <h3>{{ABOUT_TITLE}}</h3>
+                <p>{{ABOUT_DESC}}</p>
+                <p>{{ABOUT_DESC_2}}</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 联系 -->
+<section class="section" id="contact">
+    <div class="section-inner">
+        <h2 class="section-title">联系我们</h2>
+        <p class="section-sub">{{CONTACT_SUBTITLE}}</p>
+        <div class="contact-grid">
+            <div class="contact-info">
+                <div class="contact-item">
+                    <div class="icon">📍</div>
+                    <div>
+                        <h4>地址</h4>
+                        <p>{{CONTACT_ADDRESS}}</p>
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <div class="icon">📞</div>
+                    <div>
+                        <h4>电话</h4>
+                        <p>{{CONTACT_PHONE}}</p>
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <div class="icon">📧</div>
+                    <div>
+                        <h4>邮箱</h4>
+                        <p>{{CONTACT_EMAIL}}</p>
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <div class="icon">💬</div>
+                    <div>
+                        <h4>微信</h4>
+                        <p>{{CONTACT_WECHAT}}</p>
+                    </div>
+                </div>
+            </div>
+            <div style="background:#f8f9ff;border-radius:16px;padding:32px;display:flex;flex-direction:column;gap:16px;justify-content:center;align-items:center;text-align:center;">
+                <p style="color:#888;font-size:15px;line-height:1.7;">
+                    留下您的联系方式，我们将在24小时内与您联系<br>
+                    为您提供免费的网站建设咨询
+                </p>
+                <p style="font-size:13px;color:#aaa;">
+                    AI 生成文案 · 智能客服 · 一键部署
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 页脚 -->
+<footer class="footer">
+    <p>© {{YEAR}} {{COMPANY_NAME}}. All rights reserved.</p>
+    <p style="margin-top:8px;">
+        <a href="#">隐私政策</a> · 
+        <a href="#">服务条款</a>
+    </p>
+</footer>
+
+</body>
+</html>
