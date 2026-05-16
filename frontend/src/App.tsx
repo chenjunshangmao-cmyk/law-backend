@@ -6,15 +6,18 @@ import ModernLayout from './components/ModernLayout';
 import LoginPage from './pages/ModernLogin';
 import RegisterPage from './pages/ModernRegister';
 
-// 懒加载页面（减少首屏体积）
+// 懒加载页面（减少首屏体积�?
 const DashboardPage      = lazy(() => import('./pages/DashboardPage'));
 const TrendingPage       = lazy(() => import('./pages/TrendingPage'));
 const SmartPublishPage   = lazy(() => import('./pages/PublishPage'));
 const AdCollectionPage   = lazy(() => import('./pages/AdCollectionPage'));
+const AdAnalyticsPage    = lazy(() => import('./pages/AdAnalyticsPage'));
 const ProductsPage       = lazy(() => import('./pages/ProductsPage'));
 const AccountsPage       = lazy(() => import('./pages/AccountsPage'));
 const MembershipPage     = lazy(() => import('./pages/MembershipPage'));
+const InvitePage         = lazy(() => import('./pages/InvitePage'));
 const ServicesPage       = lazy(() => import('./pages/ServicesPage'));
+const ShowcasePage       = lazy(() => import('./pages/ShowcasePage'));
 const CalculatorPage     = lazy(() => import('./pages/CalculatorPage'));
 const SettingsPage       = lazy(() => import('./pages/SettingsPage'));
 const TikTokPage          = lazy(() => import('./pages/TikTokPage'));
@@ -34,12 +37,14 @@ const FacebookPage          = lazy(() => import('./pages/FacebookPage'));
 const CustomerServicePage    = lazy(() => import('./pages/CustomerServicePage'));
 const LiveStreamPage        = lazy(() => import('./pages/LiveStreamPage'));
 const AIGatewayPage         = lazy(() => import('./pages/AIGatewayPage'));
+const AdminTogglesPage       = lazy(() => import('./pages/AdminTogglesPage'));
 const ArticlesPage          = lazy(() => import('./pages/ArticlesPage'));
 const ArticleDetailPage     = lazy(() => import('./pages/ArticleDetailPage'));
 const DigitalShopPage       = lazy(() => import('./pages/DigitalShopPage'));
 const NovelFactoryPage      = lazy(() => import('./pages/NovelFactoryPage'));
+const SaaSBuilderPage       = lazy(() => import('./pages/SaaSBuilderPage'));
 
-// Google OAuth 回调处理组件（处理 google_token + google_user URL参数）
+// Google OAuth 回调处理组件（处�?google_token + google_user URL参数�?
 function GoogleCallbackHandler({ children }: { children: React.ReactNode }) {
   const [searchParams] = useSearchParams();
   const { loginWithToken } = useAuth();
@@ -71,7 +76,7 @@ function GoogleCallbackHandler({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// 加载中组件
+// 加载中组�?
 function PageLoading() {
   return (
     <div style={{
@@ -83,12 +88,12 @@ function PageLoading() {
         borderTopColor: '#6366f1', borderRadius: '50%',
         animation: 'spin 0.8s linear infinite'
       }} />
-      <span>加载中...</span>
+      <span>加载�?..</span>
     </div>
   );
 }
 
-// 受保护路由
+// 受保护路�?
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <PageLoading />;
@@ -96,7 +101,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// 已登录跳转首页
+// 已登录跳转首�?
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <PageLoading />;
@@ -118,7 +123,7 @@ function AppRoutes() {
         <Suspense fallback={<PageLoading />}><PaymentResultPage /></Suspense>
       } />
 
-      {/* 受保护路由 */}
+      {/* 受保护路�?*/}
       <Route path="/" element={
         <ProtectedRoute>
           <ModernLayout />
@@ -129,10 +134,13 @@ function AppRoutes() {
         <Route path="trending"       element={<Suspense fallback={<PageLoading />}><TrendingPage /></Suspense>} />
         <Route path="publish"        element={<Suspense fallback={<PageLoading />}><SmartPublishPage /></Suspense>} />
         <Route path="ads"            element={<Suspense fallback={<PageLoading />}><AdCollectionPage /></Suspense>} />
+        <Route path="ad-analytics"   element={<Suspense fallback={<PageLoading />}><AdAnalyticsPage /></Suspense>} />
         <Route path="products"       element={<Suspense fallback={<PageLoading />}><ProductsPage /></Suspense>} />
         <Route path="accounts"       element={<Suspense fallback={<PageLoading />}><AccountsPage /></Suspense>} />
         <Route path="membership"     element={<Suspense fallback={<PageLoading />}><MembershipPage /></Suspense>} />
+        <Route path="invite"        element={<Suspense fallback={<PageLoading />}><InvitePage /></Suspense>} />
         <Route path="services"       element={<Suspense fallback={<PageLoading />}><ServicesPage /></Suspense>} />
+        <Route path="showcase"      element={<Suspense fallback={<PageLoading />}><ShowcasePage /></Suspense>} />
         <Route path="calculator"     element={<Suspense fallback={<PageLoading />}><ErrorBoundary><CalculatorPage /></ErrorBoundary></Suspense>} />
         <Route path="settings"       element={<Suspense fallback={<PageLoading />}><SettingsPage /></Suspense>} />
         <Route path="tiktok"         element={<Suspense fallback={<PageLoading />}><TikTokPage /></Suspense>} />
@@ -151,10 +159,12 @@ function AppRoutes() {
         <Route path="customer-service" element={<Suspense fallback={<PageLoading />}><CustomerServicePage /></Suspense>} />
         <Route path="live-stream"    element={<Suspense fallback={<PageLoading />}><LiveStreamPage /></Suspense>} />
         <Route path="ai-gateway"     element={<Suspense fallback={<PageLoading />}><AIGatewayPage /></Suspense>} />
+        <Route path="admin-membership" element={<Suspense fallback={<PageLoading />}><AdminTogglesPage /></Suspense>} />
         <Route path="articles"       element={<Suspense fallback={<PageLoading />}><ArticlesPage /></Suspense>} />
         <Route path="articles/:slug" element={<Suspense fallback={<PageLoading />}><ArticleDetailPage /></Suspense>} />
         <Route path="novel-factory"  element={<Suspense fallback={<PageLoading />}><NovelFactoryPage /></Suspense>} />
         <Route path="digital-shop"   element={<Suspense fallback={<PageLoading />}><DigitalShopPage /></Suspense>} />
+        <Route path="saas-builder"    element={<Suspense fallback={<PageLoading />}><SaaSBuilderPage /></Suspense>} />
       </Route>
 
       {/* 兜底 */}

@@ -9,14 +9,15 @@ import {
   AlertCircle, Upload, Video, Zap, Sparkles, ChevronDown,
   Globe, Eye, EyeOff, Lock, Image, DollarSign, Package,
   Tag, Layers, Settings, Users, ExternalLink, Copy, Loader2,
-  Youtube, ShoppingBag, Monitor, Shield, Store, Link, BookOpen
+  Youtube, ShoppingBag, Monitor, Shield, Store, Link, BookOpen,
+  Music, Camera, Tv, Radio, Smartphone, Film, MessageSquare
 } from 'lucide-react';
 import { api } from '../services/api';
 
 // ============================================================
 // 类型定义
 // ============================================================
-type Platform = 'tiktok_shop' | 'tiktok_web' | 'youtube' | 'ozon' | 'xiaohongshu';
+type Platform = 'tiktok_shop' | 'tiktok_web' | 'youtube' | 'ozon' | 'xiaohongshu' | 'douyin' | 'kuaishou' | 'bilibili' | 'baijiahao' | 'shipinhao' | 'tiktok_global';
 type PublishMode = 'manual' | 'semiauto' | 'fullauto' | 'oauth';
 type AccountStatus = 'logged_in' | 'not_logged_in' | 'checking' | 'expired';
 type XiaohongshuType = 'note' | 'video' | 'product';
@@ -85,6 +86,7 @@ const PLATFORM_CONFIG = {
     color: '#FF0050',
     gradient: 'linear-gradient(135deg, #FF0050 0%, #00F2EA 100%)',
     modes: ['manual', 'semiauto', 'fullauto'] as PublishMode[],
+    status: 'ready' as const,
   },
   tiktok_web: {
     label: 'TikTok Web',
@@ -93,6 +95,7 @@ const PLATFORM_CONFIG = {
     color: '#FF0050',
     gradient: 'linear-gradient(135deg, #FF0050 0%, #7000FF 100%)',
     modes: ['manual', 'semiauto', 'fullauto'] as PublishMode[],
+    status: 'ready' as const,
   },
   youtube: {
     label: 'YouTube',
@@ -101,6 +104,7 @@ const PLATFORM_CONFIG = {
     color: '#FF0000',
     gradient: 'linear-gradient(135deg, #FF0000 0%, #CC0000 100%)',
     modes: ['manual', 'oauth'] as PublishMode[],
+    status: 'ready' as const,
   },
   ozon: {
     label: 'OZON',
@@ -109,6 +113,7 @@ const PLATFORM_CONFIG = {
     color: '#005BFF',
     gradient: 'linear-gradient(135deg, #005BFF 0%, #0094FF 100%)',
     modes: ['manual', 'semiauto'] as PublishMode[],
+    status: 'ready' as const,
   },
   xiaohongshu: {
     label: '小红书',
@@ -117,6 +122,62 @@ const PLATFORM_CONFIG = {
     color: '#E60023',
     gradient: 'linear-gradient(135deg, #E60023 0%, #FF6B6B 100%)',
     modes: ['manual', 'semiauto'] as PublishMode[],
+    status: 'ready' as const,
+  },
+  // 新增：social-auto-upload 平台
+  douyin: {
+    label: '抖音',
+    sublabel: '短视频/图文发布',
+    icon: Music,
+    color: '#000000',
+    gradient: 'linear-gradient(135deg, #000000 0%, #333333 100%)',
+    modes: ['manual'] as PublishMode[],
+    status: 'sau' as const,
+  },
+  kuaishou: {
+    label: '快手',
+    sublabel: '短视频/图文发布',
+    icon: Camera,
+    color: '#FF6B00',
+    gradient: 'linear-gradient(135deg, #FF6B00 0%, #FF9500 100%)',
+    modes: ['manual'] as PublishMode[],
+    status: 'sau' as const,
+  },
+  bilibili: {
+    label: 'B站',
+    sublabel: '视频投稿发布',
+    icon: Tv,
+    color: '#00A1D6',
+    gradient: 'linear-gradient(135deg, #00A1D6 0%, #00D6FF 100%)',
+    modes: ['manual'] as PublishMode[],
+    status: 'sau' as const,
+  },
+  baijiahao: {
+    label: '百家号',
+    sublabel: '视频发布',
+    icon: Radio,
+    color: '#D32F2F',
+    gradient: 'linear-gradient(135deg, #D32F2F 0%, #FF5252 100%)',
+    modes: ['manual'] as PublishMode[],
+    status: 'sau' as const,
+  },
+  shipinhao: {
+    label: '视频号',
+    sublabel: '微信视频发布',
+    icon: Smartphone,
+    color: '#07C160',
+    gradient: 'linear-gradient(135deg, #07C160 0%, #00E676 100%)',
+    modes: ['manual'] as PublishMode[],
+    status: 'sau' as const,
+  },
+  tiktok_global: {
+    label: 'TikTok',
+    sublabel: '国际版视频发布',
+    icon: Film,
+    color: '#FF0050',
+    gradient: 'linear-gradient(135deg, #FF0050 0%, #E00040 100%)',
+    modes: ['manual'] as PublishMode[],
+    status: 'sau' as const,
   },
 };
 
@@ -189,6 +250,7 @@ function PlatformCard({
 }) {
   const cfg = PLATFORM_CONFIG[platform];
   const Icon = cfg.icon;
+  const isSau = cfg.status === 'sau';
   return (
     <button
       onClick={onClick}
@@ -201,8 +263,18 @@ function PlatformCard({
         cursor: 'pointer', minWidth: 110,
         transition: 'all 0.2s ease',
         boxShadow: active ? '0 4px 20px ' + cfg.color + '40' : 'none',
+        position: 'relative',
       }}
     >
+      {isSau && !active && (
+        <span style={{
+          position: 'absolute', top: -6, right: -6,
+          fontSize: 8, padding: '1px 5px', borderRadius: 6,
+          background: '#6366F1', color: '#fff', fontWeight: 700,
+        }}>
+          SAU
+        </span>
+      )}
       <Icon size={22} color={active ? '#fff' : '#64748b'} />
       <span style={{
         fontSize: 13, fontWeight: 700,
@@ -434,7 +506,7 @@ export default function PublishPage() {
       const res = await api.accounts.list();
       const data = Array.isArray(res) ? res : (res?.data || []);
       const mapped: Account[] = data
-        .filter((a: any) => ['tiktok', 'tiktok_shop', 'tiktok_web', 'youtube', 'ozon', 'xiaohongshu'].includes(a.platform))
+        .filter((a: any) => ['tiktok', 'tiktok_shop', 'tiktok_web', 'youtube', 'ozon', 'xiaohongshu', 'douyin', 'kuaishou', 'bilibili', 'baijiahao', 'shipinhao', 'tiktok_global'].includes(a.platform))
         .map((a: any) => {
           // 统一 platform 映射：数据库存 tiktok → UI 显示 tiktok_shop
           let normalizedPlatform = a.platform;
@@ -701,6 +773,26 @@ export default function PublishPage() {
         setTasks(prev => prev.map(t => t.id === task.id ? {
           ...t, status: 'success', result: '发布成功'
         } : t));
+      } else if (['douyin', 'kuaishou', 'bilibili', 'baijiahao', 'shipinhao', 'tiktok_global'].includes(platform)) {
+        // social-auto-upload 平台：通过 publishQueue 创建任务，由 AI 调用 sau CLI 执行
+        // 创建 publishQueue 任务
+        // 对于 SAU 平台，如果选了视频则传 videoPath
+        const publishPayload: any = {
+          platform,
+          title: form.title,
+          content: form.description,
+          tags: form.tags ? form.tags.split(/[,，\s]+/).filter((t: string) => t.trim()) : [],
+          images: previews,
+        };
+        // 如果有视频路径传入
+        if (form.videoPath) {
+          publishPayload.videoPath = form.videoPath;
+        }
+        const taskRes = await api.publishQueue?.create?.(publishPayload);
+        setTasks(prev => prev.map(t => t.id === task.id ? {
+          ...t, status: 'running', result: taskRes?.data?.taskId || '任务已创建'
+        } : t));
+        setPublishMsg({ type: 'info', text: '📤 发布任务已提交，AI 客服将调用 sau CLI 自动执行' });
       } else {
         // TikTok Shop / Web
         const res = await api.browser.tiktok.publish({
@@ -789,11 +881,11 @@ export default function PublishPage() {
 
       {/* 平台切换 */}
       <div style={{
-        display: 'flex', gap: 12, marginBottom: 24,
+        display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap',
         padding: '16px 20px',
         background: '#1A1D27', borderRadius: 14, border: '1px solid #e2e8f0'
       }}>
-        {(['tiktok_shop', 'tiktok_web', 'youtube', 'ozon', 'xiaohongshu'] as Platform[]).map(p => (
+        {(['tiktok_shop', 'tiktok_web', 'youtube', 'ozon', 'xiaohongshu', 'douyin', 'kuaishou', 'bilibili', 'baijiahao', 'shipinhao', 'tiktok_global'] as Platform[]).map(p => (
           <PlatformCard
             key={p}
             platform={p}

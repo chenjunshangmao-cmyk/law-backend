@@ -3,85 +3,68 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AIChatWidget from './AIChatWidget';
 import {
-  LayoutDashboard, 
-  TrendingUp, 
-  Package,
-  Store,
-  Calculator,
-  Crown,
-  Settings,
-  Menu,
-  X,
-  LogOut,
-  User,
-  Globe,
-  Sparkles,
-  ChevronDown,
-  ChevronRight,
-  MessageCircle,
-  Youtube,
-  PenLine,
-  Clapperboard,
-  Radio,
-  Server,
-  Facebook,
-  Headset,
-  ShoppingCart,
-  BarChart3,
-  Zap,
-  ChevronUp
+  LayoutDashboard, TrendingUp, Package, Store, Calculator,
+  Crown, Settings, Menu, X, LogOut, User, Globe, Sparkles,
+  ChevronDown, ChevronRight, MessageCircle, Youtube, PenLine,
+  Clapperboard, Radio, Server, Facebook, Headset,
+  ShoppingCart, BarChart3, Zap, ChevronUp, BookOpen, Gift,
+  Shield
 } from 'lucide-react';
 
 // 侧边栏分组
 const NAV_GROUPS = [
   {
-    label: '核心工具',
+    label: '⚡ 常用',
     items: [
       { path: '/dashboard',   icon: LayoutDashboard, label: '工作台', color: 'text-blue-500', badge: '' },
-      { path: '/trending',    icon: TrendingUp,      label: 'AI选品', color: 'text-red-500', badge: 'NEW' },
+      { path: '/trending',    icon: TrendingUp,      label: 'AI选品', color: 'text-red-500', badge: '' },
+      { path: '/ozon-publish', icon: Globe,           label: 'OZON发布', color: 'text-blue-600', badge: '' },
+      { path: '/customer-service', icon: Headset,   label: 'AI客服', color: 'text-violet-600', badge: '🔥' },
+    ]
+  },
+  {
+    label: '📦 商品',
+    collapsed: false,
+    items: [
       { path: '/products',    icon: Package,         label: '产品库', color: 'text-emerald-500', badge: '' },
       { path: '/digital-shop', icon: ShoppingCart,   label: '数字商品', color: 'text-pink-500', badge: '' },
-    ]
-  },
-  {
-    label: '发布与营销',
-    items: [
-      { path: '/accounts',    icon: Store,           label: '店铺账号', color: 'text-indigo-500', badge: '' },
-      { path: '/ozon-publish', icon: Globe,           label: 'OZON发布', color: 'text-blue-600', badge: '' },
-      { path: '/articles',    icon: BarChart3,       label: '外贸干货', color: 'text-violet-500', badge: '' },
-      { path: '/ads',         icon: Zap,             label: '广告采集', color: 'text-amber-500', badge: '' },
       { path: '/calculator',  icon: Calculator,      label: '利润计算', color: 'text-green-500', badge: '' },
+      { path: '/ads',         icon: Zap,             label: '广告采集', color: 'text-amber-500', badge: '' },
     ]
   },
   {
-    label: 'AI 创作',
-    collapsed: true,
-    items: [
-      { path: '/ai-content',     icon: Sparkles,     label: 'AI智能图文', color: 'text-fuchsia-500', badge: '' },
-      { path: '/writer',         icon: PenLine,      label: 'AI文案', color: 'text-sky-500', badge: '' },
-      { path: '/avatar',         icon: User,          label: 'AI数字人', color: 'text-violet-500', badge: '' },
-      { path: '/live-stream',    icon: Radio,         label: 'AI直播', color: 'text-red-500', badge: '' },
-      { path: '/video-factory',  icon: Clapperboard,  label: '短视频工场', color: 'text-rose-500', badge: '' },
-      { path: '/novel-factory',  icon: BarChart3,     label: '小说工场', color: 'text-purple-600', badge: '' },
-      { path: '/ai-tools',       icon: Sparkles,     label: 'AI工具箱', color: 'text-cyan-500', badge: '' },
-    ]
-  },
-  {
-    label: '社媒与客服',
+    label: '🌐 社媒',
     collapsed: true,
     items: [
       { path: '/whatsapp',         icon: MessageCircle, label: 'WhatsApp', color: 'text-green-500', badge: '' },
       { path: '/facebook',         icon: Facebook,       label: 'Facebook', color: 'text-blue-600', badge: '' },
       { path: '/youtube',          icon: Youtube,        label: 'YouTube', color: 'text-red-600', badge: '' },
-      { path: '/customer-service', icon: Headset,       label: 'AI客服', color: 'text-violet-600', badge: '' },
+      { path: '/articles',         icon: BarChart3,     label: '外贸干货', color: 'text-violet-500', badge: '' },
+      { path: '/accounts',         icon: Store,         label: '店铺账号', color: 'text-indigo-500', badge: '' },
     ]
   },
   {
-    label: '系统',
+    label: '🎨 AI 创作',
+    collapsed: true,
+    items: [
+      { path: '/ai-content',     icon: Sparkles,     label: 'AI智能图文', color: 'text-fuchsia-500', badge: '' },
+      { path: '/writer',         icon: PenLine,      label: 'AI文案', color: 'text-sky-500', badge: '' },
+      { path: '/novel-factory',  icon: BookOpen,     label: '小说工场', color: 'text-purple-600', badge: 'new' },
+      { path: '/avatar',         icon: User,          label: 'AI数字人', color: 'text-violet-500', badge: '' },
+      { path: '/live-stream',    icon: Radio,         label: 'AI直播', color: 'text-red-500', badge: '' },
+      { path: '/video-factory',  icon: Clapperboard,  label: '短视频工场', color: 'text-rose-500', badge: '' },
+      { path: '/ai-tools',       icon: Sparkles,     label: 'AI工具箱', color: 'text-cyan-500', badge: '' },
+    ]
+  },
+  {
+    label: '⚙️ 系统',
     collapsed: true,
     items: [
       { path: '/membership',  icon: Crown,    label: '会员中心', color: 'text-yellow-500', badge: '' },
+      { path: '/invite',      icon: Gift,      label: '邀请好友', color: 'text-pink-500', badge: '' },
       { path: '/ai-gateway',  icon: Server,   label: 'AI网关', color: 'text-violet-500', badge: '', adminOnly: true },
+      { path: '/admin-membership', icon: Shield, label: '会员开关', color: 'text-indigo-500', badge: '', adminOnly: true },
+      { path: '/ad-analytics', icon: BarChart3, label: '广告分析', color: 'text-emerald-500', badge: '' },
       { path: '/settings',    icon: Settings, label: '设置', color: 'text-gray-500', badge: '' },
     ]
   },
@@ -184,6 +167,8 @@ export default function ModernLayout() {
         {/* 导航 */}
         <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
           {NAV_GROUPS.map(group => {
+            // 整体分组隐藏（如果adminOnly=true且非管理员）
+            if (group.adminOnly && !isAdmin) return null;
             const visibleItems = group.items.filter(item => !item.adminOnly || isAdmin);
             if (visibleItems.length === 0) return null;
             const isCollapsed = collapsedGroups[group.label];

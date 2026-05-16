@@ -202,12 +202,7 @@ export default function ModernLogin() {
                   使用 Google 账号登录
                 </button>
 
-                {/* 测试账户提示 */}
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-700">
-                    💡 测试账户：admin@claw.com / admin123
-                  </p>
-                </div>
+                {/* 测试账户提示 - 已移除 */}
               </form>
 
               {/* 注册提示 */}

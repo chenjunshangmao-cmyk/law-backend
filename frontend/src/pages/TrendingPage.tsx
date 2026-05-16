@@ -128,7 +128,27 @@ function DimensionBar({ dim }: { dim: DimensionScore }) {
 /** 爆款单品结果卡片 */
 function ProductResultCard({ product, index }: { product: PickingProduct; index: number }) {
   const [expanded, setExpanded] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [pubResult, setPubResult] = useState<{success:boolean; message:string} | null>(null);
   const mainColor = product.burstProbability >= 85 ? '#10b981' : product.burstProbability >= 70 ? '#6366f1' : '#f59e0b';
+
+  const getToken = () => localStorage.getItem('token') || sessionStorage.getItem('token');
+
+  /** 一键发布到OZON */
+  async function publishToOzon(accountId: string) {
+    setPublishing(true); setPubResult(null);
+    try {
+      const res = await fetch('/api/ozon-publish/auto-publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+        body: JSON.stringify({ accountId, product })
+      });
+      const data = await res.json();
+      setPubResult({ success: data.success, message: data.success ? data.data.message : data.error });
+    } catch (e: any) {
+      setPubResult({ success: false, message: e.message || '发布失败' });
+    } finally { setPublishing(false); }
+  }
 
   return (
     <div style={{
@@ -213,6 +233,37 @@ function ProductResultCard({ product, index }: { product: PickingProduct; index:
           </div>
         </div>
       )}
+
+      {/* 一键发布到OZON按钮 */}
+      <div style={{ padding: '8px 16px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 11, color: '#888', alignSelf: 'center' }}>🚀 发布到：</div>
+        <button onClick={() => publishToOzon('qiming-trading')} disabled={publishing} style={{
+          padding: '5px 10px', fontSize: 11, borderRadius: 6, border: '1px solid #6366f1',
+          background: publishing ? '#eef2ff' : '#fff', color: '#6366f1', fontWeight: 600,
+          cursor: publishing ? 'not-allowed' : 'pointer',
+        }}>
+          {publishing ? '⏳ 发布中...' : '🇷🇺 qiming Trading'}
+        </button>
+        <button onClick={() => publishToOzon('chenjun-trading')} disabled={publishing} style={{
+          padding: '5px 10px', fontSize: 11, borderRadius: 6, border: '1px solid #6366f1',
+          background: publishing ? '#eef2ff' : '#fff', color: '#6366f1', fontWeight: 600,
+          cursor: publishing ? 'not-allowed' : 'pointer',
+        }}>
+          Chenjun Trading
+        </button>
+        <button onClick={() => publishToOzon('chenjun-mall')} disabled={publishing} style={{
+          padding: '5px 10px', fontSize: 11, borderRadius: 6, border: '1px solid #6366f1',
+          background: publishing ? '#eef2ff' : '#fff', color: '#6366f1', fontWeight: 600,
+          cursor: publishing ? 'not-allowed' : 'pointer',
+        }}>
+          Chenjun Mall
+        </button>
+        {pubResult && (
+          <div style={{ fontSize: 11, padding: '4px 8px', borderRadius: 4, background: pubResult.success ? '#ecfdf5' : '#fef2f2', color: pubResult.success ? '#065f46' : '#991b1b' }}>
+            {pubResult.success ? '✅ ' : '❌ '}{pubResult.message}
+          </div>
+        )}
+      </div>
 
       {/* 展开详情 */}
       <div style={{ padding: '8px 16px' }}>
