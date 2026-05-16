@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, MessageCircle, Youtube, PenLine,
   Clapperboard, Radio, Server, Facebook, Headset,
   ShoppingCart, BarChart3, Zap, ChevronUp, BookOpen, Gift,
-  Shield
+  Shield, Send, Rocket
 } from 'lucide-react';
 
 // 侧边栏分组
@@ -20,6 +20,14 @@ const NAV_GROUPS = [
       { path: '/trending',    icon: TrendingUp,      label: 'AI选品', color: 'text-red-500', badge: '' },
       { path: '/ozon-publish', icon: Globe,           label: 'OZON发布', color: 'text-blue-600', badge: '' },
       { path: '/customer-service', icon: Headset,   label: 'AI客服', color: 'text-violet-600', badge: '🔥' },
+      { path: '/publish',          icon: Send,    label: '社媒发布', color: 'text-orange-500', badge: '' },
+    ]
+  },
+  {
+    label: '🔧 工具',
+    collapsed: false,
+    items: [
+      { path: '/saas-builder', icon: Rocket, label: '极速建站', color: 'text-cyan-500', badge: 'new' },
     ]
   },
   {
