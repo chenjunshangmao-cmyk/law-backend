@@ -551,4 +551,95 @@ async function saveImageToFile(userId, base64Data, index) {
   };
 }
 
+// SAU项目根路径
+const SAU_BASE = 'C:/Users/Administrator/.openclaw/workspace/engines/social-auto-upload';
+
+// ========== API: SAU执行发布 ==========
+// POST /api/publish-queue/execute-sau
+router.post('/execute-sau', async (req, res) => {
+  try {
+    const { agentToken, platform, title, content, images, videoPath, tags } = req.body;
+    if ((process.env.AGENT_TOKEN || 'claw-agent-2026') !== agentToken) {
+      return res.status(401).json({ success: false, error: 'Agent 认证失败' });
+    }
+
+    // 保存图片
+    const imageFiles = [];
+    const mediaDir = SAU_BASE + '/media';
+    if (!fs.existsSync(mediaDir)) { fs.mkdirSync(mediaDir, { recursive: true }); }
+    
+    if (images && Array.isArray(images)) {
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        if (typeof img === 'string' && img.startsWith('data:')) {
+          const m = img.match(/^data:(.+);base64,(.+)$/);
+          if (m) {
+            const p = mediaDir + '/img_' + Date.now() + '_' + i + '.' + (m[1].split('/')[1] || 'jpg');
+            fs.writeFileSync(p, Buffer.from(m[2], 'base64'));
+            imageFiles.push(p);
+          }
+        } else if (typeof img === 'string') {
+          imageFiles.push(img);
+        }
+      }
+    }
+
+    // 保存视频
+    let vPath = null;
+    if (videoPath) {
+      if (videoPath.startsWith('data:')) {
+        const m = videoPath.match(/^data:(.+);base64,(.+)$/);
+        if (m) {
+          vPath = mediaDir + '/vid_' + Date.now() + '.mp4';
+          fs.writeFileSync(vPath, Buffer.from(m[2], 'base64'));
+        }
+      } else { vPath = videoPath; }
+    }
+
+    // 调sau_exec.py
+    const { spawn } = await import('child_process');
+    const script = SAU_BASE + '/sau_exec.py';
+    const argList = [script, '--platform', platform, '--title', title || '', '--content', content || '', '--action', 'publish', '--output', mediaDir + '/res_' + Date.now() + '.json'];
+    if (imageFiles.length) argList.push('--images', imageFiles.join(','));
+    if (vPath) argList.push('--video', vPath);
+    if (tags && tags.length) argList.push('--tags', tags.join(','));
+
+    // 代理设定：海外平台走代理，国内直连
+    // 海外平台（需要翻墙的）：tiktok_global, xiaohongshu, youtube, facebook, instagram 等
+    const overseasPlatforms = ['tiktok_global', 'tiktok_web', 'youtube', 'facebook', 'instagram', 'twitter'];
+    const needsProxy = overseasPlatforms.includes(platform);
+    const proxyUrl = process.env.BROWSER_PROXY || '';
+    
+    const py = fs.existsSync(SAU_BASE + '/.venv/Scripts/python.exe') ? SAU_BASE + '/.venv/Scripts/python.exe' : (fs.existsSync('C:/Python314/python.exe') ? 'C:/Python314/python.exe' : 'python');
+    
+    const r = await new Promise((resolve, reject) => {
+      const env = { ...process.env };
+      if (needsProxy && proxyUrl) {
+        env.HTTP_PROXY = proxyUrl;
+        env.HTTPS_PROXY = proxyUrl;
+        env.http_proxy = proxyUrl;
+        env.https_proxy = proxyUrl;
+      } else {
+        delete env.HTTP_PROXY;
+        delete env.HTTPS_PROXY;
+        delete env.http_proxy;
+        delete env.https_proxy;
+      }
+      const p = spawn(py, argList, { cwd: SAU_BASE, timeout: 120000, stdio: ['pipe', 'pipe', 'pipe'], env });
+      let so = '', se = '';
+      p.stdout.on('data', d => so += d);
+      p.stderr.on('data', d => se += d);
+      p.on('close', c => resolve({ code: c, stdout: so, stderr: se }));
+      p.on('error', e => reject(e));
+    });
+
+    if (r.code === 0) {
+      return res.json({ success: true, platform, message: 'SAU ' + platform + ' 发布执行完成' });
+    }
+    return res.status(500).json({ success: false, error: 'SAU退出码 ' + r.code, detail: r.stderr.substring(0, 500) });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 export default router;
