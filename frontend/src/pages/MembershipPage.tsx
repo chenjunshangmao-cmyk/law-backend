@@ -7,13 +7,22 @@ import { PaymentOrder } from '../types';
 
 const PLANS = [
   {
+    id: 'free',
+    name: '免费版',
+    price: 0,
+    priceUnit: '',
+    icon: Zap,
+    color: 'gray',
+    features: ['🎬 短视频：3条试用', '✍️ 文案工厂：3篇试用', '🤖 AI数字人：不可用', '💬 WhatsApp中继：1条（7天试用）', '✂️ AI抠图：5张/月', '📊 利润计算器：2次/天', '适合：免费体验'],
+  },
+  {
     id: 'basic',
     name: '基础版',
     price: 199,
     priceUnit: '/月',
     icon: Zap,
     color: 'blue',
-    features: ['短视频工厂：30条/月', 'AI文案工厂：50篇/月', 'WhatsApp中继：50条', 'AI抠图：50张/月', '去水印：20张/月', '利润计算器：5次/天'],
+    features: ['🎬 短视频工厂：30条/月', '✍️ AI文案工厂：50篇/月', '🤖 AI数字人：不可用', '💬 WhatsApp中继：2条', '✂️ AI抠图：50张/月', '💧 AI去水印：20张/月', '📊 利润计算器：5次/天', '适合：个人卖家试水'],
   },
   {
     id: 'premium',
@@ -23,7 +32,7 @@ const PLANS = [
     icon: Crown,
     color: 'purple',
     popular: true,
-    features: ['短视频工厂：100条/月', 'AI文案：200篇+直播脚本', 'AI数字人：1频道(录制)', 'WhatsApp中继：200条', 'AI抠图+去水印：无限', '平台发布：TikTok+OZON'],
+    features: ['🎬 短视频工厂：100条/月', '✍️ AI文案：200篇+直播脚本', '🤖 AI数字人：1频道（录制模式）', '💬 WhatsApp中继：10条', '✂️ AI抠图+去水印：无限制', '📊 利润计算器：无限制', '📤 平台发布：TikTok+OZON', '适合：单平台出海卖家'],
   },
   {
     id: 'enterprise',
@@ -32,7 +41,7 @@ const PLANS = [
     priceUnit: '/月',
     icon: Building2,
     color: 'amber',
-    features: ['短视频工厂：300条+连续剧', 'AI文案：500篇+小说连载', 'AI数字人：3频道(实时)', 'WhatsApp中继：500条', '全平台发布', '利润计算器：无限'],
+    features: ['🎬 短视频工厂：300条+连续剧', '✍️ AI文案：500篇+小说连载', '🤖 AI数字人：3频道（实时直播）', '💬 WhatsApp中继：50条', '✂️ AI抠图+去水印：无限制', '📊 利润计算器：无限制', '📤 平台发布：全部平台', '适合：多平台运营团队'],
   },
   {
     id: 'flagship',
@@ -41,7 +50,7 @@ const PLANS = [
     priceUnit: '/月',
     icon: Crown,
     color: 'red',
-    features: ['三大系统全部无限制', 'AI数字人：5频道+定制3套', 'AI文案：无限+长篇小说', 'WhatsApp中继：无限制', '全平台+自动排期', '7x24专属客服+定制开发'],
+    features: ['🎬 短视频工厂：无限制+连续剧', '✍️ AI文案：无限制+长篇小说', '🤖 AI数字人：5频道+定制形象3套', '💬 WhatsApp中继：100条', '✂️ AI抠图+去水印：无限制', '📊 利润计算器：无限制+API对接', '📤 全平台发布+自动排期', '🎧 7x24专属客服+定制开发', '适合：全球多平台大卖家'],
   },
 ];
 
@@ -701,8 +710,8 @@ export default function MembershipPage() {
         </div>
       )}
 
-      {/* 套餐卡片 */}
-      <div className="grid gap-6 md:grid-cols-3">
+      {/* 套餐卡片：免费版占一排，付费版三列 */}
+      <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-5">
         {PLANS.map(plan => {
           const Icon = plan.icon;
           const isCurrentPlan = currentPlan === plan.id && !isExpired;
@@ -743,7 +752,7 @@ export default function MembershipPage() {
                 ))}
               </ul>
               
-              {!isCurrentPlan && (
+              {!isCurrentPlan && plan.id !== 'free' && (
                 <div className="space-y-2">
                   <button
                     onClick={() => handleShouqianbaPay(plan.id, plan.price, plan.name)}
@@ -760,6 +769,11 @@ export default function MembershipPage() {
                     <Coins className="w-4 h-4" />
                     {loading && selectedPlan === plan.id ? '处理中...' : 'USDT'}
                   </button>
+                </div>
+              )}
+              {plan.id === 'free' && (
+                <div className="text-center mt-6">
+                  <span className="text-sm text-gray-400">已默认开启，无需付费</span>
                 </div>
               )}
             </div>

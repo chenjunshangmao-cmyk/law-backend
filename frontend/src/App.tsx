@@ -11,10 +11,13 @@ const DashboardPage      = lazy(() => import('./pages/DashboardPage'));
 const TrendingPage       = lazy(() => import('./pages/TrendingPage'));
 const SmartPublishPage   = lazy(() => import('./pages/PublishPage'));
 const AdCollectionPage   = lazy(() => import('./pages/AdCollectionPage'));
+const AdAnalyticsPage    = lazy(() => import('./pages/AdAnalyticsPage'));
 const ProductsPage       = lazy(() => import('./pages/ProductsPage'));
 const AccountsPage       = lazy(() => import('./pages/AccountsPage'));
 const MembershipPage     = lazy(() => import('./pages/MembershipPage'));
+const InvitePage         = lazy(() => import('./pages/InvitePage'));
 const ServicesPage       = lazy(() => import('./pages/ServicesPage'));
+const ShowcasePage       = lazy(() => import('./pages/ShowcasePage'));
 const CalculatorPage     = lazy(() => import('./pages/CalculatorPage'));
 const SettingsPage       = lazy(() => import('./pages/SettingsPage'));
 const TikTokPage          = lazy(() => import('./pages/TikTokPage'));
@@ -34,6 +37,7 @@ const FacebookPage          = lazy(() => import('./pages/FacebookPage'));
 const CustomerServicePage    = lazy(() => import('./pages/CustomerServicePage'));
 const LiveStreamPage        = lazy(() => import('./pages/LiveStreamPage'));
 const AIGatewayPage         = lazy(() => import('./pages/AIGatewayPage'));
+const AdminTogglesPage       = lazy(() => import('./pages/AdminTogglesPage'));
 const ArticlesPage          = lazy(() => import('./pages/ArticlesPage'));
 const ArticleDetailPage     = lazy(() => import('./pages/ArticleDetailPage'));
 const DigitalShopPage       = lazy(() => import('./pages/DigitalShopPage'));
@@ -129,10 +133,13 @@ function AppRoutes() {
         <Route path="trending"       element={<Suspense fallback={<PageLoading />}><TrendingPage /></Suspense>} />
         <Route path="publish"        element={<Suspense fallback={<PageLoading />}><SmartPublishPage /></Suspense>} />
         <Route path="ads"            element={<Suspense fallback={<PageLoading />}><AdCollectionPage /></Suspense>} />
+        <Route path="ad-analytics"   element={<Suspense fallback={<PageLoading />}><AdAnalyticsPage /></Suspense>} />
         <Route path="products"       element={<Suspense fallback={<PageLoading />}><ProductsPage /></Suspense>} />
         <Route path="accounts"       element={<Suspense fallback={<PageLoading />}><AccountsPage /></Suspense>} />
         <Route path="membership"     element={<Suspense fallback={<PageLoading />}><MembershipPage /></Suspense>} />
+        <Route path="invite"        element={<Suspense fallback={<PageLoading />}><InvitePage /></Suspense>} />
         <Route path="services"       element={<Suspense fallback={<PageLoading />}><ServicesPage /></Suspense>} />
+        <Route path="showcase"      element={<Suspense fallback={<PageLoading />}><ShowcasePage /></Suspense>} />
         <Route path="calculator"     element={<Suspense fallback={<PageLoading />}><ErrorBoundary><CalculatorPage /></ErrorBoundary></Suspense>} />
         <Route path="settings"       element={<Suspense fallback={<PageLoading />}><SettingsPage /></Suspense>} />
         <Route path="tiktok"         element={<Suspense fallback={<PageLoading />}><TikTokPage /></Suspense>} />
@@ -151,6 +158,7 @@ function AppRoutes() {
         <Route path="customer-service" element={<Suspense fallback={<PageLoading />}><CustomerServicePage /></Suspense>} />
         <Route path="live-stream"    element={<Suspense fallback={<PageLoading />}><LiveStreamPage /></Suspense>} />
         <Route path="ai-gateway"     element={<Suspense fallback={<PageLoading />}><AIGatewayPage /></Suspense>} />
+        <Route path="admin-membership" element={<Suspense fallback={<PageLoading />}><AdminTogglesPage /></Suspense>} />
         <Route path="articles"       element={<Suspense fallback={<PageLoading />}><ArticlesPage /></Suspense>} />
         <Route path="articles/:slug" element={<Suspense fallback={<PageLoading />}><ArticleDetailPage /></Suspense>} />
         <Route path="novel-factory"  element={<Suspense fallback={<PageLoading />}><NovelFactoryPage /></Suspense>} />

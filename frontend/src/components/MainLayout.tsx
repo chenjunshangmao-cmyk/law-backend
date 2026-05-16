@@ -10,7 +10,7 @@ const NAV_ITEMS = [
   { path: '/ads',         icon: '📢', label: '广告采集' },
   { path: '/products',    icon: '📦', label: '产品管理' },
   { path: '/accounts',    icon: '🏪', label: '店铺账号' },
-  { path: '/services',    icon: '💼', label: '业务服务' },
+  { path: '/showcase',    icon: '💎', label: '饰品供应链' }, // v3
   { path: '/calculator',  icon: '💰', label: '利润计算' },
   { path: '/membership',  icon: '⭐', label: '会员中心' },
   { path: '/settings',    icon: '⚙️', label: '设置' },
