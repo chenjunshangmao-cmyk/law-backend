@@ -18,10 +18,8 @@ const NAV_GROUPS = [
     items: [
       { path: '/dashboard',   icon: LayoutDashboard, label: '工作台', color: 'text-blue-500', badge: '' },
       { path: '/trending',    icon: TrendingUp,      label: 'AI选品', color: 'text-red-500', badge: '' },
-      { path: '/publish',     icon: Zap,             label: '社媒发布', color: 'text-fuchsia-500', badge: '11' },
       { path: '/ozon-publish', icon: Globe,           label: 'OZON发布', color: 'text-blue-600', badge: '' },
       { path: '/customer-service', icon: Headset,   label: 'AI客服', color: 'text-violet-600', badge: '🔥' },
-      { path: '/saas-builder', icon: Globe,          label: '极速建站', color: 'text-indigo-500', badge: 'new' },
     ]
   },
   {
