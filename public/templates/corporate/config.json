@@ -1,0 +1,41 @@
+{
+  "COMPANY_NAME": "您的公司名称",
+  "COMPANY_LOGO": "您的品牌名",
+  "COMPANY_DESC": "公司一句话介绍（SEO用）",
+  "HERO_TAGLINE": "用一句话打动客户",
+  "HERO_DESC": "详细说明您能为客户解决什么问题。20-40字最佳。",
+  "SERVICES_SUBTITLE": "我们提供专业的解决方案，助力您的业务增长",
+  "SERVICES_CARDS": [
+    {
+      "icon": "🚀",
+      "title": "服务一",
+      "desc": "描述这项服务的核心价值，客户能获得什么好处"
+    },
+    {
+      "icon": "💡",
+      "title": "服务二",
+      "desc": "描述这项服务的核心价值，客户能获得什么好处"
+    },
+    {
+      "icon": "🔧",
+      "title": "服务三",
+      "desc": "描述这项服务的核心价值，客户能获得什么好处"
+    }
+  ],
+  "STATS": [
+    { "number": "100+", "label": "服务客户" },
+    { "number": "99%", "label": "客户满意度" },
+    { "number": "10+", "label": "行业经验" },
+    { "number": "24h", "label": "极速响应" }
+  ],
+  "ABOUT_IMAGE": "https://via.placeholder.com/600x400?text=About+Us",
+  "ABOUT_TITLE": "关于我们",
+  "ABOUT_DESC": "公司介绍第一段。讲述公司成立背景、使命、愿景。",
+  "ABOUT_DESC_2": "公司介绍第二段。可以补充核心优势、团队实力等。",
+  "CONTACT_SUBTITLE": "欢迎随时联系我们，期待与您的合作",
+  "CONTACT_ADDRESS": "山东省青岛市XX区XX路XX号",
+  "CONTACT_PHONE": "138-0000-0000",
+  "CONTACT_EMAIL": "contact@example.com",
+  "CONTACT_WECHAT": "微信号：yourwechat",
+  "YEAR": "2026"
+}

@@ -521,14 +521,32 @@ router.post('/upgrade', authenticateToken, async (req, res) => {
 
     const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
 
-    // 尝试更新 PostgreSQL 中的用户计划
+    // 先尝试 PostgreSQL（如果连得上）
+    let pgSuccess = false;
     try {
       await pool.query(
         'UPDATE users SET membership_type = $1, membership_expires_at = $2, updated_at = NOW() WHERE id::text = $3',
         [plan, new Date(expiresAt), String(req.userId)]
       );
+      pgSuccess = true;
     } catch (err) {
-      console.warn('[会员] PostgreSQL更新失败:', err.message);
+      console.warn('[会员] PostgreSQL更新失败，使用JSON降级:', err.message);
+    }
+
+    // JSON 降级：无论 PostgreSQL 是否成功，同步写入 JSON
+    try {
+      const { readData, writeData } = await import('../services/dataStore.js');
+      const users = readData('users') || [];
+      const idx = users.findIndex(u => u.id === req.userId);
+      if (idx >= 0) {
+        users[idx].plan = plan;
+        users[idx].expiresAt = expiresAt;
+        users[idx].upgradedAt = Date.now();
+        writeData('users', users);
+        console.log('[会员] JSON降级写入成功:', req.userId, plan);
+      }
+    } catch (jsonErr) {
+      console.warn('[会员] JSON降级写入失败:', jsonErr.message);
     }
 
     res.json({
@@ -557,71 +575,152 @@ router.post('/upgrade', authenticateToken, async (req, res) => {
  * 2. 找到最新有效订单，计算到期时间 paidUntil
  * 3. 更新用户 paidUntil 字段（会员截止日期）
  * 4. 根据4个开关决定当前会员等级
+ * 
+ * 兼容 PostgreSQL + JSON 双模式
  */
 router.post('/check-and-activate', async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { userId, manualActivate, manualExpiresAt } = req.body;
 
     if (!userId) {
       return res.status(400).json({ success: false, error: '缺少 userId' });
     }
 
-    // 先确保 users 表有 paid_until 字段（兼容未迁移的数据库）
+    // AI 手动激活：直接指定套餐和到期时间（不查订单）
+    if (manualActivate) {
+      const plan = manualActivate.plan || 'basic';
+      const expiresAt = manualExpiresAt || (Date.now() + 30 * 24 * 60 * 60 * 1000);
+      
+      // 尝试 PostgreSQL
+      try {
+        await pool.query(
+          `UPDATE users SET membership_type = $1, membership_expires_at = $2, updated_at = NOW() WHERE id::text = $3`,
+          [plan, new Date(expiresAt), String(userId)]
+        );
+      } catch (_) {}
+      
+      // JSON 降级
+      try {
+        const { readData, writeData } = await import('../services/dataStore.js');
+        const users = readData('users') || [];
+        const idx = users.findIndex(u => u.id === userId);
+        if (idx >= 0) {
+          users[idx].plan = plan;
+          users[idx].expiresAt = expiresAt;
+          writeData('users', users);
+        }
+      } catch (_) {}
+
+      console.log(`[AI客服] 🎯 手动激活用户 ${userId}: ${plan}，到期: ${new Date(expiresAt).toISOString()}`);
+      return res.json({ success: true, activated: true, plan, expiresAt, manual: true });
+    }
+
+    // === 自动模式：查付款订单 ===
+    let paidOrders = { rows: [] };
+    let pgConnected = false;
     try {
-      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS paid_until TIMESTAMP`);
-    } catch (_) {}
+      // 先确保 users 表有 paid_until 字段
+      try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS paid_until TIMESTAMP`); } catch (_) {}
+      
+      paidOrders = await pool.query(
+        `SELECT order_no, plan_type, plan_name, amount, paid_at FROM payment_orders WHERE user_id = $1 AND status = 'paid' ORDER BY paid_at DESC`,
+        [String(userId)]
+      );
+      pgConnected = paidOrders.rows && paidOrders.rows.length > 0;
+    } catch (_) { /* PostgreSQL不可用 */ }
 
-    // 查询该用户所有已支付订单，按时间倒序
-    const paidOrders = await pool.query(
-      `SELECT order_no, plan_type, plan_name, amount, paid_at
-       FROM payment_orders
-       WHERE user_id = $1 AND status = 'paid'
-       ORDER BY paid_at DESC`,
-      [String(userId)]
-    );
+    if (!pgConnected) {
+      // PostgreSQL 查不到，用 JSON 降级检查
+      try {
+        const { readData } = await import('../services/dataStore.js');
+        const users = readData('users') || [];
+        const user = users.find(u => u.id === userId);
+        
+        if (!user || !user.plan || user.plan === 'free') {
+          return res.json({ success: true, activated: false, plan: 'free', reason: '无付款记录' });
+        }
 
+        const expiresAt = user.expiresAt || 0;
+        const now = Date.now();
+        const GRACE_HOURS = 12; // 12小时宽限期
+        const isExpired = now > (expiresAt + GRACE_HOURS * 60 * 60 * 1000);
+
+        if (isExpired) {
+          // 过期→降级
+          user.plan = 'free';
+          delete user.expiresAt;
+          const { writeData } = await import('../services/dataStore.js');
+          writeData('users', users);
+          return res.json({ success: true, activated: false, plan: 'free', reason: '已过期，降级为免费版' });
+        }
+
+        return res.json({ success: true, activated: true, plan: user.plan, expiresAt });
+      } catch (jsonErr) {
+        return res.json({ success: false, error: '数据库不可用' });
+      }
+    }
+
+    // 有付款订单
     if (paidOrders.rows.length === 0) {
-      // 无付款记录，降级到 free
+      // 无付款记录，检查当前是否有会员
+      try {
+        const { readData, writeData } = await import('../services/dataStore.js');
+        const users = readData('users') || [];
+        const user = users.find(u => u.id === userId);
+        if (user && user.plan && user.plan !== 'free') {
+          // 有手工激活的会员，不降级
+          return res.json({ success: true, activated: true, plan: user.plan, reason: '手工激活会员' });
+        }
+      } catch (_) {}
+
       await pool.query(
         `UPDATE users SET membership_type = 'free', updated_at = NOW() WHERE id::text = $1`,
         [String(userId)]
       );
-      return res.json({
-        success: true,
-        activated: false,
-        plan: 'free',
-        reason: '无付款记录'
-      });
+      return res.json({ success: true, activated: false, plan: 'free', reason: '无付款记录' });
     }
 
     // 取最新有效订单，计算到期时间
     const latestOrder = paidOrders.rows[0];
-    // payment.db.js 使用 basic/premium/enterprise/flagship（无需映射）
     const planType = latestOrder.plan_type;
     const DURATION_DAYS = 30;
     const paidAt = new Date(latestOrder.paid_at);
     const paidUntil = new Date(paidAt.getTime() + DURATION_DAYS * 24 * 60 * 60 * 1000);
+    const GRACE_HOURS = 12;
+    const now = new Date();
+    const isExpired = now > new Date(paidUntil.getTime() + GRACE_HOURS * 60 * 60 * 1000);
 
-    // 4个会员开关：只有开关开启的套餐才能激活
-    const MEMBERSHIP_ENABLED = {
-      basic: true,
-      premium: true,
-      enterprise: true,
-      flagship: true
-    };
+    // 如果过期了且超过宽限期→降级
+    if (isExpired) {
+      await pool.query(
+        `UPDATE users SET membership_type = 'free', updated_at = NOW() WHERE id::text = $1`,
+        [String(userId)]
+      );
+      try {
+        const { readData, writeData } = await import('../services/dataStore.js');
+        const users = readData('users') || [];
+        const idx = users.findIndex(u => u.id === userId);
+        if (idx >= 0) { users[idx].plan = 'free'; delete users[idx].expiresAt; writeData('users', users); }
+      } catch (_) {}
+      return res.json({ success: true, activated: false, plan: 'free', reason: '已过期超过' + GRACE_HOURS + '小时' });
+    }
 
+    const MEMBERSHIP_ENABLED = { basic: true, premium: true, enterprise: true, flagship: true };
     const plan = MEMBERSHIP_ENABLED[planType] ? planType : 'free';
 
-    // 更新用户会员信息
+    // 更新 PostgreSQL
     await pool.query(
-      `UPDATE users SET
-        membership_type = $1,
-        membership_expires_at = $2,
-        paid_until = $2,
-        updated_at = NOW()
-       WHERE id::text = $3`,
+      `UPDATE users SET membership_type = $1, membership_expires_at = $2, paid_until = $2, updated_at = NOW() WHERE id::text = $3`,
       [plan, paidUntil, String(userId)]
     );
+
+    // 同步 JSON
+    try {
+      const { readData, writeData } = await import('../services/dataStore.js');
+      const users = readData('users') || [];
+      const idx = users.findIndex(u => u.id === userId);
+      if (idx >= 0) { users[idx].plan = plan; users[idx].expiresAt = paidUntil.getTime(); writeData('users', users); }
+    } catch (_) {}
 
     console.log(`[AI客服] ✅ 用户 ${userId} 会员已激活: ${plan}，到期: ${paidUntil.toISOString()}`);
 
