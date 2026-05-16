@@ -42,6 +42,30 @@ const SERVICES = [
     duration: '一次性项目，含一年维护'
   },
   {
+    id: 'saas-corporate',
+    name: '公司主页版',
+    description: '企业官网展示型 | AI自动生成文案和配图 | 适合小微企业/个体户/工作室',
+    price: 1800,
+    priceUnit: '/站',
+    icon: Building2,
+    color: 'purple',
+    popular: true,
+    features: ['AI自动生成公司文案', 'AI生成产品配图', '响应式设计/手机自适应', '香港节点免备案', '包域名+服务器', 'AI客服24小时在线', '免费维护1年'],
+    duration: '一次性付费，第二年1000/年'
+  },
+  {
+    id: 'saas-shop',
+    name: '商城版',
+    description: '完整电商独立站 | 商品管理+购物车+收款 | 适合有产品销售需求的商家',
+    price: 2800,
+    priceUnit: '/站',
+    icon: Zap,
+    color: 'violet',
+    popular: true,
+    features: ['公司主页版全部功能', '商品管理后台', '购物车+结算系统', '收钱吧/微信支付对接', 'USDT收款支持', '订单管理', '会员管理系统', '免费维护1年'],
+    duration: '一次性付费，第二年1500/年'
+  },
+  {
     id: 'youtube-live',
     name: 'YouTube 直播号',
     description: 'YouTube直播账号搭建与运营，海外直播带货，内容创作与粉丝增长',

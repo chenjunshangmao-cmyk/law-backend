@@ -1,4 +1,4 @@
-import{c as k,r as d,j as e,M as u,Z as A,h as W,b as g,G as E,g as $,d as j,S as f}from"./app.js";import{B as U}from"./bot-sPDmmRtA.js";import{M as C}from"./message-square-GPJo8LQ1.js";import{C as P}from"./clock-CS2w0mRu.js";import{A as v}from"./arrow-right-D6BzLyDH.js";import{S as B}from"./search-C-CvdF8Q.js";import{R as O}from"./refresh-cw-NS5xkf2q.js";import{P as z}from"./plus-CTFbwpWj.js";import{T as G}from"./trash-2-D_GfdIrD.js";import{C as y}from"./check-_y4VZ3uO.js";import{C as N}from"./copy-DKv_km_I.js";/**
+import{c as k,r as d,j as e,M as u,Z as A,i as W,b as g,G as E,h as $,d as j,S as f}from"./app.js";import{B as U}from"./bot-sPDmmRtA.js";import{M as C}from"./message-square-GPJo8LQ1.js";import{C as P}from"./clock-CS2w0mRu.js";import{A as v}from"./arrow-right-D6BzLyDH.js";import{S as B}from"./search-C-CvdF8Q.js";import{R as O}from"./refresh-cw-NS5xkf2q.js";import{P as z}from"./plus-CTFbwpWj.js";import{T as G}from"./trash-2-D_GfdIrD.js";import{C as y}from"./check-_y4VZ3uO.js";import{C as N}from"./copy-DKv_km_I.js";/**
  * @license lucide-react v0.441.0 - ISC
  *
  * This source code is licensed under the ISC license.
